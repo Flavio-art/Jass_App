@@ -4,7 +4,7 @@ Eine Flutter-App für das Schweizer Kartenspiel **Jass** – spielbar auf Androi
 
 ## Features
 
-- **Zwei Kartensets**: Französische Karten (♠♥♦♣) und Deutsche Karten (Schellen / Herz / Eichel / Schilten)
+- **Zwei Kartensets**: Französische Karten (♠️♥️♦️♣️) und Deutsche Karten (Schellen / Herz / Eichel / Schilten)
 - **Alle 8 Spielvarianten**:
   - ♥️♦️ Rot Trump / ♠♣ Schwarz Trump
   - ⬇️ Obenabe – Ass gewinnt
