@@ -160,7 +160,7 @@ class TrumpSelectionScreen extends StatelessWidget {
                       const SizedBox(width: 10),
                       Expanded(child: _ModeButton(
                         label: 'Molotof',
-                        subtitle: 'Kommt bald…',
+                        subtitle: '6=↓ · A=↑ · Farbe=Trumpf',
                         emoji: '💣',
                         color: Colors.deepOrange.shade900,
                         isAvailable: available.contains('molotof'),

@@ -12,6 +12,8 @@ class GameProvider extends ChangeNotifier {
   GameState _state = GameState.initial(cardType: CardType.french);
   bool _aiRunning = false;
   Timer? _clearTrickTimer;
+  // Molotof: Spieler-ID der Person die Oben/Unten bestimmt hat (gewinnt den Stich)
+  String? _molotofDeterminerForTrick;
 
   GameState get state => _state;
 
@@ -316,6 +318,10 @@ class GameProvider extends ChangeNotifier {
           retroScores['team2'] = (retroScores['team2'] ?? 0) + pts;
         }
       }
+      // Oben/Unten: Bestimmer gewinnt den aktuellen Stich automatisch
+      if (subMode == GameMode.oben || subMode == GameMode.unten) {
+        _molotofDeterminerForTrick = playerId;
+      }
       _state = _state.copyWith(
           molotofSubMode: subMode, trumpSuit: newTrump, teamScores: retroScores);
     }
@@ -344,14 +350,22 @@ class GameProvider extends ChangeNotifier {
     final trickNumber = _state.currentTrickNumber;
     final effectiveMode = _state.effectiveMode;
 
-    final winnerId = GameLogic.determineTrickWinner(
-      cards: trickCards,
-      playerIds: trickIds,
-      gameMode: _state.gameMode,
-      trumpSuit: _state.trumpSuit,
-      trickNumber: trickNumber,
-      molotofSubMode: _state.molotofSubMode,
-    );
+    // Molotof Oben/Unten: Bestimmer gewinnt den Stich automatisch
+    String winnerId;
+    if (_molotofDeterminerForTrick != null &&
+        trickIds.contains(_molotofDeterminerForTrick!)) {
+      winnerId = _molotofDeterminerForTrick!;
+      _molotofDeterminerForTrick = null;
+    } else {
+      winnerId = GameLogic.determineTrickWinner(
+        cards: trickCards,
+        playerIds: trickIds,
+        gameMode: _state.gameMode,
+        trumpSuit: _state.trumpSuit,
+        trickNumber: trickNumber,
+        molotofSubMode: _state.molotofSubMode,
+      );
+    }
 
     final trick = Trick(
       cards: Map.fromIterables(trickIds, trickCards),
