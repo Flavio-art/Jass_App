@@ -268,8 +268,8 @@ class _RoundEndOverlay extends StatelessWidget {
 
   // Feste Reihenfolge der 9 Varianten
   static const _variants = [
-    'trump_rot',
-    'trump_schwarz',
+    'trump_ss',
+    'trump_re',
     'oben',
     'unten',
     'slalom',
@@ -281,8 +281,8 @@ class _RoundEndOverlay extends StatelessWidget {
   ];
 
   static const _labels = {
-    'trump_rot':    '♥♦ Rot Trump',
-    'trump_schwarz':'♠♣ Schwarz',
+    'trump_ss':  '🔔🛡 Schellen/Schilten',
+    'trump_re':  '🌹🌰 Rosen/Eicheln',
     'oben':         '⬇️ Obenabe',
     'unten':        '⬆️ Undenufe',
     'slalom':       '〰️ Slalom',

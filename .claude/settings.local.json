@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter analyze:*)",
+      "Bash(flutter run:*)",
+      "WebSearch",
+      "WebFetch(domain:www.pagat.com)",
+      "WebFetch(domain:en.wikipedia.org)",
+      "WebFetch(domain:www.wopc.co.uk)",
+      "WebFetch(domain:www.swisslos.ch)",
+      "WebFetch(domain:www.swiss.law)",
+      "WebFetch(domain:www.palace-of-cards.com)",
+      "WebFetch(domain:www.thelocal.ch)",
+      "WebFetch(domain:www.catsatcards.com)",
+      "WebFetch(domain:www.swiss.org.nz)",
+      "WebFetch(domain:www.landjaeger.ch)",
+      "WebFetch(domain:grokipedia.com)",
+      "WebFetch(domain:jassverzeichnis.ch)",
+      "WebFetch(domain:blog.nationalmuseum.ch)",
+      "WebFetch(domain:de.wikipedia.org)",
+      "WebFetch(domain:upload.wikimedia.org)",
+      "WebFetch(domain:jasskarten.com)",
+      "Bash(curl:*)",
+      "Bash(gs:*)"
+    ]
+  }
+}

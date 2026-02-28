@@ -73,7 +73,7 @@ class JassCard {
       case Suit.diamonds:  return '♦';
       case Suit.clubs:     return '♣';
       case Suit.schellen:  return '🔔'; // Schellen (Bells)
-      case Suit.herzGerman:return '♥';
+      case Suit.herzGerman:return '🌹';
       case Suit.eichel:    return '🌰'; // Eichel (Acorn)
       case Suit.schilten:  return '🛡'; // Schilten (Shield)
     }
@@ -112,7 +112,7 @@ extension SuitLabel on Suit {
       case Suit.diamonds:   return 'Ecken';
       case Suit.clubs:      return 'Kreuz';
       case Suit.schellen:   return 'Schellen';
-      case Suit.herzGerman: return 'Herz';
+      case Suit.herzGerman: return 'Rosen';
       case Suit.eichel:     return 'Eichel';
       case Suit.schilten:   return 'Schilten';
     }
@@ -125,7 +125,7 @@ extension SuitLabel on Suit {
       case Suit.diamonds:   return '♦';
       case Suit.clubs:      return '♣';
       case Suit.schellen:   return '🔔';
-      case Suit.herzGerman: return '♥';
+      case Suit.herzGerman: return '🌹';
       case Suit.eichel:     return '🌰';
       case Suit.schilten:   return '🛡';
     }

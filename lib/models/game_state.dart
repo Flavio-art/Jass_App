@@ -44,10 +44,10 @@ class RoundResult {
   /// Lesbare Bezeichnung des Spielmodus für die Tabelle
   String get displayName {
     switch (variantKey) {
-      case 'trump_rot':
-        return 'Rot Trump ${trumpSuit?.symbol ?? '♥♦'}';
-      case 'trump_schwarz':
-        return 'Schwarz Trump ${trumpSuit?.symbol ?? '♠♣'}';
+      case 'trump_ss':
+        return 'Schellen/Schilten ${trumpSuit?.symbol ?? '🔔🛡'}';
+      case 'trump_re':
+        return 'Rosen/Eicheln ${trumpSuit?.symbol ?? '🌹🌰'}';
       case 'oben':       return 'Oben ⬆️';
       case 'unten':      return 'Unten ⬇️';
       case 'slalom':     return 'Slalom 〰️';
@@ -159,23 +159,24 @@ class GameState {
 
   Player get currentAnsager => players[ansagerIndex];
 
-  /// Varianten-Schlüssel: Rot/Schwarz für Trumpf, sonst mode.name
+  /// Varianten-Schlüssel: Schellen/Schilten oder Rosen/Eicheln für Trumpf
   String variantKey(GameMode mode, {Suit? trumpSuit}) {
     if (mode == GameMode.trump) {
       final suit = trumpSuit ?? this.trumpSuit;
-      final isRed = suit == Suit.hearts ||
+      // Gruppe A: Schellen + Schilten (♦ + ♠ bei Französisch)
+      final isSchellenSchilten = suit == Suit.schellen ||
+          suit == Suit.schilten ||
           suit == Suit.diamonds ||
-          suit == Suit.herzGerman ||
-          suit == Suit.schellen;
-      return isRed ? 'trump_rot' : 'trump_schwarz';
+          suit == Suit.spades;
+      return isSchellenSchilten ? 'trump_ss' : 'trump_re';
     }
     return mode.name;
   }
 
-  /// Alle 10 Varianten (Rot/Schwarz-Trump + 6 Sonderspiele + Schafkopf + Molotof)
+  /// Alle 10 Varianten
   List<String> _allVariants() => const [
-        'trump_rot',
-        'trump_schwarz',
+        'trump_ss',  // Schellen / Schilten
+        'trump_re',  // Rosen / Eicheln
         'oben',
         'unten',
         'slalom',

@@ -31,151 +31,148 @@ class TrumpSelectionScreen extends StatelessWidget {
             // ── Scrollbare Auswahl ────────────────────────────────────────
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const SizedBox(height: 16),
-              Text(
-                ansager.isHuman ? 'Du spielst' : '${ansager.name} spielt',
-                style: const TextStyle(color: Colors.white54, fontSize: 14),
-                textAlign: TextAlign.center,
-              ),
-              const Text(
-                'Spielmodus wählen',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 32),
-
-              // ── Trumpf: 2×2 Grid ─────────────────────────────────────────
-              const _SectionLabel('Trumpf'),
-              const SizedBox(height: 10),
-              GridView.count(
-                crossAxisCount: 2,
-                shrinkWrap: true,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 1.6,
-                physics: const NeverScrollableScrollPhysics(),
-                children: suits
-                    .map((suit) => _TrumpButton(
-                          suit: suit,
-                          cardType: cardType,
-                          // Rot (♥♦) und Schwarz (♠♣) werden zusammen verwaltet
-                          isAvailable: available.contains(
-                            (suit == Suit.hearts || suit == Suit.diamonds ||
-                                    suit == Suit.herzGerman ||
-                                    suit == Suit.schellen)
-                                ? 'trump_rot'
-                                : 'trump_schwarz',
-                          ),
-                        ))
-                    .toList(),
-              ),
-
-              const SizedBox(height: 24),
-
-              // ── Sonderspiele ─────────────────────────────────────────────
-              const _SectionLabel('Sonderspiele'),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: _ModeButton(
-                      label: 'Oben',
-                      subtitle: 'Ass gewinnt',
-                      emoji: '⬇️',
-                      color: Colors.blue.shade700,
-                      isAvailable: available.contains('oben'),
-                      onTap: () => _selectMode(context, GameMode.oben),
+                    const SizedBox(height: 14),
+                    Text(
+                      ansager.isHuman ? 'Du spielst' : '${ansager.name} spielt',
+                      style: const TextStyle(color: Colors.white54, fontSize: 13),
+                      textAlign: TextAlign.center,
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _ModeButton(
-                      label: 'Unten',
-                      subtitle: '6 gewinnt',
-                      emoji: '⬆️',
-                      color: Colors.orange.shade700,
-                      isAvailable: available.contains('unten'),
-                      onTap: () => _selectMode(context, GameMode.unten),
+                    const Text(
+                      'Spielmodus wählen',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              _ModeButton(
-                label: 'Slalom',
-                subtitle: 'Oben · Unten · Oben · …',
-                emoji: '〰️',
-                color: Colors.purple.shade700,
-                isAvailable: available.contains('slalom'),
-                onTap: () => _selectMode(context, GameMode.slalom),
-                wide: true,
-              ),
-              const SizedBox(height: 12),
-              _ModeButton(
-                label: 'Elefant',
-                subtitle: '3× Oben · 3× Unten · 3× Trumpf',
-                emoji: '🐘',
-                color: Colors.teal.shade700,
-                isAvailable: available.contains('elefant'),
-                onTap: () => _selectMode(context, GameMode.elefant),
-                wide: true,
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: _ModeButton(
-                      label: 'Misere',
-                      subtitle: 'Wenigste Punkte',
-                      emoji: '😶',
-                      color: Colors.red.shade900,
-                      isAvailable: available.contains('misere'),
-                      onTap: () => _selectMode(context, GameMode.misere),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _ModeButton(
-                      label: 'Alles Trumpf',
-                      subtitle: 'Nur K · 9 · B zählen',
-                      emoji: '👑',
-                      color: Colors.yellow.shade800,
-                      isAvailable: available.contains('allesTrumpf'),
-                      onTap: () => _selectMode(context, GameMode.allesTrumpf),
-                    ),
-                  ),
-                ],
-              ),
+                    const SizedBox(height: 20),
 
-              const SizedBox(height: 12),
-              _ModeButton(
-                label: 'Schafkopf',
-                subtitle: '15 Trumpf · D + 8 immer Trumpf',
-                emoji: '🐑',
-                color: Colors.green.shade800,
-                isAvailable: available.contains('schafkopf'),
-                onTap: () => _pickSchafkopfTrump(context, suits, cardType),
-                wide: true,
-              ),
-              const SizedBox(height: 12),
-              _ModeButton(
-                label: 'Molotof',
-                subtitle: 'Kommt bald…',
-                emoji: '💣',
-                color: Colors.deepOrange.shade900,
-                isAvailable: available.contains('molotof'),
-                onTap: () => _selectMode(context, GameMode.molotof),
-                wide: true,
-              ),
-                    const SizedBox(height: 16),
+                    // ── Trumpf: 2 Gruppen-Buttons ─────────────────────────
+                    Row(children: [
+                      Expanded(child: _TrumpGroupButton(
+                        suits: cardType == CardType.french
+                            ? [Suit.schellen, Suit.schilten]
+                            : [Suit.schellen, Suit.schilten],
+                        frenchSuits: [Suit.diamonds, Suit.spades],
+                        cardType: cardType,
+                        variantKey: 'trump_ss',
+                        isAvailable: available.contains('trump_ss'),
+                        onTap: () => _pickTrumpSuit(
+                          context,
+                          cardType == CardType.french
+                              ? [Suit.diamonds, Suit.spades]
+                              : [Suit.schellen, Suit.schilten],
+                          cardType,
+                        ),
+                      )),
+                      const SizedBox(width: 10),
+                      Expanded(child: _TrumpGroupButton(
+                        suits: cardType == CardType.french
+                            ? [Suit.herzGerman, Suit.eichel]
+                            : [Suit.herzGerman, Suit.eichel],
+                        frenchSuits: [Suit.hearts, Suit.clubs],
+                        cardType: cardType,
+                        variantKey: 'trump_re',
+                        isAvailable: available.contains('trump_re'),
+                        onTap: () => _pickTrumpSuit(
+                          context,
+                          cardType == CardType.french
+                              ? [Suit.hearts, Suit.clubs]
+                              : [Suit.herzGerman, Suit.eichel],
+                          cardType,
+                        ),
+                      )),
+                    ]),
+
+                    const SizedBox(height: 10),
+
+                    // ── Sonderspiele: 2 Spalten ───────────────────────────
+                    Row(children: [
+                      Expanded(child: _ModeButton(
+                        label: 'Obenabe',
+                        subtitle: 'Ass gewinnt',
+                        emoji: '⬇️',
+                        color: Colors.blue.shade700,
+                        isAvailable: available.contains('oben'),
+                        onTap: () => _selectMode(context, GameMode.oben),
+                      )),
+                      const SizedBox(width: 10),
+                      Expanded(child: _ModeButton(
+                        label: 'Undenufe',
+                        subtitle: '6 gewinnt',
+                        emoji: '⬆️',
+                        color: Colors.orange.shade700,
+                        isAvailable: available.contains('unten'),
+                        onTap: () => _selectMode(context, GameMode.unten),
+                      )),
+                    ]),
+                    const SizedBox(height: 10),
+                    Row(children: [
+                      Expanded(child: _ModeButton(
+                        label: 'Slalom',
+                        subtitle: 'Oben · Unten · …',
+                        emoji: '〰️',
+                        color: Colors.purple.shade700,
+                        isAvailable: available.contains('slalom'),
+                        onTap: () => _selectMode(context, GameMode.slalom),
+                      )),
+                      const SizedBox(width: 10),
+                      Expanded(child: _ModeButton(
+                        label: 'Elefant',
+                        subtitle: '3× Oben·Unten·Trumpf',
+                        emoji: '🐘',
+                        color: Colors.teal.shade700,
+                        isAvailable: available.contains('elefant'),
+                        onTap: () => _selectMode(context, GameMode.elefant),
+                      )),
+                    ]),
+                    const SizedBox(height: 10),
+                    Row(children: [
+                      Expanded(child: _ModeButton(
+                        label: 'Misere',
+                        subtitle: 'Wenigste Punkte',
+                        emoji: '😶',
+                        color: Colors.red.shade900,
+                        isAvailable: available.contains('misere'),
+                        onTap: () => _selectMode(context, GameMode.misere),
+                      )),
+                      const SizedBox(width: 10),
+                      Expanded(child: _ModeButton(
+                        label: 'Alles Trumpf',
+                        subtitle: 'Nur K·9·B zählen',
+                        emoji: '👑',
+                        color: Colors.yellow.shade800,
+                        isAvailable: available.contains('allesTrumpf'),
+                        onTap: () => _selectMode(context, GameMode.allesTrumpf),
+                      )),
+                    ]),
+                    const SizedBox(height: 10),
+                    Row(children: [
+                      Expanded(child: _ModeButton(
+                        label: 'Schafkopf',
+                        subtitle: 'D + 8 immer Trumpf',
+                        emoji: '🐑',
+                        color: Colors.green.shade800,
+                        isAvailable: available.contains('schafkopf'),
+                        onTap: () => _pickSchafkopfTrump(context, suits, cardType),
+                      )),
+                      const SizedBox(width: 10),
+                      Expanded(child: _ModeButton(
+                        label: 'Molotof',
+                        subtitle: 'Kommt bald…',
+                        emoji: '💣',
+                        color: Colors.deepOrange.shade900,
+                        isAvailable: available.contains('molotof'),
+                        onTap: () => _selectMode(context, GameMode.molotof),
+                      )),
+                    ]),
+
+                    const SizedBox(height: 14),
                   ],
                 ),
               ),
@@ -194,7 +191,6 @@ class TrumpSelectionScreen extends StatelessWidget {
                     style: TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 1.2),
                   ),
                   const SizedBox(height: 8),
-                  // Überlappende Karten – alle sichtbar
                   LayoutBuilder(builder: (context, constraints) {
                     const cardWidth = 54.0;
                     const cardHeight = cardWidth * 1.5;
@@ -222,6 +218,44 @@ class TrumpSelectionScreen extends StatelessWidget {
                   }),
                 ],
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _pickTrumpSuit(
+      BuildContext context, List<Suit> suits, CardType cardType) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1B3A2A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Trumpffarbe wählen',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold)),
+            const SizedBox(height: 20),
+            Row(
+              children: suits.map((suit) => Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(
+                      right: suit == suits.first ? 10 : 0),
+                  child: _TrumpButton(
+                    suit: suit,
+                    cardType: cardType,
+                    isAvailable: true,
+                  ),
+                ),
+              )).toList(),
             ),
           ],
         ),
@@ -263,9 +297,9 @@ class TrumpSelectionScreen extends StatelessWidget {
             GridView.count(
               crossAxisCount: 2,
               shrinkWrap: true,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 1.8,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 1.55,
               physics: const NeverScrollableScrollPhysics(),
               children: suits
                   .map((suit) => _TrumpButton(
@@ -283,26 +317,112 @@ class TrumpSelectionScreen extends StatelessWidget {
   }
 }
 
-class _SectionLabel extends StatelessWidget {
-  final String text;
-  const _SectionLabel(this.text);
+// ── Gruppen-Button (zeigt 2 Farben) ──────────────────────────────────────────
+
+class _TrumpGroupButton extends StatelessWidget {
+  final List<Suit> suits;       // immer German suits für Labels
+  final List<Suit> frenchSuits; // French-Äquivalente (für French cardType)
+  final CardType cardType;
+  final String variantKey;
+  final bool isAvailable;
+  final VoidCallback onTap;
+
+  const _TrumpGroupButton({
+    required this.suits,
+    required this.frenchSuits,
+    required this.cardType,
+    required this.variantKey,
+    required this.isAvailable,
+    required this.onTap,
+  });
+
+  List<Suit> get _displaySuits =>
+      cardType == CardType.french ? frenchSuits : suits;
 
   @override
-  Widget build(BuildContext context) => Text(
-        text,
-        style: const TextStyle(
-          color: Colors.white38,
-          fontSize: 11,
-          letterSpacing: 1.5,
+  Widget build(BuildContext context) {
+    final s = _displaySuits;
+    return GestureDetector(
+      onTap: isAvailable ? onTap : null,
+      child: Opacity(
+        opacity: isAvailable ? 1.0 : 0.35,
+        child: Container(
+          height: 72,
+          decoration: BoxDecoration(
+            color: AppColors.cardWhite,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: const [
+              BoxShadow(color: Colors.black45, blurRadius: 4, offset: Offset(2, 3)),
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _SuitPip(suit: s[0], cardType: cardType),
+                  const SizedBox(width: 8),
+                  _SuitPip(suit: s[1], cardType: cardType),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${s[0].label(cardType)} / ${s[1].label(cardType)}',
+                style: const TextStyle(
+                    color: Colors.black54,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
         ),
-      );
+      ),
+    );
+  }
 }
+
+// ── Einzelner Pip (gecroptes Symbol aus der 6er-Karte) ───────────────────────
+
+class _SuitPip extends StatelessWidget {
+  final Suit suit;
+  final CardType cardType;
+  const _SuitPip({required this.suit, required this.cardType});
+
+  String get _sixPath {
+    final folder = cardType == CardType.french ? 'french' : 'german';
+    return 'assets/cards/$folder/${suit.name}_six.png';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 38,
+      height: 38,
+      child: ClipRect(
+        child: Align(
+          // Mitte der Karte zeigen (dort sind die Pips)
+          alignment: Alignment.center,
+          widthFactor: 0.55,
+          heightFactor: 0.38,
+          child: Image.asset(
+            _sixPath,
+            width: 80,
+            fit: BoxFit.fitWidth,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Einzelner Trumpf-Button (im Bottom Sheet) ─────────────────────────────────
 
 class _TrumpButton extends StatelessWidget {
   final Suit suit;
   final CardType cardType;
   final bool isAvailable;
-  final GameMode? overrideMode; // null = normaler Trump, sonst z.B. schafkopf
+  final GameMode? overrideMode;
 
   const _TrumpButton({
     required this.suit,
@@ -315,38 +435,28 @@ class _TrumpButton extends StatelessWidget {
       suit == Suit.hearts || suit == Suit.diamonds ||
       suit == Suit.herzGerman || suit == Suit.schellen;
 
-  String get _symbol {
-    switch (suit) {
-      case Suit.spades:     return '♠';
-      case Suit.hearts:     return '♥';
-      case Suit.diamonds:   return '♦';
-      case Suit.clubs:      return '♣';
-      case Suit.schellen:   return '🔔';
-      case Suit.herzGerman: return '♥';
-      case Suit.eichel:     return '🌰';
-      case Suit.schilten:   return '🛡';
-    }
+  String get _sixPath {
+    final folder = cardType == CardType.french ? 'french' : 'german';
+    return 'assets/cards/$folder/${suit.name}_six.png';
   }
 
   @override
   Widget build(BuildContext context) {
-    final color = _isRed ? AppColors.cardRed : AppColors.cardBlack;
+    final labelColor = _isRed ? AppColors.cardRed : AppColors.cardBlack;
     return GestureDetector(
       onTap: isAvailable
           ? () {
               context
                   .read<GameProvider>()
                   .selectGameMode(overrideMode ?? GameMode.trump, trumpSuit: suit);
-              // Bei Schafkopf: Bottom Sheet + TrumpSelectionScreen schliessen
-              Navigator.pop(context); // schliesst Bottom Sheet
-              if (overrideMode == GameMode.schafkopf) {
-                Navigator.pop(context); // schliesst TrumpSelectionScreen
-              }
+              Navigator.pop(context); // Bottom Sheet
+              Navigator.pop(context); // TrumpSelectionScreen
             }
           : null,
       child: Opacity(
         opacity: isAvailable ? 1.0 : 0.35,
         child: Container(
+          height: 72,
           decoration: BoxDecoration(
             color: AppColors.cardWhite,
             borderRadius: BorderRadius.circular(12),
@@ -354,18 +464,17 @@ class _TrumpButton extends StatelessWidget {
               BoxShadow(color: Colors.black45, blurRadius: 4, offset: Offset(2, 3)),
             ],
           ),
-          child: Row(
+          child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(_symbol, style: const TextStyle(fontSize: 28)),
-              const SizedBox(width: 8),
+              _SuitPip(suit: suit, cardType: cardType),
+              const SizedBox(height: 4),
               Text(
                 suit.label(cardType),
                 style: TextStyle(
-                  color: color,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+                    color: labelColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -375,13 +484,14 @@ class _TrumpButton extends StatelessWidget {
   }
 }
 
+// ── Sonderspiele-Button ───────────────────────────────────────────────────────
+
 class _ModeButton extends StatelessWidget {
   final String label;
   final String subtitle;
   final String emoji;
   final Color color;
   final VoidCallback onTap;
-  final bool wide;
   final bool isAvailable;
 
   const _ModeButton({
@@ -391,7 +501,6 @@ class _ModeButton extends StatelessWidget {
     required this.color,
     required this.onTap,
     required this.isAvailable,
-    this.wide = false,
   });
 
   @override
@@ -401,7 +510,7 @@ class _ModeButton extends StatelessWidget {
       child: Opacity(
         opacity: isAvailable ? 1.0 : 0.35,
         child: Container(
-          height: 72,
+          height: 64,
           decoration: BoxDecoration(
             color: color,
             borderRadius: BorderRadius.circular(12),
@@ -412,20 +521,24 @@ class _ModeButton extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(emoji, style: const TextStyle(fontSize: 24)),
-              const SizedBox(width: 10),
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(label,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16)),
-                  Text(subtitle,
-                      style: const TextStyle(color: Colors.white70, fontSize: 11)),
-                ],
+              Text(emoji, style: const TextStyle(fontSize: 22)),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14)),
+                    Text(subtitle,
+                        style: const TextStyle(
+                            color: Colors.white70, fontSize: 10),
+                        overflow: TextOverflow.ellipsis),
+                  ],
+                ),
               ),
             ],
           ),
