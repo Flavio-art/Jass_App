@@ -242,7 +242,11 @@ class GameProvider extends ChangeNotifier {
 
     final playable = GameLogic.getPlayableCards(
         _state.players[playerIdx].hand, _state.currentTrickCards,
-        trumpSuit: _state.effectiveMode == GameMode.trump ? _state.trumpSuit : null);
+        mode: _state.effectiveMode,
+        trumpSuit: (_state.effectiveMode == GameMode.trump ||
+                _state.effectiveMode == GameMode.schafkopf)
+            ? _state.trumpSuit
+            : null);
     if (!playable.contains(card)) return;
 
     _doPlayCard(playerId, card, playerIdx);
@@ -383,6 +387,10 @@ class GameProvider extends ChangeNotifier {
     if (!_state.currentPlayer.isHuman) return {};
     final human = _state.players.firstWhere((p) => p.isHuman);
     return GameLogic.getPlayableCards(human.hand, _state.currentTrickCards,
-        trumpSuit: _state.effectiveMode == GameMode.trump ? _state.trumpSuit : null).toSet();
+        mode: _state.effectiveMode,
+        trumpSuit: (_state.effectiveMode == GameMode.trump ||
+                _state.effectiveMode == GameMode.schafkopf)
+            ? _state.trumpSuit
+            : null).toSet();
   }
 }

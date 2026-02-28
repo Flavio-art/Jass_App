@@ -139,6 +139,19 @@ class _ModeIndicator extends StatelessWidget {
         return _label('Misere 😶', Colors.red.shade300);
       case GameMode.allesTrumpf:
         return _label('Alles Trumpf 👑', Colors.yellow.shade300);
+      case GameMode.schafkopf:
+        if (trumpSuit == null) return const SizedBox.shrink();
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Schafkopf 🎴', style: TextStyle(color: Colors.green, fontSize: 10)),
+            Text(
+              trumpSuit!.label(CardType.french),
+              style: const TextStyle(
+                  color: Colors.green, fontSize: 13, fontWeight: FontWeight.bold),
+            ),
+          ],
+        );
     }
   }
 

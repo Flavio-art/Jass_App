@@ -11,10 +11,34 @@ class GameLogic {
   static List<JassCard> getPlayableCards(
     List<JassCard> hand,
     List<JassCard> currentTrick, {
+    GameMode mode = GameMode.trump,
     Suit? trumpSuit,
   }) {
     if (currentTrick.isEmpty) return List.of(hand);
 
+    // ── Schafkopf: eigene Farbenpflicht ─────────────────────────────────────
+    if (mode == GameMode.schafkopf) {
+      final ledCard = currentTrick.first;
+      final ledIsTrump = _isSchafkopfTrump(ledCard, trumpSuit);
+      if (ledIsTrump) {
+        // Trumpf angeführt → muss Trumpf spielen (kein Zurückhalten!)
+        final trumpCards = hand
+            .where((c) => _isSchafkopfTrump(c, trumpSuit))
+            .toList();
+        return trumpCards.isNotEmpty ? trumpCards : List.of(hand);
+      } else {
+        // Nicht-Trumpf angeführt → Farbe bedienen (ohne Damen/Achter der Farbe,
+        // die sind Trumpf und zählen nicht als Farbe)
+        final ledSuit = ledCard.suit;
+        final suitCards = hand
+            .where((c) =>
+                c.suit == ledSuit && !_isSchafkopfTrump(c, trumpSuit))
+            .toList();
+        return suitCards.isNotEmpty ? suitCards : List.of(hand);
+      }
+    }
+
+    // ── Standard Jass ────────────────────────────────────────────────────────
     final ledSuit = currentTrick.first.suit;
     final suitCards = hand.where((c) => c.suit == ledSuit).toList();
 
@@ -28,6 +52,69 @@ class GameLogic {
     }
 
     return suitCards.isNotEmpty ? suitCards : List.of(hand);
+  }
+
+  // ── Schafkopf-Hilfsmethoden ──────────────────────────────────────────────
+
+  /// Ist eine Karte im Schafkopf ein Trumpf?
+  /// Trumpf = alle Damen + alle Achter + alle Karten der gewählten Trumpffarbe
+  static bool _isSchafkopfTrump(JassCard card, Suit? trumpSuit) =>
+      card.value == CardValue.queen ||
+      card.value == CardValue.eight ||
+      card.suit == trumpSuit;
+
+  /// Stärke einer Trumpfkarte im Schafkopf (höher = stärker):
+  /// Kreuz-Dame(103) > Schaufel-Dame(102) > Herz-Dame(101) > Ecken-Dame(100)
+  /// > Kreuz-8(93) > Schaufel-8(92) > Herz-8(91) > Ecken-8(90)
+  /// > Trumpf-10(6) > Trumpf-König(5) > Trumpf-Bube(4) > Trumpf-Ass(3)
+  /// > Trumpf-9(2) > Trumpf-7(1) > Trumpf-6(0)
+  static int _schafkopfTrumpStrength(JassCard card, Suit? trumpSuit) {
+    if (card.value == CardValue.queen) {
+      return 100 + _schafkopfSuitPriority(card.suit);
+    }
+    if (card.value == CardValue.eight) {
+      return 90 + _schafkopfSuitPriority(card.suit);
+    }
+    // Restliche Trumpffarben-Karten: 10 > König > Bube > Ass > 9 > 7 > 6
+    switch (card.value) {
+      case CardValue.ten:   return 6;
+      case CardValue.king:  return 5;
+      case CardValue.jack:  return 4;
+      case CardValue.ace:   return 3;
+      case CardValue.nine:  return 2;
+      case CardValue.seven: return 1;
+      case CardValue.six:   return 0;
+      default:              return 0;
+    }
+  }
+
+  /// Suit-Priorität für Schafkopf-Trumpf:
+  /// Kreuz/Eichel=3 > Schaufel/Schilten=2 > Herz=1 > Ecken/Schellen=0
+  static int _schafkopfSuitPriority(Suit suit) {
+    switch (suit) {
+      case Suit.clubs:
+      case Suit.eichel:     return 3;
+      case Suit.spades:
+      case Suit.schilten:   return 2;
+      case Suit.hearts:
+      case Suit.herzGerman: return 1;
+      case Suit.diamonds:
+      case Suit.schellen:   return 0;
+    }
+  }
+
+  /// Stärke einer Nicht-Trumpf-Karte im Schafkopf:
+  /// 10 > König > Bube > Ass > 9 > 7 > 6  (Dame und 8 sind Trumpf, kommen nie vor)
+  static int _schafkopfNonTrumpStrength(JassCard card) {
+    switch (card.value) {
+      case CardValue.ten:   return 6;
+      case CardValue.king:  return 5;
+      case CardValue.jack:  return 4;
+      case CardValue.ace:   return 3;
+      case CardValue.nine:  return 2;
+      case CardValue.seven: return 1;
+      default:              return 0; // six
+    }
   }
 
   // ─── Stich-Gewinner ──────────────────────────────────────────────────────
@@ -77,6 +164,25 @@ class GameLogic {
     Suit? trump,
     GameMode mode,
   ) {
+    if (mode == GameMode.schafkopf) {
+      final cTrump = _isSchafkopfTrump(challenger, trump);
+      final wTrump = _isSchafkopfTrump(current, trump);
+      if (wTrump && !cTrump) return false;
+      if (!wTrump && cTrump) return true;
+      if (wTrump && cTrump) {
+        return _schafkopfTrumpStrength(challenger, trump) >
+            _schafkopfTrumpStrength(current, trump);
+      }
+      // Beide nicht Trumpf: angespielte Farbe gewinnt, höhere Karte schlägt
+      final cFollows = challenger.suit == ledSuit;
+      final wFollows = current.suit == ledSuit;
+      if (wFollows && !cFollows) return false;
+      if (!wFollows && cFollows) return true;
+      if (!wFollows && !cFollows) return false;
+      return _schafkopfNonTrumpStrength(challenger) >
+          _schafkopfNonTrumpStrength(current);
+    }
+
     if (mode == GameMode.allesTrumpf) {
       // Only the led suit can win; within led suit: trump strength order
       final cFollows = challenger.suit == ledSuit;
@@ -179,6 +285,11 @@ class GameLogic {
         return _normalStrength(card); // effectiveMode already resolved by caller
       case GameMode.allesTrumpf:
         return _trumpStrength(card);
+      case GameMode.schafkopf:
+        if (_isSchafkopfTrump(card, trump)) {
+          return 100 + _schafkopfTrumpStrength(card, trump);
+        }
+        return _schafkopfNonTrumpStrength(card);
     }
   }
 
@@ -186,6 +297,19 @@ class GameLogic {
 
   /// Punktwert einer Karte (mode sollte effectiveMode sein, bereits aufgelöst)
   static int cardPoints(JassCard card, GameMode mode, Suit? trump) {
+    // Schafkopf: Obenabe-Werte (Ass=11, 10=10, 8=8, König=4, Dame=3, Bube=2)
+    if (mode == GameMode.schafkopf) {
+      switch (card.value) {
+        case CardValue.ace:   return 11;
+        case CardValue.ten:   return 10;
+        case CardValue.eight: return 8;
+        case CardValue.king:  return 4;
+        case CardValue.queen: return 3;
+        case CardValue.jack:  return 2;
+        default:              return 0; // 9, 7, 6
+      }
+    }
+
     // Alles Trumpf: nur Jass/Nell/König zählen
     if (mode == GameMode.allesTrumpf) {
       switch (card.value) {
@@ -261,7 +385,10 @@ class GameLogic {
     final effectiveMode = state.effectiveMode;
     final trump = state.trumpSuit;
     final playable = getPlayableCards(aiPlayer.hand, state.currentTrickCards,
-        trumpSuit: effectiveMode == GameMode.trump ? trump : null);
+        mode: effectiveMode,
+        trumpSuit: (effectiveMode == GameMode.trump || effectiveMode == GameMode.schafkopf)
+            ? trump
+            : null);
     if (playable.length == 1) return playable.first;
     final trickNumber = state.currentTrickNumber;
 

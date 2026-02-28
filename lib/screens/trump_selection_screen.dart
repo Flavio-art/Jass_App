@@ -154,6 +154,21 @@ class TrumpSelectionScreen extends StatelessWidget {
                   ),
                 ],
               ),
+
+              const SizedBox(height: 24),
+
+              // ── Schafkopf ─────────────────────────────────────────────
+              const _SectionLabel('Schafkopf'),
+              const SizedBox(height: 10),
+              _ModeButton(
+                label: 'Schafkopf',
+                subtitle: '15 Trumpf · D + 8 immer Trumpf',
+                emoji: '🎴',
+                color: Colors.green.shade800,
+                isAvailable: available.contains('schafkopf'),
+                onTap: () => _pickSchafkopfTrump(context, suits, cardType),
+                wide: true,
+              ),
                     const SizedBox(height: 16),
                   ],
                 ),
@@ -212,6 +227,54 @@ class TrumpSelectionScreen extends StatelessWidget {
     context.read<GameProvider>().selectGameMode(mode, trumpSuit: suit);
     Navigator.pop(context);
   }
+
+  void _pickSchafkopfTrump(
+      BuildContext context, List<Suit> suits, CardType cardType) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1B3A2A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              '🎴 Schafkopf',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Welche Farbe soll Trumpf sein?',
+              style: TextStyle(color: Colors.white54, fontSize: 13),
+            ),
+            const SizedBox(height: 20),
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 1.8,
+              physics: const NeverScrollableScrollPhysics(),
+              children: suits
+                  .map((suit) => _TrumpButton(
+                        suit: suit,
+                        cardType: cardType,
+                        isAvailable: true,
+                        overrideMode: GameMode.schafkopf,
+                      ))
+                  .toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _SectionLabel extends StatelessWidget {
@@ -233,11 +296,13 @@ class _TrumpButton extends StatelessWidget {
   final Suit suit;
   final CardType cardType;
   final bool isAvailable;
+  final GameMode? overrideMode; // null = normaler Trump, sonst z.B. schafkopf
 
   const _TrumpButton({
     required this.suit,
     required this.cardType,
     required this.isAvailable,
+    this.overrideMode,
   });
 
   bool get _isRed =>
@@ -265,8 +330,12 @@ class _TrumpButton extends StatelessWidget {
           ? () {
               context
                   .read<GameProvider>()
-                  .selectGameMode(GameMode.trump, trumpSuit: suit);
-              Navigator.pop(context);
+                  .selectGameMode(overrideMode ?? GameMode.trump, trumpSuit: suit);
+              // Bei Schafkopf: Bottom Sheet + TrumpSelectionScreen schliessen
+              Navigator.pop(context); // schliesst Bottom Sheet
+              if (overrideMode == GameMode.schafkopf) {
+                Navigator.pop(context); // schliesst TrumpSelectionScreen
+              }
             }
           : null,
       child: Opacity(

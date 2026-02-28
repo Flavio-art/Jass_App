@@ -266,7 +266,7 @@ class _RoundEndOverlay extends StatelessWidget {
   final VoidCallback onNextRound;
   final VoidCallback onHome;
 
-  // Feste Reihenfolge der 8 Varianten
+  // Feste Reihenfolge der 9 Varianten
   static const _variants = [
     'trump_rot',
     'trump_schwarz',
@@ -276,6 +276,7 @@ class _RoundEndOverlay extends StatelessWidget {
     'elefant',
     'misere',
     'allesTrumpf',
+    'schafkopf',
   ];
 
   static const _labels = {
@@ -287,6 +288,7 @@ class _RoundEndOverlay extends StatelessWidget {
     'elefant':      '🐘 Elefant',
     'misere':       '😶 Misere',
     'allesTrumpf':  '👑 Alles Trumpf',
+    'schafkopf':    '🎴 Schafkopf',
   };
 
   const _RoundEndOverlay({

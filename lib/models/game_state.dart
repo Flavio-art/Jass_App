@@ -18,6 +18,7 @@ enum GameMode {
   elefant,
   misere,
   allesTrumpf,
+  schafkopf,
 }
 
 // ─── Rundenresultat ───────────────────────────────────────────────────────────
@@ -52,6 +53,7 @@ class RoundResult {
       case 'elefant':    return 'Elefant 🐘';
       case 'misere':     return 'Misere 😶';
       case 'allesTrumpf': return 'Alles Trumpf 👑';
+      case 'schafkopf':   return 'Schafkopf 🎴';
       default: return variantKey;
     }
   }
@@ -125,6 +127,8 @@ class GameState {
         return GameMode.trump;
       case GameMode.misere:
         return GameMode.oben;
+      case GameMode.schafkopf:
+        return GameMode.schafkopf;
       default:
         return gameMode;
     }
@@ -163,7 +167,7 @@ class GameState {
     return mode.name;
   }
 
-  /// Alle 8 Varianten (Rot/Schwarz-Trump + 6 Sonderspiele)
+  /// Alle 9 Varianten (Rot/Schwarz-Trump + 6 Sonderspiele + Schafkopf)
   List<String> _allVariants() => const [
         'trump_rot',
         'trump_schwarz',
@@ -173,6 +177,7 @@ class GameState {
         'elefant',
         'misere',
         'allesTrumpf',
+        'schafkopf',
       ];
 
   List<String> availableVariants(bool isTeam1) {
