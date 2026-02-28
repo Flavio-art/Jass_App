@@ -61,8 +61,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         _CardTypeButton(
                           label: 'Französisch',
-                          emoji: '♠ ♥',
-                          subtitle: 'Pik · Herz · Karo · Kreuz',
+                          suits: const [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs],
+                          cardType: CardType.french,
+                          subtitle: 'Schaufeln · Herz · Ecken · Kreuz',
                           selected: _selectedCardType == CardType.french,
                           onTap: () =>
                               setState(() => _selectedCardType = CardType.french),
@@ -70,8 +71,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         const SizedBox(width: 12),
                         _CardTypeButton(
                           label: 'Deutsch',
-                          emoji: '🔔 🌰',
-                          subtitle: 'Schellen · Herz · Eichel · Schilten',
+                          suits: const [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten],
+                          cardType: CardType.german,
+                          subtitle: 'Schellen · Rosen · Eichel · Schilten',
                           selected: _selectedCardType == CardType.german,
                           onTap: () =>
                               setState(() => _selectedCardType = CardType.german),
@@ -138,14 +140,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
 class _CardTypeButton extends StatelessWidget {
   final String label;
-  final String emoji;
+  final List<Suit> suits;
+  final CardType cardType;
   final String subtitle;
   final bool selected;
   final VoidCallback onTap;
 
   const _CardTypeButton({
     required this.label,
-    required this.emoji,
+    required this.suits,
+    required this.cardType,
     required this.subtitle,
     required this.selected,
     required this.onTap,
@@ -169,7 +173,18 @@ class _CardTypeButton extends StatelessWidget {
         ),
         child: Column(
           children: [
-            Text(emoji, style: const TextStyle(fontSize: 24)),
+            // Vier Suit-Pips in einem 2×2 Raster
+            SizedBox(
+              width: 80,
+              height: 56,
+              child: GridView.count(
+                crossAxisCount: 2,
+                mainAxisSpacing: 4,
+                crossAxisSpacing: 4,
+                physics: const NeverScrollableScrollPhysics(),
+                children: suits.map((s) => _SuitPip(suit: s, cardType: cardType)).toList(),
+              ),
+            ),
             const SizedBox(height: 6),
             Text(
               label,
@@ -186,6 +201,30 @@ class _CardTypeButton extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// Gecroptes Ass-Symbol (ein grosses Pip aus der Mitte der Ass-Karte)
+class _SuitPip extends StatelessWidget {
+  final Suit suit;
+  final CardType cardType;
+  const _SuitPip({required this.suit, required this.cardType});
+
+  String get _acePath {
+    final folder = cardType == CardType.french ? 'french' : 'german';
+    return 'assets/cards/$folder/${suit.name}_ace.png';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: Align(
+        alignment: Alignment.center,
+        widthFactor: 0.5,
+        heightFactor: 0.42,
+        child: Image.asset(_acePath, width: 60, fit: BoxFit.fitWidth),
       ),
     );
   }

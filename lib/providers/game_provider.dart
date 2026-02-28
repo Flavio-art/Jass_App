@@ -345,7 +345,12 @@ class GameProvider extends ChangeNotifier {
     );
 
     // Punkte mit effectiveMode berechnen (löst Elefant/Slalom/Misere auf)
-    final points = GameLogic.trickPoints(trickCards, effectiveMode, _state.trumpSuit);
+    // Molotof: keine Punkte solange Trumpf noch nicht bestimmt ist
+    final molotofPreTrump = _state.gameMode == GameMode.molotof &&
+        _state.molotofSubMode == null;
+    final points = molotofPreTrump
+        ? 0
+        : GameLogic.trickPoints(trickCards, effectiveMode, _state.trumpSuit);
     final winnerPlayer = updatedPlayers.firstWhere((p) => p.id == winnerId);
     final isTeam1Winner = winnerPlayer.position == PlayerPosition.south ||
         winnerPlayer.position == PlayerPosition.north;
@@ -361,8 +366,8 @@ class GameProvider extends ChangeNotifier {
     final newTricks = [..._state.completedTricks, trick];
     final isLastTrick = newTricks.length == 9;
 
-    // Letzter Stich: 5 Bonuspunkte
-    if (isLastTrick) {
+    // Letzter Stich: 5 Bonuspunkte (nicht bei Molotof ohne Trumpf)
+    if (isLastTrick && !molotofPreTrump) {
       if (isTeam1Winner) {
         newScores['team1'] = (newScores['team1'] ?? 0) + 5;
       } else {

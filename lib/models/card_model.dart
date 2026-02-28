@@ -107,7 +107,7 @@ class JassCard {
 extension SuitLabel on Suit {
   String label(CardType type) {
     switch (this) {
-      case Suit.spades:     return 'Schaufel';
+      case Suit.spades:     return 'Schaufeln';
       case Suit.hearts:     return 'Herz';
       case Suit.diamonds:   return 'Ecken';
       case Suit.clubs:      return 'Kreuz';
