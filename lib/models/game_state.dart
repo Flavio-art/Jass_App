@@ -19,6 +19,7 @@ enum GameMode {
   misere,
   allesTrumpf,
   schafkopf,
+  molotof, // placeholder – spielt wie Slalom
 }
 
 // ─── Rundenresultat ───────────────────────────────────────────────────────────
@@ -54,6 +55,7 @@ class RoundResult {
       case 'misere':     return 'Misere 😶';
       case 'allesTrumpf': return 'Alles Trumpf 👑';
       case 'schafkopf':   return 'Schafkopf 🐑';
+      case 'molotof':     return 'Molotof 💣';
       default: return variantKey;
     }
   }
@@ -129,6 +131,9 @@ class GameState {
         return GameMode.oben;
       case GameMode.schafkopf:
         return GameMode.schafkopf;
+      case GameMode.molotof:
+        // Placeholder: spielt wie Slalom
+        return slalomIsOben ? GameMode.oben : GameMode.unten;
       default:
         return gameMode;
     }
@@ -167,7 +172,7 @@ class GameState {
     return mode.name;
   }
 
-  /// Alle 9 Varianten (Rot/Schwarz-Trump + 6 Sonderspiele + Schafkopf)
+  /// Alle 10 Varianten (Rot/Schwarz-Trump + 6 Sonderspiele + Schafkopf + Molotof)
   List<String> _allVariants() => const [
         'trump_rot',
         'trump_schwarz',
@@ -178,6 +183,7 @@ class GameState {
         'misere',
         'allesTrumpf',
         'schafkopf',
+        'molotof',
       ];
 
   List<String> availableVariants(bool isTeam1) {

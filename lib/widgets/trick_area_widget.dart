@@ -139,6 +139,8 @@ class _ModeIndicator extends StatelessWidget {
         return _label('Misere 😶', Colors.red.shade300);
       case GameMode.allesTrumpf:
         return _label('Alles Trumpf 👑', Colors.yellow.shade300);
+      case GameMode.molotof:
+        return _label('Molotof 💣', Colors.deepOrange.shade300);
       case GameMode.schafkopf:
         if (trumpSuit == null) return const SizedBox.shrink();
         return Column(

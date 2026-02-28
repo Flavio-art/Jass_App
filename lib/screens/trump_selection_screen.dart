@@ -155,11 +155,7 @@ class TrumpSelectionScreen extends StatelessWidget {
                 ],
               ),
 
-              const SizedBox(height: 24),
-
-              // ── Schafkopf ─────────────────────────────────────────────
-              const _SectionLabel('Schafkopf'),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               _ModeButton(
                 label: 'Schafkopf',
                 subtitle: '15 Trumpf · D + 8 immer Trumpf',
@@ -167,6 +163,16 @@ class TrumpSelectionScreen extends StatelessWidget {
                 color: Colors.green.shade800,
                 isAvailable: available.contains('schafkopf'),
                 onTap: () => _pickSchafkopfTrump(context, suits, cardType),
+                wide: true,
+              ),
+              const SizedBox(height: 12),
+              _ModeButton(
+                label: 'Molotof',
+                subtitle: 'Kommt bald…',
+                emoji: '💣',
+                color: Colors.deepOrange.shade900,
+                isAvailable: available.contains('molotof'),
+                onTap: () => _selectMode(context, GameMode.molotof),
                 wide: true,
               ),
                     const SizedBox(height: 16),

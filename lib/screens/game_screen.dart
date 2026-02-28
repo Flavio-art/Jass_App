@@ -277,6 +277,7 @@ class _RoundEndOverlay extends StatelessWidget {
     'misere',
     'allesTrumpf',
     'schafkopf',
+    'molotof',
   ];
 
   static const _labels = {
@@ -289,6 +290,7 @@ class _RoundEndOverlay extends StatelessWidget {
     'misere':       '😶 Misere',
     'allesTrumpf':  '👑 Alles Trumpf',
     'schafkopf':    '🐑 Schafkopf',
+    'molotof':      '💣 Molotof',
   };
 
   const _RoundEndOverlay({

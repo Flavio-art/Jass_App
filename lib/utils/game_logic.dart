@@ -151,6 +151,9 @@ class GameLogic {
         return GameMode.trump;
       case GameMode.misere:
         return GameMode.oben;
+      case GameMode.molotof:
+        // Placeholder: spielt wie Slalom
+        return trickNumber % 2 == 1 ? GameMode.oben : GameMode.unten;
       default:
         return mode;
     }
@@ -282,6 +285,7 @@ class GameLogic {
         return _untenStrength(card);
       case GameMode.slalom:
       case GameMode.elefant:
+      case GameMode.molotof:
         return _normalStrength(card); // effectiveMode already resolved by caller
       case GameMode.allesTrumpf:
         return _trumpStrength(card);
