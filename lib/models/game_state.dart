@@ -53,7 +53,7 @@ class RoundResult {
       case 'elefant':    return 'Elefant 🐘';
       case 'misere':     return 'Misere 😶';
       case 'allesTrumpf': return 'Alles Trumpf 👑';
-      case 'schafkopf':   return 'Schafkopf 🎴';
+      case 'schafkopf':   return 'Schafkopf 🐑';
       default: return variantKey;
     }
   }

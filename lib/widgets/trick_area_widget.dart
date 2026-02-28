@@ -144,7 +144,7 @@ class _ModeIndicator extends StatelessWidget {
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Schafkopf 🎴', style: TextStyle(color: Colors.green, fontSize: 10)),
+            const Text('Schafkopf 🐑', style: TextStyle(color: Colors.green, fontSize: 10)),
             Text(
               trumpSuit!.label(CardType.french),
               style: const TextStyle(

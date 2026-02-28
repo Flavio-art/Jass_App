@@ -163,7 +163,7 @@ class TrumpSelectionScreen extends StatelessWidget {
               _ModeButton(
                 label: 'Schafkopf',
                 subtitle: '15 Trumpf · D + 8 immer Trumpf',
-                emoji: '🎴',
+                emoji: '🐑',
                 color: Colors.green.shade800,
                 isAvailable: available.contains('schafkopf'),
                 onTap: () => _pickSchafkopfTrump(context, suits, cardType),
@@ -242,7 +242,7 @@ class TrumpSelectionScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              '🎴 Schafkopf',
+              '🐑 Schafkopf',
               style: TextStyle(
                   color: Colors.white,
                   fontSize: 20,

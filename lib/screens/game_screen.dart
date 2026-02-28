@@ -288,7 +288,7 @@ class _RoundEndOverlay extends StatelessWidget {
     'elefant':      '🐘 Elefant',
     'misere':       '😶 Misere',
     'allesTrumpf':  '👑 Alles Trumpf',
-    'schafkopf':    '🎴 Schafkopf',
+    'schafkopf':    '🐑 Schafkopf',
   };
 
   const _RoundEndOverlay({
