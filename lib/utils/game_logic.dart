@@ -38,19 +38,34 @@ class GameLogic {
       }
     }
 
-    // ── Standard Jass ────────────────────────────────────────────────────────
-    final ledSuit = currentTrick.first.suit;
-    final suitCards = hand.where((c) => c.suit == ledSuit).toList();
+    // ── Trumpfspiel (trump / trumpUnten): Abstechen immer erlaubt ────────────
+    if (mode == GameMode.trump || mode == GameMode.trumpUnten) {
+      final ledSuit = currentTrick.first.suit;
+      final trumpCards = trumpSuit != null
+          ? hand.where((c) => c.suit == trumpSuit).toList()
+          : <JassCard>[];
 
-    // Jass zurückhalten: Trump wird angeführt, aber der Jass ist die einzige
-    // Trumpfkarte → Spieler darf stattdessen jede andere Karte spielen.
-    if (trumpSuit != null &&
-        ledSuit == trumpSuit &&
-        suitCards.length == 1 &&
-        suitCards.first.value == CardValue.jack) {
-      return List.of(hand);
+      // Trump angeführt → muss Trump spielen (Jass zurückhalten gilt)
+      if (ledSuit == trumpSuit) {
+        if (trumpCards.length == 1 &&
+            trumpCards.first.value == CardValue.jack) {
+          return List.of(hand); // Jass/Buur darf zurückgehalten werden
+        }
+        return trumpCards.isNotEmpty ? trumpCards : List.of(hand);
+      }
+
+      // Nicht-Trump angeführt: Farbe bedienen ODER abstechen (Trump spielen)
+      final suitCards = hand.where((c) => c.suit == ledSuit).toList();
+      if (suitCards.isEmpty && trumpCards.isEmpty) return List.of(hand);
+      // Vereinigung: Farbe + Trump; andere Farben nur wenn beides fehlt
+      final allowed = <JassCard>{...suitCards, ...trumpCards};
+      return allowed.toList();
     }
 
+    // ── Oben / Unten / Slalom / Elefant / Misere / allesTrumpf ───────────────
+    // Strenge Farbenpflicht, kein Trumpf-Sonderrecht
+    final ledSuit = currentTrick.first.suit;
+    final suitCards = hand.where((c) => c.suit == ledSuit).toList();
     return suitCards.isNotEmpty ? suitCards : List.of(hand);
   }
 

@@ -7,6 +7,7 @@ import '../models/game_state.dart';
 import '../models/player.dart';
 import '../models/deck.dart';
 import '../utils/game_logic.dart';
+import '../utils/monte_carlo.dart';
 
 class GameProvider extends ChangeNotifier {
   GameState _state = GameState.initial(cardType: CardType.french);
@@ -453,12 +454,22 @@ class GameProvider extends ChangeNotifier {
   Future<void> _runAiLoop() async {
     _aiRunning = true;
     while (_state.phase == GamePhase.playing && !_state.currentPlayer.isHuman) {
-      await Future.delayed(const Duration(milliseconds: 650));
+      await Future.delayed(const Duration(milliseconds: 500));
       if (_state.phase != GamePhase.playing) break;
 
       final aiPlayer = _state.currentPlayer;
       final playerIdx = _state.currentPlayerIndex;
-      final card = GameLogic.chooseCard(aiPlayer: aiPlayer, state: _state);
+
+      // MC in Background-Isolate → UI bleibt flüssig während KI denkt
+      final card = await compute(
+        MonteCarloAI.computeEntry,
+        (aiPlayer.id, _state),
+      );
+
+      // Phase-Check: könnte sich geändert haben (z.B. clearTrick-Timer)
+      if (_state.phase != GamePhase.playing) break;
+      if (_state.currentPlayerIndex != playerIdx) break;
+
       _doPlayCard(aiPlayer.id, card, playerIdx);
     }
     _aiRunning = false;
