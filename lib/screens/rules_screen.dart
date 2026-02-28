@@ -49,6 +49,20 @@ class RulesScreen extends StatelessWidget {
             _ValueRow('Bube / Unter (kein Trumpf)', '2 Punkte'),
             _ValueRow('8, 7, 6 (Trumpf)  /  9, 8, 7, 6 (andere)', '0 Punkte'),
 
+            // ── Kartenwerte: Trumpf Unten ──────────────────────────────────
+            _Section('Kartenwerte – Trumpf Unten', [
+              _Rule('Stichstärke Trumpf: Buur (B) › Näll (9) › 6 › 7 › 8 › 10 › Dame › König › Ass.'),
+              _Rule('Nicht-Trumpf: wie Undenufe (6 ist stärker als Ass).'),
+            ]),
+            _ValueRow('Buur (Trumpfbube)',         '20 Punkte', isHighlight: true),
+            _ValueRow('Näll (Trumpfneun)',         '14 Punkte', isHighlight: true),
+            _ValueRow('Sechs (Trumpf oder nicht)', '11 Punkte', isHighlight: true),
+            _ValueRow('Zehner',                    '10 Punkte'),
+            _ValueRow('König',                      '4 Punkte'),
+            _ValueRow('Dame / Ober',               '3 Punkte'),
+            _ValueRow('Bube / Unter (kein Trumpf)', '2 Punkte'),
+            _ValueRow('Ass, 8, 7 (Trumpf)  /  Ass, 9, 8, 7 (andere)', '0 Punkte'),
+
             // ── Kartenwerte: Obenabe & Undenufe ───────────────────────────
             _Section('Kartenwerte – Obenabe & Undenufe', []),
             _ValueRow('Ass (Obenabe)  /  Sechs (Undenufe)', '11 Punkte', isHighlight: true),
@@ -90,6 +104,16 @@ class RulesScreen extends StatelessWidget {
               '🌹🌰  Rosen / Eicheln  (Trumpf)',
               'Eine Farbe aus der Gruppe Rosen/Eicheln (Französisch: Herz/Kreuz) wird als Trumpf bestimmt. '
               'Gleiche Regeln wie oben.',
+            ),
+            _ModeCard(
+              '⬆️🔔🛡🌹🌰  Trumpf Unten',
+              'Wie Trumpfspiel, aber die Reihenfolge im Trumpf ist umgekehrt:\n'
+              'Buur (B) › Näll (9) › 6 › 7 › 8 › 10 › Dame › König › Ass.\n\n'
+              'Nicht-Trumpf-Farben folgen der Undenufe-Reihenfolge (6 schlägt Ass).\n\n'
+              'Punkte: Sechs zählt 11 Punkte (statt Ass), Ass zählt 0 Punkte. '
+              'Buur = 20 Pkt, Näll = 14 Pkt bleiben gleich.\n\n'
+              'Teamregel: Hat ein Team eine Trumpfgruppe (Schellen/Schilten oder Rosen/Eicheln) bereits als «Trumpf Oben» gespielt, '
+              'muss die andere Gruppe zwingend als «Trumpf Unten» gespielt werden – und umgekehrt.',
             ),
             _ModeCard(
               '⬆️  Obenabe',
@@ -147,7 +171,7 @@ class RulesScreen extends StatelessWidget {
 
             // ── Wertung ───────────────────────────────────────────────────
             _Section('Wertung', [
-              _Rule('Trumpfspiel / Obenabe / Undenufe / Slalom / Elefant / Alles Trumpf / Schafkopf:\n'
+              _Rule('Trumpfspiel / Trumpf Unten / Obenabe / Undenufe / Slalom / Elefant / Alles Trumpf / Schafkopf:\n'
                     'Nur das ansagende Team kann Rundenspunkte erhalten. '
                     'Gewinnt es (mehr Punkte als der Gegner), erhält es seine tatsächlichen Kartenpunkte. '
                     'Verliert es, erhält es 0 Punkte.'),
@@ -163,6 +187,8 @@ class RulesScreen extends StatelessWidget {
             _Section('Spielstruktur', [
               _Rule('Jedes Team muss alle 10 Spielvarianten je einmal ansagen:\n'
                     'Schellen/Schilten-Trumpf, Rosen/Eicheln-Trumpf, Obenabe, Undenufe, Slalom, Elefant, Misere, Alles Trumpf, Schafkopf, Molotof.'),
+              _Rule('Trumpf Oben / Unten: Jede Trumpfgruppe (Schellen/Schilten und Rosen/Eicheln) muss ein Team je einmal als Oben und einmal als Unten spielen. '
+                    'Die erste Wahl ist frei; die zweite Gruppe wird dann automatisch auf die entgegengesetzte Richtung erzwungen.'),
               _Rule('Der Ansager wechselt jede Runde: Süd → Ost → Nord → West → Süd → …'),
               _Rule('Bereits gespielte Varianten des eigenen Teams sind ausgegraut und nicht mehr wählbar.'),
               _Rule('Nach allen 20 Runden endet das Gesamtspiel. Das Team mit den meisten Gesamtpunkten gewinnt.'),

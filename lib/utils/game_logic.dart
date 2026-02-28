@@ -197,6 +197,24 @@ class GameLogic {
       return _trumpStrength(challenger) > _trumpStrength(current);
     }
 
+    if (mode == GameMode.trumpUnten) {
+      // Trump beats non-trump; within trump: trumpUnten order; non-trump: undenufe
+      final cTrump = challenger.suit == trump;
+      final wTrump = current.suit == trump;
+      if (wTrump && !cTrump) return false;
+      if (!wTrump && cTrump) return true;
+      if (wTrump && cTrump) {
+        return _trumpUntenStrength(challenger) > _trumpUntenStrength(current);
+      }
+      // Beide nicht Trumpf: Undenufe-Reihenfolge
+      final cFollows = challenger.suit == ledSuit;
+      final wFollows = current.suit == ledSuit;
+      if (wFollows && !cFollows) return false;
+      if (!wFollows && cFollows) return true;
+      if (!wFollows && !cFollows) return false;
+      return _untenStrength(challenger) > _untenStrength(current);
+    }
+
     if (mode == GameMode.trump) {
       final cTrump = challenger.suit == trump;
       final wTrump = current.suit == trump;
@@ -243,6 +261,21 @@ class GameLogic {
     }
   }
 
+  /// Trumpf Unten: B=8 > 9=7 > 6=6 > 7=5 > 8=4 > 10=3 > D=2 > K=1 > A=0
+  static int _trumpUntenStrength(JassCard card) {
+    switch (card.value) {
+      case CardValue.jack:  return 8; // Bauer/Jass
+      case CardValue.nine:  return 7; // Nell
+      case CardValue.six:   return 6;
+      case CardValue.seven: return 5;
+      case CardValue.eight: return 4;
+      case CardValue.ten:   return 3;
+      case CardValue.queen: return 2;
+      case CardValue.king:  return 1;
+      case CardValue.ace:   return 0;
+    }
+  }
+
   /// Oben / Normal: A=8 > K=7 > D=6 > B=5 > 10=4 > 9=3 > 8=2 > 7=1 > 6=0
   static int _normalStrength(JassCard card) {
     switch (card.value) {
@@ -276,6 +309,9 @@ class GameLogic {
   /// Spielstärke einer Karte für KI-Entscheidungen
   static int cardPlayStrength(JassCard card, GameMode mode, Suit? trump) {
     switch (mode) {
+      case GameMode.trumpUnten:
+        if (card.suit == trump) return 100 + _trumpUntenStrength(card);
+        return _untenStrength(card);
       case GameMode.trump:
         if (card.suit == trump) return 100 + _trumpStrength(card);
         return _normalStrength(card);
@@ -351,6 +387,30 @@ class GameLogic {
       }
     }
 
+    // Trumpf Unten: 6=11, Ass=0 (statt standard); J=20, 9=14 in Trumpf
+    if (mode == GameMode.trumpUnten) {
+      if (card.suit == trump) {
+        switch (card.value) {
+          case CardValue.jack:  return 20; // Jass
+          case CardValue.nine:  return 14; // Nell
+          case CardValue.six:   return 11; // 6 statt Ass
+          case CardValue.ten:   return 10;
+          case CardValue.king:  return 4;
+          case CardValue.queen: return 3;
+          default: return 0; // Ass=0, 8=0, 7=0
+        }
+      }
+      // Nicht-Trumpf: 6=11, Ass=0
+      switch (card.value) {
+        case CardValue.six:   return 11;
+        case CardValue.ten:   return 10;
+        case CardValue.king:  return 4;
+        case CardValue.queen: return 3;
+        case CardValue.jack:  return 2;
+        default: return 0; // Ass=0, 9=0, 8=0, 7=0
+      }
+    }
+
     // Trumpf: Trumpffarbe mit Jass/Nell-Bonus
     if (mode == GameMode.trump && card.suit == trump) {
       switch (card.value) {
@@ -392,7 +452,9 @@ class GameLogic {
     final molotofSubMode = state.molotofSubMode;
     final playable = getPlayableCards(aiPlayer.hand, state.currentTrickCards,
         mode: effectiveMode,
-        trumpSuit: (effectiveMode == GameMode.trump || effectiveMode == GameMode.schafkopf)
+        trumpSuit: (effectiveMode == GameMode.trump ||
+                effectiveMode == GameMode.schafkopf ||
+                effectiveMode == GameMode.trumpUnten)
             ? trump
             : null);
     if (playable.length == 1) return playable.first;

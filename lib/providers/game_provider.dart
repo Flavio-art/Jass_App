@@ -71,6 +71,19 @@ class GameProvider extends ChangeNotifier {
       newUsed2.add(usedKey);
     }
 
+    // Trumpfrichtung speichern (Oben=trump, Unten=trumpUnten)
+    final newTrumpObenTeam1 = Map<String, bool>.from(currentState.trumpObenTeam1);
+    final newTrumpObenTeam2 = Map<String, bool>.from(currentState.trumpObenTeam2);
+    if (currentState.gameMode == GameMode.trump ||
+        currentState.gameMode == GameMode.trumpUnten) {
+      final isOben = currentState.gameMode == GameMode.trump;
+      if (currentState.isTeam1Ansager) {
+        newTrumpObenTeam1[usedKey] = isOben;
+      } else {
+        newTrumpObenTeam2[usedKey] = isOben;
+      }
+    }
+
     // Spielende prüfen (jedes Team hat alle 8 Varianten gespielt)
     if (newUsed1.length >= 8 && newUsed2.length >= 8) {
       _state = _state.copyWith(
@@ -112,6 +125,8 @@ class GameProvider extends ChangeNotifier {
       pendingNextPlayerIndex: null,
       currentPlayerIndex: newAnsagerIndex,
       molotofSubMode: null,
+      trumpObenTeam1: newTrumpObenTeam1,
+      trumpObenTeam2: newTrumpObenTeam2,
     );
     notifyListeners();
 
@@ -133,16 +148,21 @@ class GameProvider extends ChangeNotifier {
     GameMode mode;
     Suit? trumpSuit;
 
-    if (variantKey == 'trump_ss') {
-      mode = GameMode.trump;
-      trumpSuit = _state.cardType == CardType.french
-          ? (Random().nextBool() ? Suit.spades : Suit.clubs)
-          : (Random().nextBool() ? Suit.schellen : Suit.schilten);
-    } else if (variantKey == 'trump_re') {
-      mode = GameMode.trump;
-      trumpSuit = _state.cardType == CardType.french
-          ? (Random().nextBool() ? Suit.hearts : Suit.diamonds)
-          : (Random().nextBool() ? Suit.herzGerman : Suit.eichel);
+    if (variantKey == 'trump_ss' || variantKey == 'trump_re') {
+      // Prüfen ob Richtung erzwungen ist
+      final isTeam1 = _state.isTeam1Ansager;
+      final forced = _state.forcedTrumpDirection(isTeam1, variantKey);
+      final useOben = forced ?? Random().nextBool();
+      mode = useOben ? GameMode.trump : GameMode.trumpUnten;
+      if (variantKey == 'trump_ss') {
+        trumpSuit = _state.cardType == CardType.french
+            ? (Random().nextBool() ? Suit.spades : Suit.clubs)
+            : (Random().nextBool() ? Suit.schellen : Suit.schilten);
+      } else {
+        trumpSuit = _state.cardType == CardType.french
+            ? (Random().nextBool() ? Suit.hearts : Suit.diamonds)
+            : (Random().nextBool() ? Suit.herzGerman : Suit.eichel);
+      }
     } else if (variantKey == 'schafkopf') {
       mode = GameMode.schafkopf;
       // KI wählt zufällige Trumpffarbe
@@ -263,7 +283,8 @@ class GameProvider extends ChangeNotifier {
         _state.players[playerIdx].hand, _state.currentTrickCards,
         mode: _state.effectiveMode,
         trumpSuit: (_state.effectiveMode == GameMode.trump ||
-                _state.effectiveMode == GameMode.schafkopf)
+                _state.effectiveMode == GameMode.schafkopf ||
+                _state.effectiveMode == GameMode.trumpUnten)
             ? _state.trumpSuit
             : null);
     if (!playable.contains(card)) return;

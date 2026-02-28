@@ -11,7 +11,8 @@ enum GamePhase {
 }
 
 enum GameMode {
-  trump,
+  trump,       // Trumpf oben (Standard)
+  trumpUnten,  // Trumpf unten (6 drittstärkster Trumpf, nicht-Trumpf nach Undenufe)
   oben,
   unten,
   slalom,
@@ -19,7 +20,7 @@ enum GameMode {
   misere,
   allesTrumpf,
   schafkopf,
-  molotof, // placeholder – spielt wie Slalom
+  molotof,
 }
 
 // ─── Rundenresultat ───────────────────────────────────────────────────────────
@@ -95,6 +96,9 @@ class GameState {
   final int? pendingNextPlayerIndex;
   final List<RoundResult> roundHistory; // alle abgeschlossenen Runden
   final GameMode? molotofSubMode; // nur für GameMode.molotof
+  // trumpObenTeam1/2: 'trump_ss'/'trump_re' → true=oben (normal), false=unten
+  final Map<String, bool> trumpObenTeam1;
+  final Map<String, bool> trumpObenTeam2;
 
   const GameState({
     required this.cardType,
@@ -115,6 +119,8 @@ class GameState {
     this.pendingNextPlayerIndex,
     this.roundHistory = const [],
     this.molotofSubMode,
+    this.trumpObenTeam1 = const {},
+    this.trumpObenTeam2 = const {},
   });
 
   Player get currentPlayer => players[currentPlayerIndex];
@@ -163,7 +169,7 @@ class GameState {
 
   /// Varianten-Schlüssel: Schellen/Schilten oder Rosen/Eicheln für Trumpf
   String variantKey(GameMode mode, {Suit? trumpSuit}) {
-    if (mode == GameMode.trump) {
+    if (mode == GameMode.trump || mode == GameMode.trumpUnten) {
       final suit = trumpSuit ?? this.trumpSuit;
       // Gruppe A: Schellen + Schilten (♠ + ♣ schwarz bei Französisch)
       final isSchellenSchilten = suit == Suit.schellen ||
@@ -192,6 +198,16 @@ class GameState {
   List<String> availableVariants(bool isTeam1) {
     final used = isTeam1 ? usedVariantsTeam1 : usedVariantsTeam2;
     return _allVariants().where((v) => !used.contains(v)).toList();
+  }
+
+  /// Gibt zurück ob die Trumpfrichtung erzwungen ist.
+  /// true = muss Oben (normal), false = muss Unten, null = freie Wahl.
+  bool? forcedTrumpDirection(bool isTeam1, String variantKey) {
+    final dirMap = isTeam1 ? trumpObenTeam1 : trumpObenTeam2;
+    final otherKey = variantKey == 'trump_ss' ? 'trump_re' : 'trump_ss';
+    final otherDirection = dirMap[otherKey];
+    if (otherDirection == null) return null; // noch keine andere Gruppe gespielt
+    return !otherDirection; // muss die entgegengesetzte Richtung spielen
   }
 
   static GameState initial({required CardType cardType}) {
@@ -223,6 +239,8 @@ class GameState {
     Object? pendingNextPlayerIndex = _sentinel,
     List<RoundResult>? roundHistory,
     Object? molotofSubMode = _sentinel,
+    Map<String, bool>? trumpObenTeam1,
+    Map<String, bool>? trumpObenTeam2,
   }) {
     return GameState(
       cardType: cardType ?? this.cardType,
@@ -248,6 +266,8 @@ class GameState {
       molotofSubMode: molotofSubMode == _sentinel
           ? this.molotofSubMode
           : molotofSubMode as GameMode?,
+      trumpObenTeam1: trumpObenTeam1 ?? this.trumpObenTeam1,
+      trumpObenTeam2: trumpObenTeam2 ?? this.trumpObenTeam2,
     );
   }
 }

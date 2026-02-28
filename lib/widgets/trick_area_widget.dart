@@ -132,6 +132,19 @@ class _ModeIndicator extends StatelessWidget {
             ),
           ],
         );
+      case GameMode.trumpUnten:
+        if (trumpSuit == null) return const SizedBox.shrink();
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Trumpf ⬆️', style: TextStyle(color: Colors.orange, fontSize: 10)),
+            Text(
+              trumpSuit!.label(CardType.french),
+              style: const TextStyle(
+                  color: Colors.orange, fontSize: 13, fontWeight: FontWeight.bold),
+            ),
+          ],
+        );
       case GameMode.oben:
         return _label('Oben ⬆️', Colors.blue.shade300);
       case GameMode.unten:
