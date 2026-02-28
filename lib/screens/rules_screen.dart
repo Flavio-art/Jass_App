@@ -22,83 +22,150 @@ class RulesScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+
+            // ── Grundregeln ────────────────────────────────────────────────
             _Section('Grundregeln', [
               _Rule('4 Spieler in 2 Teams: Süd & Nord gegen West & Ost.'),
               _Rule('36 Karten pro Spiel (6 bis Ass, 4 Farben), je 9 Karten pro Spieler.'),
-              _Rule('Spielrichtung: im Uhrzeigersinn (Süd → Ost → Nord → West).'),
+              _Rule('Spielrichtung: Süd → Ost → Nord → West (Uhrzeigersinn).'),
               _Rule('Wer einen Stich gewinnt, spielt den nächsten an.'),
             ]),
 
+            // ── Farbenpflicht ──────────────────────────────────────────────
             _Section('Farbenpflicht', [
               _Rule('Man muss immer die angespielte Farbe bedienen, falls vorhanden.'),
               _Rule('Hat man keine Karte der gespielten Farbe, darf man beliebig spielen – auch trumpfen.'),
-              _Rule('Jass zurückhalten: Ist Trumpf angesagt und der Buur (Trumpfbube) die einzige Trumpfkarte in der Hand, muss man ihn nicht spielen – man darf eine beliebige andere Karte spielen.'),
+              _Rule('Jass zurückhalten (nur Trumpfspiel): Ist der Buur (Trumpfbube) die einzige Trumpfkarte in der Hand, muss man ihn nicht spielen.'),
             ]),
 
-            _Section('Stichgewinn', [
-              _Rule('Bei Trumpfspiel: Trumpfkarten schlagen alle anderen Farben.'),
-              _Rule('Ohne Trumpf: Die höchste Karte der angespielten Farbe gewinnt den Stich.'),
-              _Rule('Karten einer falschen Farbe (ohne Trumpf) können nie stechen.'),
+            // ── Kartenwerte: Trumpf ────────────────────────────────────────
+            _Section('Kartenwerte – Trumpfspiel', []),
+            _ValueRow('Buur (Trumpfbube)',     '20 Punkte', isHighlight: true),
+            _ValueRow('Näll (Trumpfneun)',     '14 Punkte', isHighlight: true),
+            _ValueRow('Ass',                   '11 Punkte'),
+            _ValueRow('Zehner',                '10 Punkte'),
+            _ValueRow('König',                  '4 Punkte'),
+            _ValueRow('Dame / Ober',            '3 Punkte'),
+            _ValueRow('Bube / Unter (kein Trumpf)', '2 Punkte'),
+            _ValueRow('8, 7, 6 (Trumpf)  /  9, 8, 7, 6 (andere)', '0 Punkte'),
+
+            // ── Kartenwerte: Obenabe & Undenufe ───────────────────────────
+            _Section('Kartenwerte – Obenabe & Undenufe', []),
+            _ValueRow('Ass (Obenabe)  /  Sechs (Undenufe)', '11 Punkte', isHighlight: true),
+            _ValueRow('Zehner',                '10 Punkte'),
+            _ValueRow('Achter',                 '8 Punkte', isHighlight: true),
+            _ValueRow('König',                  '4 Punkte'),
+            _ValueRow('Dame / Ober',            '3 Punkte'),
+            _ValueRow('Bube / Unter',           '2 Punkte'),
+            _ValueRow('9, 7 (Obenabe)  /  Ass, 9, 7 (Undenufe)', '0 Punkte'),
+
+            // ── Kartenwerte: Alles Trumpf ──────────────────────────────────
+            _Section('Kartenwerte – Alles Trumpf', []),
+            _ValueRow('Buur (Bube)',            '20 Punkte', isHighlight: true),
+            _ValueRow('Näll (Neun)',            '14 Punkte', isHighlight: true),
+            _ValueRow('König',                   '4 Punkte'),
+            _ValueRow('Alle anderen Karten',     '0 Punkte'),
+
+            // ── Kartenwerte: Schafkopf ─────────────────────────────────────
+            _Section('Kartenwerte – Schafkopf', [
+              _Rule('Gleiche Werte wie Obenabe: Ass=11, 10=10, 8=8, König=4, Dame=3, Bube=2, 9/7/6=0.'),
             ]),
 
-            _Section('Kartenwerte – Trumpf', [
-              _ValueRow('Buur (Bube)', '20 Punkte', isHighlight: true),
-              _ValueRow('Näll (Neun)', '14 Punkte', isHighlight: true),
-              _ValueRow('Ass', '11 Punkte'),
-              _ValueRow('Zehner (Banner)', '10 Punkte'),
-              _ValueRow('König', '4 Punkte'),
-              _ValueRow('Dame (Ober)', '3 Punkte'),
-              _ValueRow('8, 7, 6', '0 Punkte'),
-            ]),
-
-            _Section('Kartenwerte – Obenabe & Undenufe', [
-              _ValueRow('Ass (Obenabe) / Sechs (Undenufe)', '11 Punkte', isHighlight: true),
-              _ValueRow('Zehner', '10 Punkte'),
-              _ValueRow('Achter', '8 Punkte', isHighlight: true),
-              _ValueRow('König', '4 Punkte'),
-              _ValueRow('Dame (Ober)', '3 Punkte'),
-              _ValueRow('Bube (Unter)', '2 Punkte'),
-              _ValueRow('9, 7 (Obenabe) / Ass, 9, 7 (Undenufe)', '0 Punkte'),
-            ]),
-
-            _Section('Kartenwerte – Alles Trumpf', [
-              _ValueRow('Buur (Bube)', '20 Punkte', isHighlight: true),
-              _ValueRow('Näll (Neun)', '14 Punkte', isHighlight: true),
-              _ValueRow('König', '4 Punkte'),
-              _ValueRow('Alle anderen Karten', '0 Punkte'),
-            ]),
-
-            _Section('Letzter Stich', [
+            // ── Letzter Stich & Match ──────────────────────────────────────
+            _Section('Letzter Stich & Match', [
               _Rule('Wer den letzten (9.) Stich gewinnt, erhält 5 Bonuspunkte.'),
-              _Rule('Gesamtpunkte pro Runde: 157 Punkte (152 Kartenwerte + 5 Bonus).'),
+              _Rule('Gesamtpunkte pro Runde: 157 (152 Kartenwerte + 5 Bonus).'),
+              _Rule('Match: Gewinnt ein Team alle 9 Stiche, erhält das ansagende Team 170 Punkte.'),
             ]),
 
-            _Section('Match', [
-              _Rule('Gewinnt ein Team alle 9 Stiche, ist das ein «Match».'),
-              _Rule('Bei einem Match erhält das ansagende Team 170 statt 157 Punkte.'),
-            ]),
-
+            // ── Spielmodi ─────────────────────────────────────────────────
             _Section('Spielmodi', []),
-            _ModeCard('⬇️  Obenabe', 'Kein Trumpf. Das Ass ist die höchste Karte, die Sechs die niedrigste. Die vier Achter zählen je 8 Punkte.'),
-            _ModeCard('⬆️  Undenufe', 'Kein Trumpf. Die Sechs ist die höchste Karte, das Ass die niedrigste. Die vier Achter zählen je 8 Punkte.'),
-            _ModeCard('〰️  Slalom', 'Abwechselnd Obenabe und Undenufe. Der 1. Stich wird nach Obenabe-Regeln gespielt, der 2. nach Undenufe, usw.'),
-            _ModeCard('🐘  Elefant', 'Stiche 1–3: Obenabe-Regeln. Stiche 4–6: Undenufe-Regeln. Ab dem 7. Stich gilt die Farbe der ersten gespielten Karte als Trumpf.'),
-            _ModeCard('😶  Misere', 'Wer am wenigsten Punkte sammelt, gewinnt. Es gelten Obenabe-Regeln für den Stichgewinn.'),
-            _ModeCard('👑  Alles Trumpf', 'Kein fester Trumpf. Die angespielte Farbe kann gewinnen, wobei die Trumpfreihenfolge (Buur > Näll > Ass > …) gilt. Nur Buur (20), Näll (14) und König (4) zählen Punkte.'),
-            _ModeCard('♠  Trumpfspiel', 'Eine der vier Farben wird als Trumpf bestimmt. Trumpfkarten schlagen alle anderen Farben. Der Buur (Bube) und die Näll (Neun) sind die stärksten Trumpfkarten.'),
 
+            _ModeCard(
+              '🔔🛡  Schellen / Schilten  (Trumpf)',
+              'Eine Farbe aus der Gruppe Schellen/Schilten (Französisch: Ecken/Schaufeln) wird als Trumpf bestimmt. '
+              'Trumpfkarten schlagen alle anderen Farben. Der Buur (Trumpfbube) und die Näll (Trumpfneun) sind die stärksten Trumpfkarten.',
+            ),
+            _ModeCard(
+              '🌹🌰  Rosen / Eicheln  (Trumpf)',
+              'Eine Farbe aus der Gruppe Rosen/Eicheln (Französisch: Herz/Kreuz) wird als Trumpf bestimmt. '
+              'Gleiche Regeln wie oben.',
+            ),
+            _ModeCard(
+              '⬆️  Obenabe',
+              'Kein Trumpf. Das Ass ist die höchste Karte, die Sechs die niedrigste. '
+              'Die vier Achter zählen je 8 Punkte.',
+            ),
+            _ModeCard(
+              '⬇️  Undenufe',
+              'Kein Trumpf. Die Sechs ist die höchste Karte, das Ass die niedrigste. '
+              'Die vier Achter zählen je 8 Punkte.',
+            ),
+            _ModeCard(
+              '〰️  Slalom',
+              'Abwechselnd Obenabe und Undenufe. Der 1. Stich gilt nach Obenabe-Regeln, '
+              'der 2. nach Undenufe-Regeln, und so weiter.',
+            ),
+            _ModeCard(
+              '🐘  Elefant',
+              'Stiche 1–3: Obenabe-Regeln.\n'
+              'Stiche 4–6: Undenufe-Regeln.\n'
+              'Ab Stich 7: Die erste gespielte Karte im 7. Stich bestimmt die Trumpffarbe für die restlichen Stiche.',
+            ),
+            _ModeCard(
+              '😶  Misere',
+              'Ziel: möglichst wenige Punkte sammeln. Es gelten Obenabe-Regeln für den Stichgewinn. '
+              'Das ansagende Team gewinnt, wenn es weniger Punkte als der Gegner hat.',
+            ),
+            _ModeCard(
+              '👑  Alles Trumpf',
+              'Kein fester Trumpf – die angespielte Farbe entscheidet. '
+              'Innerhalb der gespielten Farbe gilt die Trumpfreihenfolge (Buur > Näll > Ass > König > Dame > 10 > 8 > 7 > 6). '
+              'Nur Buur (20 Pkt), Näll (14 Pkt) und König (4 Pkt) zählen.',
+            ),
+            _ModeCard(
+              '🐑  Schafkopf',
+              '15 Trumpfkarten: alle vier Damen + alle vier Achter + alle Karten der gewählten Trumpffarbe.\n\n'
+              'Trumpfreihenfolge (höchste zuerst):\n'
+              'Kreuz-Dame › Schaufeln-Dame › Herz-Dame › Ecken-Dame\n'
+              'Kreuz-8 › Schaufeln-8 › Herz-8 › Ecken-8\n'
+              'Dann Trumpffarbe: 10 › König › Bube › Ass › 9 › 7 › 6\n\n'
+              'Man muss Trumpf spielen wenn Trumpf angeführt wird (kein Zurückhalten). '
+              'Punktesystem: Obenabe-Werte (8 zählt 8 Punkte).',
+            ),
+            _ModeCard(
+              '💣  Molotof',
+              'Alle Spieler müssen immer Farbe angeben (strenge Farbenpflicht).\n\n'
+              'Der erste Spieler, der nicht Farbe angeben kann, spielt eine beliebige Karte und bestimmt damit den Spielmodus:\n'
+              '• Sechs (6) → Undenufe\n'
+              '• Ass → Obenabe\n'
+              '• Andere (7–König) → Trumpfspiel; die Farbe der gespielten Karte ist Trumpf\n\n'
+              'Stiche vor der Trumpfbestimmung zählen keine Punkte – sie werden rückwirkend berechnet sobald der Modus feststeht.\n\n'
+              'Wertung: Ziel ist möglichst wenige Punkte. '
+              'Beide Teams erhalten eine Gutschrift von 157 − eigene Punkte (wer also 20 Punkte hat, bekommt 137 gutgeschrieben).',
+            ),
+
+            // ── Wertung ───────────────────────────────────────────────────
             _Section('Wertung', [
-              _Rule('Nur das ansagende Team kann Punkte für eine Runde erhalten.'),
-              _Rule('Gewinnt das ansagende Team (mehr Punkte als der Gegner, oder weniger bei Misere): Es erhält seine tatsächlichen Kartenpunkte.'),
-              _Rule('Verliert das ansagende Team: Es erhält 0 Punkte.'),
-              _Rule('Das gegnerische Team erhält immer 0 Punkte in einer Runde, die es nicht angesagt hat.'),
+              _Rule('Trumpfspiel / Obenabe / Undenufe / Slalom / Elefant / Alles Trumpf / Schafkopf:\n'
+                    'Nur das ansagende Team kann Rundenspunkte erhalten. '
+                    'Gewinnt es (mehr Punkte als der Gegner), erhält es seine tatsächlichen Kartenpunkte. '
+                    'Verliert es, erhält es 0 Punkte.'),
+              _Rule('Misere:\n'
+                    'Das ansagende Team gewinnt, wenn es weniger Punkte als der Gegner hat. '
+                    'Bei Sieg erhält es seine tatsächlichen Kartenpunkte.'),
+              _Rule('Molotof:\n'
+                    'Beide Teams erhalten unabhängig Punkte. '
+                    'Gutschrift = 157 − eigene Kartenpunkte.'),
             ]),
 
+            // ── Spielstruktur ─────────────────────────────────────────────
             _Section('Spielstruktur', [
-              _Rule('Jedes Team muss alle 8 Spielvarianten je einmal ansagen.'),
-              _Rule('Danach endet das Gesamtspiel. Das Team mit den meisten Gesamtpunkten gewinnt.'),
+              _Rule('Jedes Team muss alle 10 Spielvarianten je einmal ansagen:\n'
+                    'Schellen/Schilten-Trumpf, Rosen/Eicheln-Trumpf, Obenabe, Undenufe, Slalom, Elefant, Misere, Alles Trumpf, Schafkopf, Molotof.'),
               _Rule('Der Ansager wechselt jede Runde: Süd → Ost → Nord → West → Süd → …'),
-              _Rule('Bereits gespielte Varianten des eigenen Teams sind ausgegraut und können nicht mehr gewählt werden.'),
+              _Rule('Bereits gespielte Varianten des eigenen Teams sind ausgegraut und nicht mehr wählbar.'),
+              _Rule('Nach allen 20 Runden endet das Gesamtspiel. Das Team mit den meisten Gesamtpunkten gewinnt.'),
             ]),
 
             SizedBox(height: 16),
@@ -147,7 +214,7 @@ class _Rule extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -155,7 +222,7 @@ class _Rule extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.45),
+              style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.5),
             ),
           ),
         ],
@@ -180,11 +247,15 @@ class _ValueRow extends StatelessWidget {
           Expanded(
             child: Text(card,
                 style: TextStyle(
-                    color: textColor, fontSize: 14, fontWeight: isHighlight ? FontWeight.bold : FontWeight.normal)),
+                    color: textColor,
+                    fontSize: 14,
+                    fontWeight: isHighlight ? FontWeight.bold : FontWeight.normal)),
           ),
           Text(value,
               style: TextStyle(
-                  color: textColor, fontSize: 14, fontWeight: isHighlight ? FontWeight.bold : FontWeight.normal)),
+                  color: textColor,
+                  fontSize: 14,
+                  fontWeight: isHighlight ? FontWeight.bold : FontWeight.normal)),
         ],
       ),
     );
@@ -212,9 +283,9 @@ class _ModeCard extends StatelessWidget {
           Text(title,
               style: const TextStyle(
                   color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
-          const SizedBox(height: 5),
+          const SizedBox(height: 6),
           Text(description,
-              style: const TextStyle(color: Colors.white60, fontSize: 13, height: 1.4)),
+              style: const TextStyle(color: Colors.white60, fontSize: 13, height: 1.5)),
         ],
       ),
     );
