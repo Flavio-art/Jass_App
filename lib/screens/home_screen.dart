@@ -174,16 +174,21 @@ class _CardTypeButton extends StatelessWidget {
         child: Column(
           children: [
             // Vier Suit-Pips in einem 2×2 Raster
-            SizedBox(
-              width: 80,
-              height: 56,
-              child: GridView.count(
-                crossAxisCount: 2,
-                mainAxisSpacing: 4,
-                crossAxisSpacing: 4,
-                physics: const NeverScrollableScrollPhysics(),
-                children: suits.map((s) => _SuitPip(suit: s, cardType: cardType)).toList(),
-              ),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  _SuitPip(suit: suits[0], cardType: cardType),
+                  const SizedBox(width: 6),
+                  _SuitPip(suit: suits[1], cardType: cardType),
+                ]),
+                const SizedBox(height: 6),
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  _SuitPip(suit: suits[2], cardType: cardType),
+                  const SizedBox(width: 6),
+                  _SuitPip(suit: suits[3], cardType: cardType),
+                ]),
+              ],
             ),
             const SizedBox(height: 6),
             Text(
@@ -206,7 +211,10 @@ class _CardTypeButton extends StatelessWidget {
   }
 }
 
-// Gecroptes Ass-Symbol (ein grosses Pip aus der Mitte der Ass-Karte)
+// Gecroptes Ass-Symbol: zeigt die Mitte der Ass-Karte in einem fixen 28×28 Feld.
+// Alle Karten sind 449×701px → bei 100px gerendert: 100×156px.
+// Mitte 28×28: zeigt (100−28)/2=36px bis 64px horizontal,
+//              (156−28)/2=64px bis 92px vertikal → reines Symbolzentrum.
 class _SuitPip extends StatelessWidget {
   final Suit suit;
   final CardType cardType;
@@ -219,12 +227,14 @@ class _SuitPip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRect(
-      child: Align(
-        alignment: Alignment.center,
-        widthFactor: 0.5,
-        heightFactor: 0.42,
-        child: Image.asset(_acePath, width: 60, fit: BoxFit.fitWidth),
+    return SizedBox(
+      width: 28,
+      height: 28,
+      child: ClipRect(
+        child: Align(
+          alignment: Alignment.center,
+          child: Image.asset(_acePath, width: 100, fit: BoxFit.fitWidth),
+        ),
       ),
     );
   }

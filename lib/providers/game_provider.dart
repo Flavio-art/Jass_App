@@ -302,7 +302,22 @@ class GameProvider extends ChangeNotifier {
         subMode = GameMode.trump;
         newTrump = card.suit;
       }
-      _state = _state.copyWith(molotofSubMode: subMode, trumpSuit: newTrump);
+      // Rückwirkend Punkte für alle bereits gespielten Stiche berechnen
+      final retroScores = Map<String, int>.from(_state.teamScores);
+      for (final trick in _state.completedTricks) {
+        final pts = GameLogic.trickPoints(
+            trick.cards.values.toList(), subMode, newTrump);
+        final winner = _state.players.firstWhere((p) => p.id == trick.winnerId);
+        final isTeam1 = winner.position == PlayerPosition.south ||
+            winner.position == PlayerPosition.north;
+        if (isTeam1) {
+          retroScores['team1'] = (retroScores['team1'] ?? 0) + pts;
+        } else {
+          retroScores['team2'] = (retroScores['team2'] ?? 0) + pts;
+        }
+      }
+      _state = _state.copyWith(
+          molotofSubMode: subMode, trumpSuit: newTrump, teamScores: retroScores);
     }
 
     final newTrickCards = [..._state.currentTrickCards, card];
