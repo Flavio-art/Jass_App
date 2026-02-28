@@ -119,6 +119,7 @@ class _GameScreenState extends State<GameScreen> {
                             playerIds: state.currentTrickPlayerIds,
                             players: state.players,
                             gameMode: state.gameMode,
+                            molotofSubMode: state.molotofSubMode,
                             trumpSuit: state.trumpSuit,
                             trickNumber: displayTrickNumber,
                             isClearPending: isClearPending,

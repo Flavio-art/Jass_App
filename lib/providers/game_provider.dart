@@ -109,6 +109,7 @@ class GameProvider extends ChangeNotifier {
       totalTeamScores: newTotal,
       pendingNextPlayerIndex: null,
       currentPlayerIndex: newAnsagerIndex,
+      molotofSubMode: null,
     );
     notifyListeners();
 
@@ -130,16 +131,23 @@ class GameProvider extends ChangeNotifier {
     GameMode mode;
     Suit? trumpSuit;
 
-    if (variantKey == 'trump_rot') {
-      mode = GameMode.trump;
-      trumpSuit = _state.cardType == CardType.french
-          ? (Random().nextBool() ? Suit.hearts : Suit.diamonds)
-          : (Random().nextBool() ? Suit.herzGerman : Suit.schellen);
-    } else if (variantKey == 'trump_schwarz') {
+    if (variantKey == 'trump_ss') {
       mode = GameMode.trump;
       trumpSuit = _state.cardType == CardType.french
           ? (Random().nextBool() ? Suit.spades : Suit.clubs)
-          : (Random().nextBool() ? Suit.eichel : Suit.schilten);
+          : (Random().nextBool() ? Suit.schellen : Suit.schilten);
+    } else if (variantKey == 'trump_re') {
+      mode = GameMode.trump;
+      trumpSuit = _state.cardType == CardType.french
+          ? (Random().nextBool() ? Suit.hearts : Suit.diamonds)
+          : (Random().nextBool() ? Suit.herzGerman : Suit.eichel);
+    } else if (variantKey == 'schafkopf') {
+      mode = GameMode.schafkopf;
+      // KI wählt zufällige Trumpffarbe
+      final suits = _state.cardType == CardType.french
+          ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
+          : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
+      trumpSuit = suits[Random().nextInt(suits.length)];
     } else {
       mode = GameMode.values.firstWhere((m) => m.name == variantKey);
     }
@@ -177,35 +185,44 @@ class GameProvider extends ChangeNotifier {
     if (roundOver) {
       final rawTeam1 = _state.teamScores['team1'] ?? 0;
       final rawTeam2 = _state.teamScores['team2'] ?? 0;
-
-      // Match: ansagendes Team gewinnt alle 9 Stiche → 170
-      final team1Tricks = _state.completedTricks.where((t) {
-        final winner = _state.players.firstWhere((p) => p.id == t.winnerId);
-        return winner.position == PlayerPosition.south ||
-            winner.position == PlayerPosition.north;
-      }).length;
-
-      final isMisere = _state.gameMode == GameMode.misere;
       final ansagerIsTeam1 = _state.isTeam1Ansager;
 
-      // Tatsächliche Punkte des ansagenden Teams
-      final rawAnnouncing = ansagerIsTeam1 ? rawTeam1 : rawTeam2;
-      final rawOpposing  = ansagerIsTeam1 ? rawTeam2 : rawTeam1;
+      final int finalTeam1;
+      final int finalTeam2;
 
-      // Ansager hat alle Stiche gewonnen?
-      final announcerAllTricks = ansagerIsTeam1 ? (team1Tricks == 9) : (team1Tricks == 0);
+      if (_state.gameMode == GameMode.molotof) {
+        // Molotof: Ziel ist wenige Punkte. Gutschrift = 157 − eigene Punkte.
+        finalTeam1 = 157 - rawTeam1;
+        finalTeam2 = 157 - rawTeam2;
+      } else {
+        // Match: ansagendes Team gewinnt alle 9 Stiche → 170
+        final team1Tricks = _state.completedTricks.where((t) {
+          final winner = _state.players.firstWhere((p) => p.id == t.winnerId);
+          return winner.position == PlayerPosition.south ||
+              winner.position == PlayerPosition.north;
+        }).length;
 
-      // Ansager-Team gewinnt? (Misere: weniger Punkte = besser)
-      final ansagerWon = isMisere
-          ? rawAnnouncing < rawOpposing
-          : rawAnnouncing > rawOpposing;
+        final isMisere = _state.gameMode == GameMode.misere;
 
-      // Match: 170; gewonnen: tatsächliche Punkte; verloren: 0
-      final awardedPoints = announcerAllTricks ? 170 : (ansagerWon ? rawAnnouncing : 0);
+        // Tatsächliche Punkte des ansagenden Teams
+        final rawAnnouncing = ansagerIsTeam1 ? rawTeam1 : rawTeam2;
+        final rawOpposing  = ansagerIsTeam1 ? rawTeam2 : rawTeam1;
 
-      // Punkte gelten nur für das ansagende Team
-      final finalTeam1 = ansagerIsTeam1 ? awardedPoints : 0;
-      final finalTeam2 = ansagerIsTeam1 ? 0 : awardedPoints;
+        // Ansager hat alle Stiche gewonnen?
+        final announcerAllTricks = ansagerIsTeam1 ? (team1Tricks == 9) : (team1Tricks == 0);
+
+        // Ansager-Team gewinnt? (Misere: weniger Punkte = besser)
+        final ansagerWon = isMisere
+            ? rawAnnouncing < rawOpposing
+            : rawAnnouncing > rawOpposing;
+
+        // Match: 170; gewonnen: tatsächliche Punkte; verloren: 0
+        final awardedPoints = announcerAllTricks ? 170 : (ansagerWon ? rawAnnouncing : 0);
+
+        // Punkte gelten nur für das ansagende Team
+        finalTeam1 = ansagerIsTeam1 ? awardedPoints : 0;
+        finalTeam2 = ansagerIsTeam1 ? 0 : awardedPoints;
+      }
 
       final result = RoundResult(
         roundNumber: _state.roundNumber,
@@ -268,6 +285,26 @@ class GameProvider extends ChangeNotifier {
       _state = _state.copyWith(trumpSuit: card.suit);
     }
 
+    // Molotof: erster Spieler der nicht Farbe angeben kann, bestimmt den Modus
+    if (_state.gameMode == GameMode.molotof &&
+        _state.molotofSubMode == null &&
+        _state.currentTrickCards.isNotEmpty &&
+        card.suit != _state.currentTrickCards.first.suit) {
+      final GameMode subMode;
+      final Suit? newTrump;
+      if (card.value == CardValue.six) {
+        subMode = GameMode.unten;
+        newTrump = null;
+      } else if (card.value == CardValue.ace) {
+        subMode = GameMode.oben;
+        newTrump = null;
+      } else {
+        subMode = GameMode.trump;
+        newTrump = card.suit;
+      }
+      _state = _state.copyWith(molotofSubMode: subMode, trumpSuit: newTrump);
+    }
+
     final newTrickCards = [..._state.currentTrickCards, card];
     final newTrickIds = [..._state.currentTrickPlayerIds, playerId];
 
@@ -298,6 +335,7 @@ class GameProvider extends ChangeNotifier {
       gameMode: _state.gameMode,
       trumpSuit: _state.trumpSuit,
       trickNumber: trickNumber,
+      molotofSubMode: _state.molotofSubMode,
     );
 
     final trick = Trick(

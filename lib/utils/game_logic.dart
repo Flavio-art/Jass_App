@@ -126,10 +126,11 @@ class GameLogic {
     required GameMode gameMode,
     required Suit? trumpSuit,
     required int trickNumber,
+    GameMode? molotofSubMode,
   }) {
     assert(cards.length == playerIds.length && cards.isNotEmpty);
 
-    final effectiveMode = _resolveMode(gameMode, trickNumber);
+    final effectiveMode = _resolveMode(gameMode, trickNumber, molotofSubMode: molotofSubMode);
     final ledSuit = cards.first.suit;
 
     int winnerIdx = 0;
@@ -141,7 +142,7 @@ class GameLogic {
     return playerIds[winnerIdx];
   }
 
-  static GameMode _resolveMode(GameMode mode, int trickNumber) {
+  static GameMode _resolveMode(GameMode mode, int trickNumber, {GameMode? molotofSubMode}) {
     switch (mode) {
       case GameMode.slalom:
         return trickNumber % 2 == 1 ? GameMode.oben : GameMode.unten;
@@ -152,8 +153,8 @@ class GameLogic {
       case GameMode.misere:
         return GameMode.oben;
       case GameMode.molotof:
-        // Placeholder: spielt wie Slalom
-        return trickNumber % 2 == 1 ? GameMode.oben : GameMode.unten;
+        if (molotofSubMode != null) return molotofSubMode;
+        return GameMode.oben; // vor Trumpfbestimmung: höchste Karte der Farbe gewinnt
       default:
         return mode;
     }
@@ -388,6 +389,7 @@ class GameLogic {
   }) {
     final effectiveMode = state.effectiveMode;
     final trump = state.trumpSuit;
+    final molotofSubMode = state.molotofSubMode;
     final playable = getPlayableCards(aiPlayer.hand, state.currentTrickCards,
         mode: effectiveMode,
         trumpSuit: (effectiveMode == GameMode.trump || effectiveMode == GameMode.schafkopf)
@@ -395,6 +397,11 @@ class GameLogic {
             : null);
     if (playable.length == 1) return playable.first;
     final trickNumber = state.currentTrickNumber;
+
+    // Molotof: immer schwächste Karte spielen (wenig Punkte ist das Ziel)
+    if (state.gameMode == GameMode.molotof) {
+      return _weakest(playable, effectiveMode, trump);
+    }
 
     // Ersten Stich anspielen: stärkste Karte
     if (state.currentTrickCards.isEmpty) {
@@ -409,6 +416,7 @@ class GameLogic {
       gameMode: state.gameMode,
       trumpSuit: trump,
       trickNumber: trickNumber,
+      molotofSubMode: molotofSubMode,
     );
 
     if (currentWinnerId == partner.id) {
@@ -426,6 +434,7 @@ class GameLogic {
         gameMode: state.gameMode,
         trumpSuit: trump,
         trickNumber: trickNumber,
+        molotofSubMode: molotofSubMode,
       );
       return winner == aiPlayer.id;
     }).toList();

@@ -9,6 +9,7 @@ class TrickAreaWidget extends StatelessWidget {
   final List<String> playerIds;
   final List<Player> players;
   final GameMode gameMode;
+  final GameMode? molotofSubMode;
   final Suit? trumpSuit;
   final int trickNumber;
   final bool isClearPending;
@@ -21,6 +22,7 @@ class TrickAreaWidget extends StatelessWidget {
     required this.players,
     required this.gameMode,
     required this.trickNumber,
+    this.molotofSubMode,
     this.trumpSuit,
     this.isClearPending = false,
     this.onTap,
@@ -47,6 +49,7 @@ class TrickAreaWidget extends StatelessWidget {
               right: 8,
               child: _ModeIndicator(
                 gameMode: gameMode,
+                molotofSubMode: molotofSubMode,
                 trumpSuit: trumpSuit,
                 trickNumber: trickNumber,
               ),
@@ -102,11 +105,13 @@ class TrickAreaWidget extends StatelessWidget {
 
 class _ModeIndicator extends StatelessWidget {
   final GameMode gameMode;
+  final GameMode? molotofSubMode;
   final Suit? trumpSuit;
   final int trickNumber;
 
   const _ModeIndicator({
     required this.gameMode,
+    this.molotofSubMode,
     required this.trumpSuit,
     required this.trickNumber,
   });
@@ -140,7 +145,8 @@ class _ModeIndicator extends StatelessWidget {
       case GameMode.allesTrumpf:
         return _label('Alles Trumpf 👑', Colors.yellow.shade300);
       case GameMode.molotof:
-        return _label('Molotof 💣', Colors.deepOrange.shade300);
+        return _molotofLabel();
+
       case GameMode.schafkopf:
         if (trumpSuit == null) return const SizedBox.shrink();
         return Column(
@@ -177,6 +183,39 @@ class _ModeIndicator extends StatelessWidget {
           isOben ? 'Oben ⬆️' : 'Unten ⬇️',
           isOben ? Colors.blue.shade300 : Colors.orange.shade300,
         ),
+      ],
+    );
+  }
+
+  Widget _molotofLabel() {
+    if (molotofSubMode == null) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _label('Molotof 💣', Colors.deepOrange.shade300),
+          const SizedBox(height: 2),
+          _label('Trumpf offen…', Colors.white54),
+        ],
+      );
+    }
+    final String sub;
+    final Color col;
+    switch (molotofSubMode!) {
+      case GameMode.oben:
+        sub = 'Obenabe ⬆️'; col = Colors.blue.shade300; break;
+      case GameMode.unten:
+        sub = 'Undenufe ⬇️'; col = Colors.orange.shade300; break;
+      case GameMode.trump:
+        sub = 'Trumpf: ${trumpSuit?.symbol ?? '?'}'; col = Colors.amber.shade300; break;
+      default:
+        sub = ''; col = Colors.white54;
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _label('Molotof 💣', Colors.deepOrange.shade300),
+        const SizedBox(height: 2),
+        _label(sub, col),
       ],
     );
   }

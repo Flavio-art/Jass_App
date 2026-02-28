@@ -55,34 +55,30 @@ class TrumpSelectionScreen extends StatelessWidget {
                     // ── Trumpf: 2 Gruppen-Buttons ─────────────────────────
                     Row(children: [
                       Expanded(child: _TrumpGroupButton(
-                        suits: cardType == CardType.french
-                            ? [Suit.schellen, Suit.schilten]
-                            : [Suit.schellen, Suit.schilten],
-                        frenchSuits: [Suit.diamonds, Suit.spades],
+                        suits: [Suit.schellen, Suit.schilten],
+                        frenchSuits: [Suit.spades, Suit.clubs],
                         cardType: cardType,
                         variantKey: 'trump_ss',
                         isAvailable: available.contains('trump_ss'),
                         onTap: () => _pickTrumpSuit(
                           context,
                           cardType == CardType.french
-                              ? [Suit.diamonds, Suit.spades]
+                              ? [Suit.spades, Suit.clubs]
                               : [Suit.schellen, Suit.schilten],
                           cardType,
                         ),
                       )),
                       const SizedBox(width: 10),
                       Expanded(child: _TrumpGroupButton(
-                        suits: cardType == CardType.french
-                            ? [Suit.herzGerman, Suit.eichel]
-                            : [Suit.herzGerman, Suit.eichel],
-                        frenchSuits: [Suit.hearts, Suit.clubs],
+                        suits: [Suit.herzGerman, Suit.eichel],
+                        frenchSuits: [Suit.hearts, Suit.diamonds],
                         cardType: cardType,
                         variantKey: 'trump_re',
                         isAvailable: available.contains('trump_re'),
                         onTap: () => _pickTrumpSuit(
                           context,
                           cardType == CardType.french
-                              ? [Suit.hearts, Suit.clubs]
+                              ? [Suit.hearts, Suit.diamonds]
                               : [Suit.herzGerman, Suit.eichel],
                           cardType,
                         ),
@@ -389,9 +385,9 @@ class _SuitPip extends StatelessWidget {
   final CardType cardType;
   const _SuitPip({required this.suit, required this.cardType});
 
-  String get _sixPath {
+  String get _acePath {
     final folder = cardType == CardType.french ? 'french' : 'german';
-    return 'assets/cards/$folder/${suit.name}_six.png';
+    return 'assets/cards/$folder/${suit.name}_ace.png';
   }
 
   @override
@@ -401,13 +397,13 @@ class _SuitPip extends StatelessWidget {
       height: 38,
       child: ClipRect(
         child: Align(
-          // Mitte der Karte zeigen (dort sind die Pips)
+          // Mittelbereich der Ass-Karte zeigen (ein grosses Symbol)
           alignment: Alignment.center,
-          widthFactor: 0.55,
-          heightFactor: 0.38,
+          widthFactor: 0.5,
+          heightFactor: 0.42,
           child: Image.asset(
-            _sixPath,
-            width: 80,
+            _acePath,
+            width: 90,
             fit: BoxFit.fitWidth,
           ),
         ),
@@ -434,11 +430,6 @@ class _TrumpButton extends StatelessWidget {
   bool get _isRed =>
       suit == Suit.hearts || suit == Suit.diamonds ||
       suit == Suit.herzGerman || suit == Suit.schellen;
-
-  String get _sixPath {
-    final folder = cardType == CardType.french ? 'french' : 'german';
-    return 'assets/cards/$folder/${suit.name}_six.png';
-  }
 
   @override
   Widget build(BuildContext context) {

@@ -94,6 +94,7 @@ class GameState {
   final Map<String, int> totalTeamScores;
   final int? pendingNextPlayerIndex;
   final List<RoundResult> roundHistory; // alle abgeschlossenen Runden
+  final GameMode? molotofSubMode; // nur für GameMode.molotof
 
   const GameState({
     required this.cardType,
@@ -113,6 +114,7 @@ class GameState {
     this.totalTeamScores = const {'team1': 0, 'team2': 0},
     this.pendingNextPlayerIndex,
     this.roundHistory = const [],
+    this.molotofSubMode,
   });
 
   Player get currentPlayer => players[currentPlayerIndex];
@@ -132,8 +134,8 @@ class GameState {
       case GameMode.schafkopf:
         return GameMode.schafkopf;
       case GameMode.molotof:
-        // Placeholder: spielt wie Slalom
-        return slalomIsOben ? GameMode.oben : GameMode.unten;
+        if (molotofSubMode != null) return molotofSubMode!;
+        return GameMode.oben; // Vor Trumpfbestimmung: höchste Karte der Farbe gewinnt
       default:
         return gameMode;
     }
@@ -163,11 +165,11 @@ class GameState {
   String variantKey(GameMode mode, {Suit? trumpSuit}) {
     if (mode == GameMode.trump) {
       final suit = trumpSuit ?? this.trumpSuit;
-      // Gruppe A: Schellen + Schilten (♦ + ♠ bei Französisch)
+      // Gruppe A: Schellen + Schilten (♠ + ♣ schwarz bei Französisch)
       final isSchellenSchilten = suit == Suit.schellen ||
           suit == Suit.schilten ||
-          suit == Suit.diamonds ||
-          suit == Suit.spades;
+          suit == Suit.spades ||
+          suit == Suit.clubs;
       return isSchellenSchilten ? 'trump_ss' : 'trump_re';
     }
     return mode.name;
@@ -220,6 +222,7 @@ class GameState {
     Map<String, int>? totalTeamScores,
     Object? pendingNextPlayerIndex = _sentinel,
     List<RoundResult>? roundHistory,
+    Object? molotofSubMode = _sentinel,
   }) {
     return GameState(
       cardType: cardType ?? this.cardType,
@@ -242,6 +245,9 @@ class GameState {
           ? this.pendingNextPlayerIndex
           : pendingNextPlayerIndex as int?,
       roundHistory: roundHistory ?? this.roundHistory,
+      molotofSubMode: molotofSubMode == _sentinel
+          ? this.molotofSubMode
+          : molotofSubMode as GameMode?,
     );
   }
 }
