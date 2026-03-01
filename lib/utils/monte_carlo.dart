@@ -215,12 +215,27 @@ class MonteCarloAI {
       hand: List<JassCard>.from(state.players[playerIdx].hand)..remove(card),
     );
 
-    // Elefant: erste Karte im 7. Stich setzt Trumpf
+    // Elefant: erste Karte im 7. Stich setzt Trumpf + rückwirkende Punkte
     Suit? newTrump = state.trumpSuit;
+    Map<String, int>? elefantRetroScores;
     if (state.gameMode == GameMode.elefant &&
         state.completedTricks.length == 6 &&
         state.currentTrickCards.isEmpty) {
       newTrump = card.suit;
+      elefantRetroScores = <String, int>{'team1': 0, 'team2': 0};
+      for (final trick in state.completedTricks) {
+        if (trick.winnerId == null) continue;
+        final pts = GameLogic.trickPoints(
+            trick.cards.values.toList(), GameMode.trump, newTrump);
+        final winner = state.players.firstWhere((p) => p.id == trick.winnerId);
+        final isT1 = winner.position == PlayerPosition.south ||
+            winner.position == PlayerPosition.north;
+        if (isT1) {
+          elefantRetroScores['team1'] = (elefantRetroScores['team1'] ?? 0) + pts;
+        } else {
+          elefantRetroScores['team2'] = (elefantRetroScores['team2'] ?? 0) + pts;
+        }
+      }
     }
 
     final trickCards = [...state.currentTrickCards, card];
@@ -234,6 +249,7 @@ class MonteCarloAI {
         currentTrickPlayerIds: trickIds,
         currentPlayerIndex: (playerIdx + 1) % 4,
         trumpSuit: newTrump,
+        teamScores: elefantRetroScores, // nur gesetzt wenn Elefant Stich 7 beginnt
       );
     }
 
@@ -253,13 +269,24 @@ class MonteCarloAI {
     final effectMode = _effectiveMode(state.gameMode, trickNumber,
         newTrump, state.molotofSubMode,
         slalomStartsOben: state.slalomStartsOben);
-    final points = GameLogic.trickPoints(trickCards, effectMode, newTrump);
+
+    // Elefant/Molotof Vorstiche: keine Punkte (werden rückwirkend berechnet)
+    final elefantPreTrump =
+        state.gameMode == GameMode.elefant && trickNumber <= 6;
+    final molotofPreTrump =
+        state.gameMode == GameMode.molotof && state.molotofSubMode == null;
+    final points = (elefantPreTrump || molotofPreTrump)
+        ? 0
+        : GameLogic.trickPoints(trickCards, effectMode, newTrump);
 
     final winnerPlayer = newPlayers.firstWhere((p) => p.id == winnerId);
     final isTeam1 = winnerPlayer.position == PlayerPosition.south ||
         winnerPlayer.position == PlayerPosition.north;
 
-    final newScores = Map<String, int>.from(state.teamScores);
+    // Basis: entweder rückwirkende Elefant-Punkte oder aktuelle Punkte
+    final newScores = elefantRetroScores != null
+        ? Map<String, int>.from(elefantRetroScores)
+        : Map<String, int>.from(state.teamScores);
     if (isTeam1) {
       newScores['team1'] = (newScores['team1'] ?? 0) + points;
     } else {
@@ -276,8 +303,8 @@ class MonteCarloAI {
       ),
     ];
 
-    // Letzter Stich: 5 Bonuspunkte
-    if (newTricks.length == 9) {
+    // Letzter Stich: 5 Bonuspunkte (nicht bei Vorstichen)
+    if (newTricks.length == 9 && !elefantPreTrump && !molotofPreTrump) {
       if (isTeam1) {
         newScores['team1'] = (newScores['team1'] ?? 0) + 5;
       } else {
