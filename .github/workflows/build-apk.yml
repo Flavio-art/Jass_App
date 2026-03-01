@@ -1,0 +1,47 @@
+name: Build & Release APK
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.32.x'
+          channel: stable
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Build APK
+        run: flutter build apk --debug
+
+      - name: Update latest release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "Jass App – neueste Version"
+          prerelease: true
+          files: build/app/outputs/flutter-apk/app-debug.apk
+          body: |
+            ## Installation auf Android
+
+            1. **app-debug.apk** herunterladen (unten bei *Assets*)
+            2. Datei auf dem Handy öffnen
+            3. „Aus unbekannter Quelle installieren" → **Erlauben**
+            4. Installieren und spielen! 🃏
+
+            > Benötigt Android 8.0 oder neuer.
+
+            ---
+            *Automatisch gebaut aus dem neuesten Stand auf `main`.*

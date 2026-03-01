@@ -2,6 +2,12 @@
 
 Eine Flutter-App für das Schweizer Kartenspiel **Jass** – spielbar auf Android.
 
+## Download
+
+**[⬇️ Neueste APK herunterladen](https://github.com/Flavio-art/Jass_App/releases/tag/latest)**
+
+> Android 8.0+  ·  Einfach APK öffnen und installieren (einmalig „Unbekannte Quelle" erlauben)
+
 ## Features
 
 - **Zwei Kartensets**: Französische Karten (♠️♥️♦️♣️) und Deutsche Karten (Schellen / Herz / Eichel / Schilten)
