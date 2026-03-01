@@ -26,8 +26,17 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
-      - name: Build APK
-        run: flutter build apk --debug
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/keystore.jks
+
+      - name: Build Release APK
+        env:
+          KEYSTORE_PATH: keystore.jks
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+        run: flutter build apk --release
 
       - name: Update latest release
         uses: softprops/action-gh-release@v2
@@ -35,7 +44,7 @@ jobs:
           tag_name: latest
           name: "Jass App – neueste Version"
           prerelease: true
-          files: build/app/outputs/flutter-apk/app-debug.apk
+          files: build/app/outputs/flutter-apk/app-release.apk
           body: |
             ## Installation auf Android
 
