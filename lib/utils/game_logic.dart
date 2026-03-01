@@ -487,20 +487,23 @@ class GameLogic {
             ? trump
             : null);
     if (playable.length == 1) return playable.first;
+
     final trickNumber = state.currentTrickNumber;
-
-    // Molotof: immer schwächste Karte spielen (wenig Punkte ist das Ziel)
-    if (state.gameMode == GameMode.molotof) {
-      return _weakest(playable, effectiveMode, trump);
-    }
-
-    // Ersten Stich anspielen: stärkste Karte
-    if (state.currentTrickCards.isEmpty) {
-      return _strongest(playable, effectiveMode, trump);
-    }
-
-    // Prüfen ob Partner gerade gewinnt
+    final isLeading = state.currentTrickCards.isEmpty;
+    final isLast = state.currentTrickCards.length == 3;
     final partner = _getPartner(aiPlayer, state.players);
+
+    // ── Misere / Molotof: niemals gewinnen ───────────────────────────────────
+    if (state.gameMode == GameMode.misere || state.gameMode == GameMode.molotof) {
+      return _avoidWinning(playable, state, effectiveMode, trump, trickNumber, molotofSubMode);
+    }
+
+    // ── Anführen ─────────────────────────────────────────────────────────────
+    if (isLeading) {
+      return _leadCard(playable, effectiveMode, trump, trickNumber, state);
+    }
+
+    // ── Aktuellen Gewinner bestimmen ─────────────────────────────────────────
     final currentWinnerId = determineTrickWinner(
       cards: state.currentTrickCards,
       playerIds: state.currentTrickPlayerIds,
@@ -510,13 +513,21 @@ class GameLogic {
       molotofSubMode: molotofSubMode,
       slalomStartsOben: state.slalomStartsOben,
     );
+    final partnerWinning = currentWinnerId == partner.id;
+    final currentTrickPts = trickPoints(state.currentTrickCards, effectiveMode, trump);
 
-    if (currentWinnerId == partner.id) {
-      // Partner gewinnt → schwächste Karte spielen (schonen)
+    // ── Partner gewinnt ───────────────────────────────────────────────────────
+    if (partnerWinning) {
+      // Letzter Spieler: Schmieren (hohe Nicht-Trumpf-Karte raufwerfen)
+      if (isLast) {
+        final smear = _bestSmear(playable, effectiveMode, trump);
+        if (smear != null) return smear;
+      }
+      // Sonst: schwächste Karte schonen
       return _weakest(playable, effectiveMode, trump);
     }
 
-    // Versuchen zu gewinnen (mit schwächster gewinnender Karte)
+    // ── Gewinnbare Karten ermitteln ───────────────────────────────────────────
     final winning = playable.where((c) {
       final testCards = [...state.currentTrickCards, c];
       final testIds = [...state.currentTrickPlayerIds, aiPlayer.id];
@@ -533,10 +544,133 @@ class GameLogic {
     }).toList();
 
     if (winning.isNotEmpty) {
-      return _weakest(winning, effectiveMode, trump);
+      // Letzter Spieler oder wertvoller Stich: immer gewinnen
+      if (isLast || currentTrickPts >= 10) {
+        return _cheapestWin(winning, effectiveMode, trump);
+      }
+      // Nicht-letzter + billiger Stich: nur ohne Trumpf gewinnen
+      final nonTrumpWin = winning
+          .where((c) => c.suit != trump || effectiveMode != GameMode.trump)
+          .toList();
+      if (nonTrumpWin.isNotEmpty) {
+        return _cheapestWin(nonTrumpWin, effectiveMode, trump);
+      }
+      // Trumpf nur wenn Stich ≥ 15 Punkte wert
+      if (currentTrickPts >= 15) {
+        return _cheapestWin(winning, effectiveMode, trump);
+      }
     }
 
-    // Kann nicht gewinnen → schwächste Karte abwerfen
+    // ── Kann nicht gewinnen → klug abwerfen ──────────────────────────────────
+    return _discardCard(playable, effectiveMode, trump);
+  }
+
+  /// Anführ-Strategie: Trump-Stärke ausspielen oder beste Nicht-Trumpf-Farbe
+  static JassCard _leadCard(
+    List<JassCard> playable,
+    GameMode effectiveMode,
+    Suit? trump,
+    int trickNumber,
+    GameState state,
+  ) {
+    // Trumpf-Modus: früh Trumpf ziehen (wenn genug Trumpf in der Hand)
+    if (effectiveMode == GameMode.trump && trump != null) {
+      final trumpCards = playable.where((c) => c.suit == trump).toList();
+      if (trumpCards.length >= 3) {
+        // Viel Trumpf → stärksten Trumpf führen
+        return _strongest(trumpCards, effectiveMode, trump);
+      }
+      if (trumpCards.isNotEmpty && trickNumber <= 3) {
+        // Frühe Runde, etwas Trumpf → Trumpf ziehen
+        return _strongest(trumpCards, effectiveMode, trump);
+      }
+    }
+    // Sonst: stärkste Nicht-Trumpf-Karte aus längster Farbe
+    final nonTrump = playable.where((c) => c.suit != trump).toList();
+    if (nonTrump.isNotEmpty) {
+      return _strongest(nonTrump, effectiveMode, trump);
+    }
+    return _strongest(playable, effectiveMode, trump);
+  }
+
+  /// Misere/Molotof: versuche den Stich NICHT zu gewinnen
+  static JassCard _avoidWinning(
+    List<JassCard> playable,
+    GameState state,
+    GameMode effectiveMode,
+    Suit? trump,
+    int trickNumber,
+    GameMode? molotofSubMode,
+  ) {
+    if (state.currentTrickCards.isEmpty) {
+      // Anführen: niedrigste Karte
+      return _weakest(playable, effectiveMode, trump);
+    }
+    // Karten die NICHT gewinnen würden
+    final losing = playable.where((c) {
+      final testCards = [...state.currentTrickCards, c];
+      final testIds = [...state.currentTrickPlayerIds, 'test'];
+      final winner = determineTrickWinner(
+        cards: testCards,
+        playerIds: testIds,
+        gameMode: state.gameMode,
+        trumpSuit: trump,
+        trickNumber: trickNumber,
+        molotofSubMode: molotofSubMode,
+        slalomStartsOben: state.slalomStartsOben,
+      );
+      return winner != 'test';
+    }).toList();
+    if (losing.isNotEmpty) return _weakest(losing, effectiveMode, trump);
+    // Muss gewinnen → niedrigste Karte mit minimalen Punkten
+    return _weakest(playable, effectiveMode, trump);
+  }
+
+  /// Schmieren: beste Nicht-Trumpf-Karte mit hohem Punktwert
+  static JassCard? _bestSmear(
+    List<JassCard> playable,
+    GameMode effectiveMode,
+    Suit? trump,
+  ) {
+    final nonTrump = playable
+        .where((c) => effectiveMode != GameMode.trump || c.suit != trump)
+        .toList();
+    if (nonTrump.isEmpty) return null;
+    // Wähle Karte mit höchstem Punktwert (Ass=11, Zehn=10, ...)
+    final best = nonTrump.reduce((a, b) =>
+        cardPoints(a, effectiveMode, trump) >= cardPoints(b, effectiveMode, trump) ? a : b);
+    // Nur schmieren wenn Karte wirklich Punkte hat (≥ 4)
+    return cardPoints(best, effectiveMode, trump) >= 4 ? best : null;
+  }
+
+  /// Günstigste Gewinnkarte: bevorzuge Nicht-Trumpf; bei gleichen Optionen die schwächste
+  static JassCard _cheapestWin(
+    List<JassCard> winning,
+    GameMode effectiveMode,
+    Suit? trump,
+  ) {
+    // Bevorzuge Nicht-Trumpf-Gewinner
+    final nonTrumpWin = winning
+        .where((c) => effectiveMode != GameMode.trump || c.suit != trump)
+        .toList();
+    if (nonTrumpWin.isNotEmpty) {
+      return _weakest(nonTrumpWin, effectiveMode, trump);
+    }
+    return _weakest(winning, effectiveMode, trump);
+  }
+
+  /// Abwerfen: schone wertvolle Karten, wirf billige weg
+  static JassCard _discardCard(
+    List<JassCard> playable,
+    GameMode effectiveMode,
+    Suit? trump,
+  ) {
+    // Karten ohne Punktwert bevorzugen
+    final zeroPts = playable
+        .where((c) => cardPoints(c, effectiveMode, trump) == 0)
+        .toList();
+    if (zeroPts.isNotEmpty) return _weakest(zeroPts, effectiveMode, trump);
+    // Sonst: schwächste Karte
     return _weakest(playable, effectiveMode, trump);
   }
 
