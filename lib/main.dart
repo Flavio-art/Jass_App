@@ -3,9 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'providers/game_provider.dart';
 import 'screens/home_screen.dart';
+import 'utils/nn_model.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // NN-Gewichte laden (Fallback auf Heuristik wenn Datei fehlt)
+  await JassNNModel.instance.load();
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,

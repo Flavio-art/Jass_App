@@ -1,14 +1,12 @@
 import '../models/card_model.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
+import 'nn_model.dart';
 
 /// Hand-Evaluations-KI für die Spielmoduswahl.
 ///
-/// Statt Monte Carlo wird die Hand direkt bewertet – genau so wie ein
-/// erfahrener Jass-Spieler seine Karten anschaut und entscheidet:
-/// "Ich habe Buur, Näll und 3 weitere Trumpf → starke Trumpfhand."
-///
-/// Für jeden verfügbaren Modus wird ein Score berechnet; der höchste gewinnt.
+/// Wenn das trainierte Neural Network geladen ist, wird es zur Modusauswahl
+/// verwendet. Andernfalls fällt die KI auf die regelbasierte Heuristik zurück.
 class ModeSelectorAI {
   /// Gibt den besten Spielmodus + Trumpffarbe + Slalom-Richtung für [player] zurück.
   static ({GameMode mode, Suit? trumpSuit, bool slalomStartsOben}) selectMode({
@@ -19,6 +17,15 @@ class ModeSelectorAI {
     final isTeam1 = player.position == PlayerPosition.south ||
         player.position == PlayerPosition.north;
     final available = state.availableVariants(isTeam1);
+
+    // ── Neural Network (wenn geladen) ─────────────────────────────────────
+    final nn     = JassNNModel.instance;
+    final scores = nn.predict(hand, state.cardType);
+    if (scores.isNotEmpty) {
+      return _selectWithNN(scores, hand, state, available, isTeam1);
+    }
+
+    // ── Fallback: regelbasierte Heuristik ─────────────────────────────────
 
     double bestScore = double.negativeInfinity;
     GameMode bestMode = GameMode.oben;
@@ -92,6 +99,90 @@ class ModeSelectorAI {
 
     return (mode: bestMode, trumpSuit: bestTrump, slalomStartsOben: bestSlalomStartsOben);
   }
+
+  // ─── Neural Network Auswahl ──────────────────────────────────────────────
+  //
+  // NN-Modus-Indizes (gespiegelt aus Python-Training):
+  //   0-3  Trump Oben  (Farbe 0=♠/🔔  1=♥/🌹  2=♦/🌰  3=♣/🛡)
+  //   4-7  Trump Unten (gleiche Reihenfolge)
+  //   8=Obenabe  9=Undenufe  10=Slalom  11=Misere  12=AllTrumpf  13=Elefant
+
+  static ({GameMode mode, Suit? trumpSuit, bool slalomStartsOben}) _selectWithNN(
+    List<double> scores,
+    List<JassCard> hand,
+    GameState state,
+    List<String> available,
+    bool isTeam1,
+  ) {
+    double bestScore = double.negativeInfinity;
+    GameMode bestMode = GameMode.oben;
+    Suit? bestTrump;
+    bool bestSlalomStartsOben = true;
+
+    for (final variant in available) {
+      if (variant == 'trump_ss' || variant == 'trump_re') {
+        final forced   = state.forcedTrumpDirection(isTeam1, variant);
+        // Farb-Indizes 0+3 = SS-Gruppe, 1+2 = RE-Gruppe
+        final suitIdxs = variant == 'trump_ss' ? [0, 3] : [1, 2];
+
+        for (final si in suitIdxs) {
+          final suit = _suitForIndex(si, state.cardType);
+          if (forced == null || forced == true) {
+            final s = scores[si]; // trump oben
+            if (s > bestScore) { bestScore = s; bestMode = GameMode.trump; bestTrump = suit; }
+          }
+          if (forced == null || forced == false) {
+            final s = scores[si + 4]; // trump unten
+            if (s > bestScore) { bestScore = s; bestMode = GameMode.trumpUnten; bestTrump = suit; }
+          }
+        }
+      } else if (variant == 'schafkopf') {
+        // Schafkopf: NN kennt es nicht → Heuristik
+        final suits = state.cardType == CardType.french
+            ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
+            : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
+        for (final suit in suits) {
+          final s = _scoreSchafkopf(hand, suit);
+          if (s > bestScore) { bestScore = s; bestMode = GameMode.schafkopf; bestTrump = suit; }
+        }
+      } else if (variant == 'molotof') {
+        // Molotof: NN kennt es nicht → Heuristik
+        final s = _scoreMolotof(hand);
+        if (s > bestScore) { bestScore = s; bestMode = GameMode.molotof; bestTrump = null; }
+      } else {
+        final nnIdx = _variantToNNIdx(variant);
+        if (nnIdx >= 0 && nnIdx < scores.length) {
+          final s = scores[nnIdx];
+          if (s > bestScore) {
+            bestScore = s;
+            bestMode  = GameMode.values.firstWhere((m) => m.name == variant,
+                orElse: () => GameMode.oben);
+            bestTrump = null;
+            if (variant == 'slalom') {
+              // Richtung: oben-Score (8) vs. unten-Score (9)
+              bestSlalomStartsOben = scores[8] >= scores[9];
+            }
+          }
+        }
+      }
+    }
+
+    return (mode: bestMode, trumpSuit: bestTrump, slalomStartsOben: bestSlalomStartsOben);
+  }
+
+  static int _variantToNNIdx(String variant) => switch (variant) {
+    'oben'        => 8,
+    'unten'       => 9,
+    'slalom'      => 10,
+    'misere'      => 11,
+    'allesTrumpf' => 12,
+    'elefant'     => 13,
+    _             => -1,
+  };
+
+  static Suit _suitForIndex(int idx, CardType type) => type == CardType.french
+      ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs][idx]
+      : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten][idx];
 
   // ─── Trumpf Oben / Unten ────────────────────────────────────────────────
 

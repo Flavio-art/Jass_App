@@ -27,14 +27,22 @@ class GameLogic {
             .toList();
         return trumpCards.isNotEmpty ? trumpCards : List.of(hand);
       } else {
-        // Nicht-Trumpf angeführt → Farbe bedienen (ohne Damen/Achter der Farbe,
-        // die sind Trumpf und zählen nicht als Farbe)
-        final ledSuit = ledCard.suit;
+        // Nicht-Trumpf angeführt → Nicht-Trumpf der Farbe ODER beliebiger Trumpf.
+        // Untertrumpfen ist im Schafkopf immer erlaubt.
+        final ledSuit   = ledCard.suit;
         final suitCards = hand
             .where((c) =>
                 c.suit == ledSuit && !_isSchafkopfTrump(c, trumpSuit))
             .toList();
-        return suitCards.isNotEmpty ? suitCards : List.of(hand);
+        final trumpCards = hand
+            .where((c) => _isSchafkopfTrump(c, trumpSuit))
+            .toList();
+        if (suitCards.isNotEmpty) {
+          // Hat passende Nicht-Trumpf-Karten → Farbe oder Trumpf spielbar
+          return <JassCard>{...suitCards, ...trumpCards}.toList();
+        }
+        // Keine passende Farbe → freie Wahl (inkl. Trumpf)
+        return List.of(hand);
       }
     }
 
