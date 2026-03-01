@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../constants/app_colors.dart';
+import '../models/card_model.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
 import '../providers/game_provider.dart';
@@ -202,6 +203,7 @@ class _GameScreenState extends State<GameScreen> {
                 if (state.phase == GamePhase.roundEnd)
                   _RoundEndOverlay(
                     roundHistory: state.roundHistory,
+                    cardType: state.cardType,
                     onNextRound: () => provider.startNewRound(),
                     onHome: () => Navigator.pop(context),
                   ),
@@ -264,6 +266,7 @@ class _GameScreenState extends State<GameScreen> {
 
 class _RoundEndOverlay extends StatelessWidget {
   final List<RoundResult> roundHistory;
+  final CardType cardType;
   final VoidCallback onNextRound;
   final VoidCallback onHome;
 
@@ -296,6 +299,7 @@ class _RoundEndOverlay extends StatelessWidget {
 
   const _RoundEndOverlay({
     required this.roundHistory,
+    required this.cardType,
     required this.onNextRound,
     required this.onHome,
   });
@@ -318,8 +322,11 @@ class _RoundEndOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tot1 = roundHistory.fold(0, (s, r) => s + r.team1Score);
-    final tot2 = roundHistory.fold(0, (s, r) => s + r.team2Score);
+    // Sum only the scores that are visible in the table:
+    // "Ihr" column = team1Score from rounds where Team 1 announced
+    // "Gegner" column = team2Score from rounds where Team 2 announced
+    final tot1 = _variants.fold(0, (s, v) => s + (_byTeam1(v)?.team1Score ?? 0));
+    final tot2 = _variants.fold(0, (s, v) => s + (_byTeam2(v)?.team2Score ?? 0));
     final roundNum = roundHistory.isNotEmpty ? roundHistory.last.roundNumber : null;
     final lastVariant = roundHistory.isNotEmpty ? roundHistory.last.variantKey : null;
 
@@ -381,6 +388,7 @@ class _RoundEndOverlay extends StatelessWidget {
                             r2: _byTeam2(variant),
                             isLastPlayed: variant == lastVariant &&
                                 roundHistory.isNotEmpty,
+                            cardType: cardType,
                           ),
                         // Trennlinie
                         TableRow(
@@ -446,78 +454,116 @@ class _RoundEndOverlay extends StatelessWidget {
   }
 
   /// Eine Zeile pro Variante.
-  /// r1 = wenn Team 1 (Ihr) angesagt hat → zeigt r1.team1Score in Ihr-Spalte
-  /// r2 = wenn Team 2 (Gegner) angesagt hat → zeigt r2.team2Score in Gegner-Spalte
+  /// r1 = wenn Team 1 (Ihr) angesagt hat → zeigt Score in Ihr-Spalte
+  /// r2 = wenn Team 2 (Gegner) angesagt hat → zeigt Score in Gegner-Spalte
   /// Noch nicht gespielte Felder zeigen "—" (gedimmt).
   TableRow _buildRow({
     required String variant,
     required RoundResult? r1,
     required RoundResult? r2,
     required bool isLastPlayed,
+    required CardType cardType,
   }) {
-    // Punkte des ansagenden Teams (0 = verloren, >0 = gewonnen)
-    final s1text = r1 != null ? '${r1.team1Score}' : '—';
-    final s2text = r2 != null ? '${r2.team2Score}' : '—';
-
-    Color scoreColor(RoundResult? r, int? pts) {
-      if (r == null) return Colors.white24;
-      return (pts ?? 0) > 0
-          ? Colors.greenAccent.shade200
-          : Colors.orange.shade300;
-    }
-
     final bool anyPlayed = r1 != null || r2 != null;
+
+    // Variant-Label: Suit-Icons für deutsche Karten bei Trumpf-Varianten
+    Widget labelWidget = _buildVariantLabel(
+      variant: variant,
+      r1: r1,
+      r2: r2,
+      cardType: cardType,
+      anyPlayed: anyPlayed,
+      isLastPlayed: isLastPlayed,
+    );
+
+    Widget scoreCell(RoundResult? r, int pts) {
+      if (r == null) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+          child: Text('—',
+              textAlign: TextAlign.right,
+              style: const TextStyle(color: Colors.white24, fontSize: 12)),
+        );
+      }
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+        child: Text(
+          '$pts',
+          textAlign: TextAlign.right,
+          style: TextStyle(
+            color: Colors.greenAccent.shade200,
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      );
+    }
 
     return TableRow(
       decoration: BoxDecoration(
-        color: isLastPlayed
-            ? Colors.white12
-            : Colors.transparent,
+        color: isLastPlayed ? Colors.white12 : Colors.transparent,
       ),
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-          child: Text(
-            _labels[variant] ?? variant,
-            style: TextStyle(
-              color: anyPlayed
-                  ? (isLastPlayed ? Colors.white : Colors.white70)
-                  : Colors.white24,
-              fontSize: 11,
-              fontWeight: isLastPlayed ? FontWeight.bold : FontWeight.normal,
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
+          child: labelWidget,
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-          child: Text(
-            s1text,
-            textAlign: TextAlign.right,
-            style: TextStyle(
-              color: scoreColor(r1, r1?.team1Score),
-              fontSize: 12,
-              fontWeight: (r1 != null && r1.team1Score > 0)
-                  ? FontWeight.bold
-                  : FontWeight.normal,
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-          child: Text(
-            s2text,
-            textAlign: TextAlign.right,
-            style: TextStyle(
-              color: scoreColor(r2, r2?.team2Score),
-              fontSize: 12,
-              fontWeight: (r2 != null && r2.team2Score > 0)
-                  ? FontWeight.bold
-                  : FontWeight.normal,
-            ),
-          ),
-        ),
+        scoreCell(r1, r1?.team1Score ?? 0),
+        scoreCell(r2, r2?.team2Score ?? 0),
       ],
+    );
+  }
+
+  /// Label für Variante: bei Trumpf mit deutschen Karten → Suit-Icon-Bilder.
+  Widget _buildVariantLabel({
+    required String variant,
+    required RoundResult? r1,
+    required RoundResult? r2,
+    required CardType cardType,
+    required bool anyPlayed,
+    required bool isLastPlayed,
+  }) {
+    final textColor = anyPlayed
+        ? (isLastPlayed ? Colors.white : Colors.white70)
+        : Colors.white24;
+    final textStyle = TextStyle(
+      color: textColor,
+      fontSize: 11,
+      fontWeight: isLastPlayed ? FontWeight.bold : FontWeight.normal,
+    );
+
+    if (cardType == CardType.german &&
+        (variant == 'trump_ss' || variant == 'trump_re')) {
+      // Deutsche Karten: Suit-Icons aus assets
+      final suits = variant == 'trump_ss'
+          ? [Suit.schellen, Suit.schilten]
+          : [Suit.herzGerman, Suit.eichel];
+      final label = variant == 'trump_ss' ? 'Schellen/Schilten' : 'Herz/Eichel';
+
+      return Row(
+        children: [
+          for (final s in suits) ...[
+            Image.asset(
+              'assets/suit_icons/${s.name}.png',
+              width: 14,
+              height: 14,
+              color: anyPlayed ? null : Colors.white24,
+              colorBlendMode: BlendMode.modulate,
+            ),
+            const SizedBox(width: 2),
+          ],
+          const SizedBox(width: 2),
+          Flexible(
+            child: Text(label, style: textStyle, overflow: TextOverflow.ellipsis),
+          ),
+        ],
+      );
+    }
+
+    return Text(
+      _labels[variant] ?? variant,
+      style: textStyle,
+      overflow: TextOverflow.ellipsis,
     );
   }
 

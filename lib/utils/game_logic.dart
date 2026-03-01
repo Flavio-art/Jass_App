@@ -54,12 +54,14 @@ class GameLogic {
         return trumpCards.isNotEmpty ? trumpCards : List.of(hand);
       }
 
-      // Nicht-Trump angeführt: Farbe bedienen ODER abstechen (Trump spielen)
+      // Nicht-Trump angeführt
       final suitCards = hand.where((c) => c.suit == ledSuit).toList();
-      if (suitCards.isEmpty && trumpCards.isEmpty) return List.of(hand);
-      // Vereinigung: Farbe + Trump; andere Farben nur wenn beides fehlt
-      final allowed = <JassCard>{...suitCards, ...trumpCards};
-      return allowed.toList();
+      if (suitCards.isNotEmpty) {
+        // Hat angespielte Farbe: darf Farbe spielen ODER abstechen (Trump)
+        return <JassCard>{...suitCards, ...trumpCards}.toList();
+      }
+      // Keine angespielte Farbe → freie Kartenwahl, kein Trumpfzwang
+      return List.of(hand);
     }
 
     // ── Oben / Unten / Slalom / Elefant / Misere / allesTrumpf ───────────────

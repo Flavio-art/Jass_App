@@ -138,8 +138,9 @@ class RulesScreen extends StatelessWidget {
             ),
             _ModeCard(
               '😶  Misere',
-              'Ziel: möglichst wenige Punkte sammeln. Es gelten Obenabe-Regeln für den Stichgewinn. '
-              'Das ansagende Team gewinnt, wenn es weniger Punkte als der Gegner hat.',
+              'Ziel: möglichst wenige Punkte sammeln. Es gelten Obenabe-Regeln für den Stichgewinn.\n\n'
+              'Wertung: Beide Teams erhalten 157 − eigene Kartenpunkte gutgeschrieben. '
+              'Wer weniger Rohpunkte sammelt, bekommt mehr Punkte (wie Molotof).',
             ),
             _ModeCard(
               '👑  Alles Trumpf',
@@ -176,8 +177,8 @@ class RulesScreen extends StatelessWidget {
                     'Gewinnt es (mehr Punkte als der Gegner), erhält es seine tatsächlichen Kartenpunkte. '
                     'Verliert es, erhält es 0 Punkte.'),
               _Rule('Misere:\n'
-                    'Das ansagende Team gewinnt, wenn es weniger Punkte als der Gegner hat. '
-                    'Bei Sieg erhält es seine tatsächlichen Kartenpunkte.'),
+                    'Beide Teams erhalten eine Gutschrift von 157 − eigene Kartenpunkte. '
+                    'Wer weniger Rohpunkte sammelt, erhält mehr gutgeschriebene Punkte.'),
               _Rule('Molotof:\n'
                     'Beide Teams erhalten unabhängig Punkte. '
                     'Gutschrift = 157 − eigene Kartenpunkte.'),

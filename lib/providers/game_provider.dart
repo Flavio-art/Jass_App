@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import '../models/card_model.dart';
@@ -8,6 +7,7 @@ import '../models/player.dart';
 import '../models/deck.dart';
 import '../utils/game_logic.dart';
 import '../utils/monte_carlo.dart';
+import '../utils/mode_selector.dart';
 
 class GameProvider extends ChangeNotifier {
   GameState _state = GameState.initial(cardType: CardType.french);
@@ -140,44 +140,17 @@ class GameProvider extends ChangeNotifier {
   // ─── KI wählt automatisch einen Spielmodus ───────────────────────────────
 
   void _autoSelectMode() {
-    final isTeam1 = _state.isTeam1Ansager;
-    final available = _state.availableVariants(isTeam1);
+    final ansager = _state.currentAnsager;
+    final available = _state.availableVariants(_state.isTeam1Ansager);
     if (available.isEmpty) return;
 
-    final variantKey = available[Random().nextInt(available.length)];
-
-    GameMode mode;
-    Suit? trumpSuit;
-
-    if (variantKey == 'trump_ss' || variantKey == 'trump_re') {
-      // Prüfen ob Richtung erzwungen ist
-      final isTeam1 = _state.isTeam1Ansager;
-      final forced = _state.forcedTrumpDirection(isTeam1, variantKey);
-      final useOben = forced ?? Random().nextBool();
-      mode = useOben ? GameMode.trump : GameMode.trumpUnten;
-      if (variantKey == 'trump_ss') {
-        trumpSuit = _state.cardType == CardType.french
-            ? (Random().nextBool() ? Suit.spades : Suit.clubs)
-            : (Random().nextBool() ? Suit.schellen : Suit.schilten);
-      } else {
-        trumpSuit = _state.cardType == CardType.french
-            ? (Random().nextBool() ? Suit.hearts : Suit.diamonds)
-            : (Random().nextBool() ? Suit.herzGerman : Suit.eichel);
-      }
-    } else if (variantKey == 'schafkopf') {
-      mode = GameMode.schafkopf;
-      // KI wählt zufällige Trumpffarbe
-      final suits = _state.cardType == CardType.french
-          ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
-          : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
-      trumpSuit = suits[Random().nextInt(suits.length)];
-    } else {
-      mode = GameMode.values.firstWhere((m) => m.name == variantKey);
-    }
-
-    // Short delay so the UI can update before mode is set
-    Future.delayed(const Duration(milliseconds: 400), () {
-      selectGameMode(mode, trumpSuit: trumpSuit);
+    // Hand-Evaluation im Hintergrund (kurze Denkpause für Realismus)
+    Future.delayed(const Duration(milliseconds: 800), () {
+      final result = ModeSelectorAI.selectMode(
+        player: ansager,
+        state: _state,
+      );
+      selectGameMode(result.mode, trumpSuit: result.trumpSuit);
     });
   }
 
@@ -210,41 +183,17 @@ class GameProvider extends ChangeNotifier {
       final rawTeam2 = _state.teamScores['team2'] ?? 0;
       final ansagerIsTeam1 = _state.isTeam1Ansager;
 
+      // Misere & Molotof: Ziel ist wenig Punkte → Gutschrift = 157 − eigene Punkte.
+      // Alle anderen Modi: Rohpunkte direkt.
       final int finalTeam1;
       final int finalTeam2;
-
-      if (_state.gameMode == GameMode.molotof) {
-        // Molotof: Ziel ist wenige Punkte. Gutschrift = 157 − eigene Punkte.
+      if (_state.gameMode == GameMode.molotof ||
+          _state.gameMode == GameMode.misere) {
         finalTeam1 = 157 - rawTeam1;
         finalTeam2 = 157 - rawTeam2;
       } else {
-        // Match: ansagendes Team gewinnt alle 9 Stiche → 170
-        final team1Tricks = _state.completedTricks.where((t) {
-          final winner = _state.players.firstWhere((p) => p.id == t.winnerId);
-          return winner.position == PlayerPosition.south ||
-              winner.position == PlayerPosition.north;
-        }).length;
-
-        final isMisere = _state.gameMode == GameMode.misere;
-
-        // Tatsächliche Punkte des ansagenden Teams
-        final rawAnnouncing = ansagerIsTeam1 ? rawTeam1 : rawTeam2;
-        final rawOpposing  = ansagerIsTeam1 ? rawTeam2 : rawTeam1;
-
-        // Ansager hat alle Stiche gewonnen?
-        final announcerAllTricks = ansagerIsTeam1 ? (team1Tricks == 9) : (team1Tricks == 0);
-
-        // Ansager-Team gewinnt? (Misere: weniger Punkte = besser)
-        final ansagerWon = isMisere
-            ? rawAnnouncing < rawOpposing
-            : rawAnnouncing > rawOpposing;
-
-        // Match: 170; gewonnen: tatsächliche Punkte; verloren: 0
-        final awardedPoints = announcerAllTricks ? 170 : (ansagerWon ? rawAnnouncing : 0);
-
-        // Punkte gelten nur für das ansagende Team
-        finalTeam1 = ansagerIsTeam1 ? awardedPoints : 0;
-        finalTeam2 = ansagerIsTeam1 ? 0 : awardedPoints;
+        finalTeam1 = rawTeam1;
+        finalTeam2 = rawTeam2;
       }
 
       final result = RoundResult(
@@ -254,6 +203,8 @@ class GameProvider extends ChangeNotifier {
         isTeam1Ansager: ansagerIsTeam1,
         team1Score: finalTeam1,
         team2Score: finalTeam2,
+        rawTeam1Score: rawTeam1,
+        rawTeam2Score: rawTeam2,
       );
       newHistory = [..._state.roundHistory, result];
     }

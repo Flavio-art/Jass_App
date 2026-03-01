@@ -27,11 +27,13 @@ enum GameMode {
 
 class RoundResult {
   final int roundNumber;
-  final String variantKey;   // "trump_rot", "trump_schwarz", "oben", …
+  final String variantKey;   // "trump_ss", "trump_re", "oben", …
   final Suit? trumpSuit;     // genaue Farbe für Anzeige
   final bool isTeam1Ansager;
-  final int team1Score;
+  final int team1Score;      // vergebene Punkte (binär: 0 oder Rohpunkte)
   final int team2Score;
+  final int rawTeam1Score;   // tatsächliche Rohpunkte für Anzeige
+  final int rawTeam2Score;
 
   const RoundResult({
     required this.roundNumber,
@@ -40,6 +42,8 @@ class RoundResult {
     required this.isTeam1Ansager,
     required this.team1Score,
     required this.team2Score,
+    required this.rawTeam1Score,
+    required this.rawTeam2Score,
   });
 
   /// Lesbare Bezeichnung des Spielmodus für die Tabelle

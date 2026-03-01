@@ -24,3 +24,4 @@ flutter:
   assets:
     - assets/cards/french/
     - assets/cards/german/
+    - assets/suit_icons/

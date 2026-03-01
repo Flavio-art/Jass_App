@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import '../models/card_model.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
@@ -12,8 +10,13 @@ import 'game_logic.dart';
 /// Da wir alle Hände kennen (Spielengine-Perspektive), brauchen wir kein
 /// World-Sampling – die Qualität kommt durch den Lookahead.
 class MonteCarloAI {
-  static const int simulations = 200;
-  static final _rng = Random();
+  /// Anzahl äusserer Simulationen pro Kandidatenkarte.
+  static const int simulations = 50;
+
+  /// Anzahl innerer Rollouts pro Option im Rollout-Schritt.
+  /// Höher = bessere Rollout-Qualität, aber langsamer.
+  static const int innerSimulations = 3;
+
 
   // ─── Öffentlicher Einstiegspunkt ──────────────────────────────────────────
 
@@ -86,8 +89,8 @@ class MonteCarloAI {
 
   // ─── Simulation ───────────────────────────────────────────────────────────
 
-  /// Spielt [state] (bereits geklont) bis Stich 9 mit der KI-Karte [first]
-  /// und danach zufälligen Karten für alle. Gibt finale teamScores zurück.
+  /// Spielt [state] (bereits geklont) bis Stich 9 mit der KI-Karte [first].
+  /// Jeder Rollout-Schritt wählt via _innerMcCard (nested MC).
   static Map<String, int> _simulate(
       GameState state, String aiId, JassCard first) {
     var s = _playCard(state, aiId, first);
@@ -95,12 +98,68 @@ class MonteCarloAI {
     while (s.completedTricks.length < 9) {
       final player = s.players[s.currentPlayerIndex];
       if (player.hand.isEmpty) break;
-      final card = _randomCard(s, player);
+      final card = _innerMcCard(s, player);
       if (card == null) break;
       s = _playCard(s, player.id, card);
     }
 
     return s.teamScores;
+  }
+
+  /// Nested MC für einen einzelnen Rollout-Schritt:
+  /// Jede legale Option (meist 2–3 Karten dank Farbenpflicht) wird mit
+  /// [innerSimulations] geführten Rollouts bis Spielende bewertet.
+  /// Die beste Option für das aktuelle Team wird zurückgegeben.
+  ///
+  /// Für leere Stiche (Anspielen) wird zufällig gewählt, damit die
+  /// 50 äusseren Simulationen sich unterscheiden (MC-Diversität).
+  static JassCard? _innerMcCard(GameState state, Player player) {
+    final playable = _getPlayable(player, state);
+    if (playable.isEmpty) return null;
+    if (playable.length == 1) return playable.first;
+
+    // Anspielen: stärkste Karte für den Modus (= 6 in Undenufe, Buur in Trumpf…).
+    // Diversität der äusseren Simulationen entsteht durch die Kandidatenkarten,
+    // nicht durch zufällige Rollouts.
+    if (state.currentTrickCards.isEmpty) {
+      final effectMode = state.effectiveMode;
+      final trump = state.trumpSuit;
+      final wantToLose = effectMode == GameMode.misere ||
+          effectMode == GameMode.molotof ||
+          state.gameMode == GameMode.misere ||
+          state.gameMode == GameMode.molotof;
+      return wantToLose
+          ? _weakest(playable, effectMode, trump)
+          : _strongest(playable, effectMode, trump);
+    }
+
+    final isTeam1 = player.position == PlayerPosition.south ||
+        player.position == PlayerPosition.north;
+
+    double best = double.negativeInfinity;
+    JassCard bestCard = playable.first;
+
+    for (final card in playable) {
+      double total = 0;
+      for (int i = 0; i < innerSimulations; i++) {
+        // _playCard ist immutable (copyWith), kein Clone nötig
+        var s = _playCard(state, player.id, card);
+        // Guided rollout bis Spielende (kein weiteres Nesting)
+        while (s.completedTricks.length < 9) {
+          final p = s.players[s.currentPlayerIndex];
+          if (p.hand.isEmpty) break;
+          final c = _guidedCard(s, p);
+          if (c == null) break;
+          s = _playCard(s, p.id, c);
+        }
+        total += _scoreFor(s.teamScores, isTeam1, state);
+      }
+      if (total > best) {
+        best = total;
+        bestCard = card;
+      }
+    }
+    return bestCard;
   }
 
   // ─── Karte spielen (vereinfacht, ohne UI-State) ───────────────────────────
@@ -235,10 +294,118 @@ class MonteCarloAI {
     );
   }
 
-  static JassCard? _randomCard(GameState state, Player player) {
-    final p = _getPlayable(player, state);
-    if (p.isEmpty) return null;
-    return p[_rng.nextInt(p.length)];
+  /// Guided rollout: reduziert Zufälligkeit durch einfache Heuristiken.
+  /// • Stich leer       → stärkste Karte anspielen (in Unten = die 6)
+  ///                      Misere/Molotof: schwächste anspielen
+  /// • Misere-Ansager   → nie gewinnen; schwächste nicht-gewinnende Karte
+  /// • Partner gewinnt  → schwächste Karte (nicht verschwenden)
+  /// • Kann gewinnen    → schwächste Gewinnerkarte (günstig gewinnen)
+  /// • Sonst            → schwächste Karte (wegwerfen)
+  static JassCard? _guidedCard(GameState state, Player player) {
+    final playable = _getPlayable(player, state);
+    if (playable.isEmpty) return null;
+    if (playable.length == 1) return playable.first;
+
+    final effectMode = state.effectiveMode;
+    final trump = state.trumpSuit;
+
+    // Stich leer → strategisch anspielen.
+    // Misere/Molotof: schwächste Karte (Stich vermeiden / wenig Punkte).
+    // Alle anderen Modi: stärkste Karte (Stich gewinnen).
+    // In Undenufe bedeutet "stärkste" = die 6, da cardPlayStrength korrekt
+    // die Modus-Stärkereihenfolge abbildet.
+    if (state.currentTrickCards.isEmpty) {
+      final wantToLose = effectMode == GameMode.misere ||
+          effectMode == GameMode.molotof ||
+          state.gameMode == GameMode.misere ||
+          state.gameMode == GameMode.molotof;
+      return wantToLose
+          ? _weakest(playable, effectMode, trump)
+          : _strongest(playable, effectMode, trump);
+    }
+
+    // Wer gewinnt gerade?
+    final currentWinnerId = GameLogic.determineTrickWinner(
+      cards: state.currentTrickCards,
+      playerIds: state.currentTrickPlayerIds,
+      gameMode: state.gameMode,
+      trumpSuit: trump,
+      trickNumber: state.currentTrickNumber,
+      molotofSubMode: state.molotofSubMode,
+    );
+    final currentWinner =
+        state.players.firstWhere((p) => p.id == currentWinnerId);
+    final partnerWins = _sameTeam(player, currentWinner);
+
+    // Misere-Ansager: will den Stich NICHT gewinnen
+    final isAnnouncer = (player.position == PlayerPosition.south ||
+            player.position == PlayerPosition.north) ==
+        state.isTeam1Ansager;
+    if (state.gameMode == GameMode.misere && isAnnouncer) {
+      final losing = playable
+          .where((c) => !_wouldWin(c, state, trump))
+          .toList();
+      return _weakest(losing.isNotEmpty ? losing : playable, effectMode, trump);
+    }
+
+    // Partner gewinnt → billigste Karte wegwerfen (nicht verschwenden)
+    if (partnerWins) {
+      return _weakest(playable, effectMode, trump);
+    }
+
+    // Gegner gewinnt → versuche mit billigster Karte zu gewinnen
+    final winning =
+        playable.where((c) => _wouldWin(c, state, trump)).toList();
+    if (winning.isNotEmpty) {
+      return _weakest(winning, effectMode, trump);
+    }
+
+    // Kann nicht gewinnen → wegwerfen
+    return _weakest(playable, effectMode, trump);
+  }
+
+  /// Gibt true zurück, wenn [card] den aktuellen Teilstich gewinnen würde.
+  static bool _wouldWin(JassCard card, GameState state, Suit? trump) {
+    final playerId = state.players[state.currentPlayerIndex].id;
+    final testCards = [...state.currentTrickCards, card];
+    final testIds = [...state.currentTrickPlayerIds, playerId];
+    final winnerId = GameLogic.determineTrickWinner(
+      cards: testCards,
+      playerIds: testIds,
+      gameMode: state.gameMode,
+      trumpSuit: trump,
+      trickNumber: state.currentTrickNumber,
+      molotofSubMode: state.molotofSubMode,
+    );
+    return winnerId == playerId;
+  }
+
+  /// Schwächste Karte nach Spielstärke (z.B. Ass in Undenufe).
+  static JassCard _weakest(
+      List<JassCard> cards, GameMode mode, Suit? trump) {
+    return cards.reduce((a, b) =>
+        GameLogic.cardPlayStrength(a, mode, trump) <=
+                GameLogic.cardPlayStrength(b, mode, trump)
+            ? a
+            : b);
+  }
+
+  /// Stärkste Karte nach Spielstärke (z.B. 6 in Undenufe, Buur in Trumpf).
+  static JassCard _strongest(
+      List<JassCard> cards, GameMode mode, Suit? trump) {
+    return cards.reduce((a, b) =>
+        GameLogic.cardPlayStrength(a, mode, trump) >=
+                GameLogic.cardPlayStrength(b, mode, trump)
+            ? a
+            : b);
+  }
+
+  static bool _sameTeam(Player a, Player b) {
+    final aT1 = a.position == PlayerPosition.south ||
+        a.position == PlayerPosition.north;
+    final bT1 = b.position == PlayerPosition.south ||
+        b.position == PlayerPosition.north;
+    return aT1 == bT1;
   }
 
   /// Klont den State mit tief kopierten Spielerhänden (Player.hand ist mutable).

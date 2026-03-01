@@ -173,24 +173,28 @@ class _CardTypeButton extends StatelessWidget {
         ),
         child: Column(
           children: [
-            // Vier Suit-Pips in einem 2×2 Raster
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(mainAxisSize: MainAxisSize.min, children: [
-                  _SuitPip(suit: suits[0], cardType: cardType),
-                  const SizedBox(width: 6),
-                  _SuitPip(suit: suits[1], cardType: cardType),
-                ]),
-                const SizedBox(height: 6),
-                Row(mainAxisSize: MainAxisSize.min, children: [
-                  _SuitPip(suit: suits[2], cardType: cardType),
-                  const SizedBox(width: 6),
-                  _SuitPip(suit: suits[3], cardType: cardType),
-                ]),
-              ],
+            // Vier Suit-Pips — leicht verstreut, wie auf dem Spieltisch
+            SizedBox(
+              width: 116,
+              height: 100,
+              child: Stack(
+                children: [
+                  Positioned(left: 2, top: 2,
+                    child: Transform.rotate(angle: -0.18,
+                      child: _SuitPip(suit: suits[0], cardType: cardType))),
+                  Positioned(right: 2, top: 6,
+                    child: Transform.rotate(angle: 0.14,
+                      child: _SuitPip(suit: suits[1], cardType: cardType))),
+                  Positioned(left: 6, bottom: 2,
+                    child: Transform.rotate(angle: 0.16,
+                      child: _SuitPip(suit: suits[2], cardType: cardType))),
+                  Positioned(right: 2, bottom: 4,
+                    child: Transform.rotate(angle: -0.12,
+                      child: _SuitPip(suit: suits[3], cardType: cardType))),
+                ],
+              ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             Text(
               label,
               style: TextStyle(
@@ -211,29 +215,35 @@ class _CardTypeButton extends StatelessWidget {
   }
 }
 
-// Gecroptes Ass-Symbol: zeigt die Mitte der Ass-Karte in einem fixen 28×28 Feld.
-// Alle Karten sind 449×701px → bei 100px gerendert: 100×156px.
-// Mitte 28×28: zeigt (100−28)/2=36px bis 64px horizontal,
-//              (156−28)/2=64px bis 92px vertikal → reines Symbolzentrum.
 class _SuitPip extends StatelessWidget {
   final Suit suit;
   final CardType cardType;
   const _SuitPip({required this.suit, required this.cardType});
 
-  String get _acePath {
-    final folder = cardType == CardType.french ? 'french' : 'german';
-    return 'assets/cards/$folder/${suit.name}_ace.png';
+  String get _imagePath {
+    if (cardType == CardType.german) {
+      return 'assets/suit_icons/${suit.name}.png';
+    }
+    return 'assets/cards/french/${suit.name}_ace.png';
   }
 
   @override
   Widget build(BuildContext context) {
+    if (cardType == CardType.german) {
+      return SizedBox(
+        width: 48,
+        height: 48,
+        child: Image.asset(_imagePath, fit: BoxFit.contain),
+      );
+    }
+    // French: crop center of ace card (48/114 ≈ 42% visible width)
     return SizedBox(
-      width: 28,
-      height: 28,
+      width: 48,
+      height: 48,
       child: ClipRect(
         child: Align(
           alignment: Alignment.center,
-          child: Image.asset(_acePath, width: 100, fit: BoxFit.fitWidth),
+          child: Image.asset(_imagePath, width: 114, fit: BoxFit.fitWidth),
         ),
       ),
     );

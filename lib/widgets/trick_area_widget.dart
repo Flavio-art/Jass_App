@@ -146,9 +146,9 @@ class _ModeIndicator extends StatelessWidget {
           ],
         );
       case GameMode.oben:
-        return _label('Oben ⬆️', Colors.blue.shade300);
+        return _label('Obenabe ⬇️', Colors.blue.shade300);
       case GameMode.unten:
-        return _label('Unten ⬇️', Colors.orange.shade300);
+        return _label('Undenufe ⬆️', Colors.orange.shade300);
       case GameMode.slalom:
         return _slalomLabel();
       case GameMode.elefant:
@@ -193,7 +193,7 @@ class _ModeIndicator extends StatelessWidget {
         _label('Slalom 〰️', Colors.purple.shade300),
         const SizedBox(height: 2),
         _label(
-          isOben ? 'Oben ⬆️' : 'Unten ⬇️',
+          isOben ? 'Oben ⬇️' : 'Unten ⬆️',
           isOben ? Colors.blue.shade300 : Colors.orange.shade300,
         ),
       ],
@@ -215,9 +215,9 @@ class _ModeIndicator extends StatelessWidget {
     final Color col;
     switch (molotofSubMode!) {
       case GameMode.oben:
-        sub = 'Obenabe ⬆️'; col = Colors.blue.shade300; break;
+        sub = 'Obenabe ⬇️'; col = Colors.blue.shade300; break;
       case GameMode.unten:
-        sub = 'Undenufe ⬇️'; col = Colors.orange.shade300; break;
+        sub = 'Undenufe ⬆️'; col = Colors.orange.shade300; break;
       case GameMode.trump:
         sub = 'Trumpf: ${trumpSuit?.symbol ?? '?'}'; col = Colors.amber.shade300; break;
       default:
@@ -237,10 +237,10 @@ class _ModeIndicator extends StatelessWidget {
     String subMode;
     Color color;
     if (trickNumber <= 3) {
-      subMode = 'Oben ⬆️';
+      subMode = 'Oben ⬇️';
       color = Colors.blue.shade300;
     } else if (trickNumber <= 6) {
-      subMode = 'Unten ⬇️';
+      subMode = 'Unten ⬆️';
       color = Colors.orange.shade300;
     } else {
       subMode = 'Trump 🎯';
