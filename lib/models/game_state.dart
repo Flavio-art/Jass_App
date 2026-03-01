@@ -110,6 +110,7 @@ class GameState {
   // trumpObenTeam1/2: 'trump_ss'/'trump_re' → true=oben (normal), false=unten
   final Map<String, bool> trumpObenTeam1;
   final Map<String, bool> trumpObenTeam2;
+  final bool slalomStartsOben; // true = 1. Stich Obenabe, false = 1. Stich Undenufe
 
   const GameState({
     required this.cardType,
@@ -134,11 +135,14 @@ class GameState {
     this.molotofSubMode,
     this.trumpObenTeam1 = const {},
     this.trumpObenTeam2 = const {},
+    this.slalomStartsOben = true,
   });
 
   Player get currentPlayer => players[currentPlayerIndex];
   int get currentTrickNumber => completedTricks.length + 1;
-  bool get slalomIsOben => currentTrickNumber % 2 == 1;
+  bool get slalomIsOben => slalomStartsOben
+      ? currentTrickNumber % 2 == 1
+      : currentTrickNumber % 2 == 0;
 
   /// Wer aktuell den Spielmodus auswählt: Ansager oder Partner (nach Schieben).
   Player get currentTrumpSelector =>
@@ -260,6 +264,7 @@ class GameState {
     Object? molotofSubMode = _sentinel,
     Map<String, bool>? trumpObenTeam1,
     Map<String, bool>? trumpObenTeam2,
+    bool? slalomStartsOben,
   }) {
     return GameState(
       cardType: cardType ?? this.cardType,
@@ -291,6 +296,7 @@ class GameState {
           : molotofSubMode as GameMode?,
       trumpObenTeam1: trumpObenTeam1 ?? this.trumpObenTeam1,
       trumpObenTeam2: trumpObenTeam2 ?? this.trumpObenTeam2,
+      slalomStartsOben: slalomStartsOben ?? this.slalomStartsOben,
     );
   }
 }

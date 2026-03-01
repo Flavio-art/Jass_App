@@ -5,6 +5,7 @@ import '../models/card_model.dart';
 import '../models/game_state.dart';
 import '../providers/game_provider.dart';
 import '../widgets/card_widget.dart';
+import 'rules_screen.dart';
 
 class TrumpSelectionScreen extends StatelessWidget {
   const TrumpSelectionScreen({super.key});
@@ -34,26 +35,42 @@ class TrumpSelectionScreen extends StatelessWidget {
           children: [
             // ── Header ───────────────────────────────────────────────────
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 10, 20, 6),
-              child: Column(
+              padding: const EdgeInsets.fromLTRB(8, 4, 8, 6),
+              child: Row(
                 children: [
-                  Text(
-                    hasSchieben
-                        ? (selector.isHuman
-                            ? 'Partner hat geschoben – Du wählst'
-                            : '${ansager.name} schob zu ${selector.name}')
-                        : (ansager.isHuman ? 'Du spielst' : '${ansager.name} spielt'),
-                    style: const TextStyle(color: Colors.white54, fontSize: 12),
-                    textAlign: TextAlign.center,
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white54),
+                    onPressed: () => Navigator.pop(context),
                   ),
-                  const Text(
-                    'Spielmodus wählen',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Text(
+                          hasSchieben
+                              ? (selector.isHuman
+                                  ? 'Partner hat geschoben – Du wählst'
+                                  : '${ansager.name} schob zu ${selector.name}')
+                              : (ansager.isHuman ? 'Du spielst' : '${ansager.name} spielt'),
+                          style: const TextStyle(color: Colors.white54, fontSize: 12),
+                          textAlign: TextAlign.center,
+                        ),
+                        const Text(
+                          'Spielmodus wählen',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                     ),
-                    textAlign: TextAlign.center,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.help_outline, color: Colors.white54),
+                    tooltip: 'Regeln',
+                    onPressed: () => Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => const RulesScreen())),
                   ),
                 ],
               ),
@@ -110,7 +127,7 @@ class TrumpSelectionScreen extends StatelessWidget {
                       children: [
                         Expanded(child: _ModeButton(label: 'Slalom', subtitle: 'Oben · Unten · …', emoji: '〰️',
                           color: Colors.purple.shade700, isAvailable: available.contains('slalom'),
-                          onTap: () => _selectMode(context, GameMode.slalom))),
+                          onTap: () => _pickSlalomDirection(context))),
                         const SizedBox(width: 8),
                         Expanded(child: _ModeButton(label: 'Elefant', subtitle: '3× Oben·Unten·Trumpf', emoji: '🐘',
                           color: Colors.teal.shade700, isAvailable: available.contains('elefant'),
@@ -394,10 +411,106 @@ class TrumpSelectionScreen extends StatelessWidget {
     Navigator.pop(context);
   }
 
-  void _pickSchafkopfTrump(
-      BuildContext context, List<Suit> suits, CardType cardType) {
+  void _pickSlalomDirection(BuildContext context) {
+    final human = context.read<GameProvider>().state.players.firstWhere((p) => p.isHuman);
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF1B3A2A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              '〰️ Slalom',
+              style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Womit beginnt der erste Stich?',
+              style: TextStyle(color: Colors.white54, fontSize: 13),
+            ),
+            // ── Kartenvorschau ──────────────────────────────────────
+            const SizedBox(height: 14),
+            const Text('DEINE KARTEN',
+                style: TextStyle(color: Colors.white38, fontSize: 9, letterSpacing: 1.2)),
+            const SizedBox(height: 8),
+            LayoutBuilder(builder: (_, cons) {
+              const cw = 42.0;
+              const ch = cw * 1.5;
+              final n = human.hand.length;
+              if (n == 0) return const SizedBox.shrink();
+              final step = n > 1
+                  ? ((cons.maxWidth - cw) / (n - 1)).clamp(8.0, cw + 4)
+                  : 0.0;
+              final totalW = n > 1 ? step * (n - 1) + cw : cw;
+              return SizedBox(
+                height: ch,
+                width: totalW,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    for (int i = 0; i < n; i++)
+                      Positioned(
+                        left: i * step,
+                        child: CardWidget(card: human.hand[i], width: cw),
+                      ),
+                  ],
+                ),
+              );
+            }),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _DirectionButton(
+                    label: 'Obenabe',
+                    subtitle: '1. Stich: Ass gewinnt',
+                    emoji: '⬇️',
+                    color: Colors.blue.shade700,
+                    isEnabled: true,
+                    onTap: () {
+                      context.read<GameProvider>().selectGameMode(
+                          GameMode.slalom, slalomStartsOben: true);
+                      Navigator.pop(context); // Bottom Sheet
+                      Navigator.pop(context); // TrumpSelectionScreen
+                    },
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _DirectionButton(
+                    label: 'Undenufe',
+                    subtitle: '1. Stich: 6 gewinnt',
+                    emoji: '⬆️',
+                    color: Colors.orange.shade800,
+                    isEnabled: true,
+                    onTap: () {
+                      context.read<GameProvider>().selectGameMode(
+                          GameMode.slalom, slalomStartsOben: false);
+                      Navigator.pop(context); // Bottom Sheet
+                      Navigator.pop(context); // TrumpSelectionScreen
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _pickSchafkopfTrump(
+      BuildContext context, List<Suit> suits, CardType cardType) {
+    final human = context.read<GameProvider>().state.players.firstWhere((p) => p.isHuman);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
       backgroundColor: const Color(0xFF1B3A2A),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -419,7 +532,36 @@ class TrumpSelectionScreen extends StatelessWidget {
               'Welche Farbe soll Trumpf sein?',
               style: TextStyle(color: Colors.white54, fontSize: 13),
             ),
-            const SizedBox(height: 20),
+            // ── Kartenvorschau ────────────────────────────────────────
+            const SizedBox(height: 14),
+            const Text('DEINE KARTEN',
+                style: TextStyle(color: Colors.white38, fontSize: 9, letterSpacing: 1.2)),
+            const SizedBox(height: 8),
+            LayoutBuilder(builder: (_, cons) {
+              const cw = 42.0;
+              const ch = cw * 1.5;
+              final n = human.hand.length;
+              if (n == 0) return const SizedBox.shrink();
+              final step = n > 1
+                  ? ((cons.maxWidth - cw) / (n - 1)).clamp(8.0, cw + 4)
+                  : 0.0;
+              final totalW = n > 1 ? step * (n - 1) + cw : cw;
+              return SizedBox(
+                height: ch,
+                width: totalW,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    for (int i = 0; i < n; i++)
+                      Positioned(
+                        left: i * step,
+                        child: CardWidget(card: human.hand[i], width: cw),
+                      ),
+                  ],
+                ),
+              );
+            }),
+            const SizedBox(height: 16),
             GridView.count(
               crossAxisCount: 2,
               shrinkWrap: true,

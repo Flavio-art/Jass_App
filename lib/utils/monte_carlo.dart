@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import '../models/card_model.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
@@ -16,6 +18,8 @@ class MonteCarloAI {
   /// Anzahl innerer Rollouts pro Option im Rollout-Schritt.
   /// Höher = bessere Rollout-Qualität, aber langsamer.
   static const int innerSimulations = 3;
+
+  static final math.Random _rng = math.Random();
 
 
   // ─── Öffentlicher Einstiegspunkt ──────────────────────────────────────────
@@ -39,6 +43,41 @@ class MonteCarloAI {
 
     final playable = _getPlayable(aiPlayer, state);
     if (playable.length == 1) return playable.first;
+
+    // ── Trumpf-Heuristik: Anspielen ──────────────────────────────────────────
+    // Flat-MC unterschätzt hohe Trumpfkarten beim Anspielen systematisch.
+    // Strategie:
+    //   1. Hat Jass → Jass spielen (unschlagbar, zieht Trumpf, 20 Pkt)
+    //   2. Hat Nell + andere Trumpfkarten → niedrigsten Nicht-Nell-Trumpf
+    //      (Jass herauslocken ohne die 14 Pkt des Nells zu riskieren)
+    //   3. Hat nur Nell → MC entscheidet (zu riskant zu führen)
+    //   4. Hat Trumpf ohne Jass/Nell → niedrigsten Trumpf (günstig ziehen)
+    if (state.currentTrickCards.isEmpty &&
+        (state.gameMode == GameMode.trump ||
+            state.gameMode == GameMode.trumpUnten) &&
+        state.trumpSuit != null) {
+      final trump = state.trumpSuit!;
+      final trumpCards = playable.where((c) => c.suit == trump).toList();
+      if (trumpCards.isNotEmpty) {
+        final hasJass = trumpCards.any((c) => c.value == CardValue.jack);
+        if (hasJass) {
+          // Jass ist unschlagbar → immer als Erster spielen
+          return trumpCards.firstWhere((c) => c.value == CardValue.jack);
+        }
+        final hasNell = trumpCards.any((c) => c.value == CardValue.nine);
+        if (hasNell) {
+          // Nell schonen: niedrigsten anderen Trumpf spielen um den Jass herauszulocken
+          final nonNell = trumpCards.where((c) => c.value != CardValue.nine).toList();
+          if (nonNell.isNotEmpty) {
+            return _weakest(nonNell, state.gameMode, trump);
+          }
+          // Nur Nell vorhanden → MC entscheidet (führen riskant)
+        } else {
+          // Trumpfkarten aber kein Jass/Nell → niedrigsten Trumpf spielen
+          return _weakest(trumpCards, state.gameMode, trump);
+        }
+      }
+    }
 
     final aiIsTeam1 = aiPlayer.position == PlayerPosition.south ||
         aiPlayer.position == PlayerPosition.north;
@@ -118,9 +157,8 @@ class MonteCarloAI {
     if (playable.isEmpty) return null;
     if (playable.length == 1) return playable.first;
 
-    // Anspielen: stärkste Karte für den Modus (= 6 in Undenufe, Buur in Trumpf…).
-    // Diversität der äusseren Simulationen entsteht durch die Kandidatenkarten,
-    // nicht durch zufällige Rollouts.
+    // Anspielen: für Diversität zufällig unter den Top-3 Karten wählen.
+    // Gleichmässige Diversität verhindert, dass alle 50 Sims identisch starten.
     if (state.currentTrickCards.isEmpty) {
       final effectMode = state.effectiveMode;
       final trump = state.trumpSuit;
@@ -128,9 +166,13 @@ class MonteCarloAI {
           effectMode == GameMode.molotof ||
           state.gameMode == GameMode.misere ||
           state.gameMode == GameMode.molotof;
-      return wantToLose
-          ? _weakest(playable, effectMode, trump)
-          : _strongest(playable, effectMode, trump);
+      if (wantToLose) return _weakest(playable, effectMode, trump);
+      // Sortiere absteigend nach Spielstärke, wähle zufällig aus Top-3
+      final sorted = List.of(playable)
+        ..sort((a, b) => GameLogic.cardPlayStrength(b, effectMode, trump)
+            .compareTo(GameLogic.cardPlayStrength(a, effectMode, trump)));
+      final topN = math.min(3, sorted.length);
+      return sorted[_rng.nextInt(topN)];
     }
 
     final isTeam1 = player.position == PlayerPosition.south ||
@@ -209,7 +251,8 @@ class MonteCarloAI {
 
     // effectiveMode mit aktuellem Trumpf berechnen (wichtig für Elefant Stich 7+)
     final effectMode = _effectiveMode(state.gameMode, trickNumber,
-        newTrump, state.molotofSubMode);
+        newTrump, state.molotofSubMode,
+        slalomStartsOben: state.slalomStartsOben);
     final points = GameLogic.trickPoints(trickCards, effectMode, newTrump);
 
     final winnerPlayer = newPlayers.firstWhere((p) => p.id == winnerId);
@@ -260,11 +303,15 @@ class MonteCarloAI {
     GameMode mode,
     int trickNumber,
     Suit? trumpSuit,
-    GameMode? molotofSubMode,
-  ) {
+    GameMode? molotofSubMode, {
+    bool slalomStartsOben = true,
+  }) {
     switch (mode) {
       case GameMode.slalom:
-        return trickNumber % 2 == 1 ? GameMode.oben : GameMode.unten;
+        final isOben = slalomStartsOben
+            ? trickNumber % 2 == 1
+            : trickNumber % 2 == 0;
+        return isOben ? GameMode.oben : GameMode.unten;
       case GameMode.elefant:
         if (trickNumber <= 3) return GameMode.oben;
         if (trickNumber <= 6) return GameMode.unten;

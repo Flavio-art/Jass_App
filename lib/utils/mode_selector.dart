@@ -10,8 +10,8 @@ import '../models/player.dart';
 ///
 /// Für jeden verfügbaren Modus wird ein Score berechnet; der höchste gewinnt.
 class ModeSelectorAI {
-  /// Gibt den besten Spielmodus + Trumpffarbe für [player] zurück.
-  static ({GameMode mode, Suit? trumpSuit}) selectMode({
+  /// Gibt den besten Spielmodus + Trumpffarbe + Slalom-Richtung für [player] zurück.
+  static ({GameMode mode, Suit? trumpSuit, bool slalomStartsOben}) selectMode({
     required Player player,
     required GameState state,
   }) {
@@ -23,6 +23,7 @@ class ModeSelectorAI {
     double bestScore = double.negativeInfinity;
     GameMode bestMode = GameMode.oben;
     Suit? bestTrump;
+    bool bestSlalomStartsOben = true;
 
     for (final variant in available) {
       if (variant == 'trump_ss' || variant == 'trump_re') {
@@ -68,6 +69,17 @@ class ModeSelectorAI {
             bestTrump = suit;
           }
         }
+      } else if (variant == 'slalom') {
+        // KI wählt Slalom-Richtung basierend auf der Hand
+        final sOben = _scoreOben(hand);
+        final sUnten = _scoreUnten(hand);
+        final s = (sOben + sUnten) / 2;
+        if (s > bestScore) {
+          bestScore = s;
+          bestMode = GameMode.slalom;
+          bestTrump = null;
+          bestSlalomStartsOben = sOben >= sUnten; // Beginne mit der stärkeren Seite
+        }
       } else {
         final s = _scoreFlatMode(hand, variant);
         if (s > bestScore) {
@@ -78,7 +90,7 @@ class ModeSelectorAI {
       }
     }
 
-    return (mode: bestMode, trumpSuit: bestTrump);
+    return (mode: bestMode, trumpSuit: bestTrump, slalomStartsOben: bestSlalomStartsOben);
   }
 
   // ─── Trumpf Oben / Unten ────────────────────────────────────────────────

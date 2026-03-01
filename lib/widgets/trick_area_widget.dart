@@ -13,6 +13,7 @@ class TrickAreaWidget extends StatelessWidget {
   final Suit? trumpSuit;
   final int trickNumber;
   final bool isClearPending;
+  final bool slalomStartsOben;
   final VoidCallback? onTap;
 
   const TrickAreaWidget({
@@ -25,6 +26,7 @@ class TrickAreaWidget extends StatelessWidget {
     this.molotofSubMode,
     this.trumpSuit,
     this.isClearPending = false,
+    this.slalomStartsOben = true,
     this.onTap,
   });
 
@@ -50,6 +52,7 @@ class TrickAreaWidget extends StatelessWidget {
                 molotofSubMode: molotofSubMode,
                 trumpSuit: trumpSuit,
                 trickNumber: trickNumber,
+                slalomStartsOben: slalomStartsOben,
               ),
             ),
             // Gespielte Karten
@@ -96,7 +99,7 @@ class TrickAreaWidget extends StatelessWidget {
 
     return Align(
       alignment: alignment,
-      child: CardWidget(card: card, width: 50),
+      child: CardWidget(card: card, width: 84),
     );
   }
 }
@@ -106,12 +109,14 @@ class _ModeIndicator extends StatelessWidget {
   final GameMode? molotofSubMode;
   final Suit? trumpSuit;
   final int trickNumber;
+  final bool slalomStartsOben;
 
   const _ModeIndicator({
     required this.gameMode,
     this.molotofSubMode,
     required this.trumpSuit,
     required this.trickNumber,
+    this.slalomStartsOben = true,
   });
 
   @override
@@ -184,7 +189,7 @@ class _ModeIndicator extends StatelessWidget {
       );
 
   Widget _slalomLabel() {
-    final isOben = trickNumber % 2 == 1;
+    final isOben = slalomStartsOben ? trickNumber % 2 == 1 : trickNumber % 2 == 0;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [

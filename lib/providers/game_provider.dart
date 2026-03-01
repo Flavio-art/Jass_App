@@ -133,6 +133,7 @@ class GameProvider extends ChangeNotifier {
       molotofSubMode: null,
       trumpObenTeam1: newTrumpObenTeam1,
       trumpObenTeam2: newTrumpObenTeam2,
+      slalomStartsOben: true, // Reset für neue Runde
     );
     notifyListeners();
 
@@ -175,19 +176,22 @@ class GameProvider extends ChangeNotifier {
         player: selector,
         state: _state,
       );
-      selectGameMode(result.mode, trumpSuit: result.trumpSuit);
+      selectGameMode(result.mode,
+          trumpSuit: result.trumpSuit,
+          slalomStartsOben: result.slalomStartsOben);
     });
   }
 
   // ─── Spielmodus wählen ───────────────────────────────────────────────────
 
-  void selectGameMode(GameMode mode, {Suit? trumpSuit}) {
+  void selectGameMode(GameMode mode, {Suit? trumpSuit, bool slalomStartsOben = true}) {
     _state = _state.copyWith(
       gameMode: mode,
       trumpSuit: trumpSuit,
       phase: GamePhase.playing,
       currentPlayerIndex: _state.ansagerIndex, // Runde startet beim Ansager
       trumpSelectorIndex: null, // Reset nach Moduswahl
+      slalomStartsOben: slalomStartsOben,
     );
     notifyListeners();
     _triggerAiIfNeeded();

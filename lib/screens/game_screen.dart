@@ -10,6 +10,7 @@ import '../widgets/player_hand_widget.dart';
 import '../widgets/trick_area_widget.dart';
 import '../widgets/score_board_widget.dart';
 import 'trump_selection_screen.dart';
+import 'rules_screen.dart';
 
 class GameScreen extends StatefulWidget {
   const GameScreen({super.key});
@@ -270,6 +271,7 @@ class _GameScreenState extends State<GameScreen> {
                                 trumpSuit: state.trumpSuit,
                                 trickNumber: displayTrickNumber,
                                 isClearPending: isClearPending,
+                                slalomStartsOben: state.slalomStartsOben,
                                 onTap: () => provider.clearTrick(),
                               ),
                             ),
@@ -424,6 +426,16 @@ class _GameScreenState extends State<GameScreen> {
               onTap: () {
                 Navigator.pop(context);
                 provider.startNewGame(cardType: provider.state.cardType);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.help_outline, color: Colors.white),
+              title: const Text('Regeln',
+                  style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const RulesScreen()));
               },
             ),
             ListTile(
