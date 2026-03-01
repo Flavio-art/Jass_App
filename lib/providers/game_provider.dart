@@ -390,6 +390,7 @@ class GameProvider extends ChangeNotifier {
         trumpSuit: _state.trumpSuit,
         trickNumber: trickNumber,
         molotofSubMode: _state.molotofSubMode,
+        slalomStartsOben: _state.slalomStartsOben,
       );
     }
 
