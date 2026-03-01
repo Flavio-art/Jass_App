@@ -762,17 +762,42 @@ class _RoundEndOverlay extends StatelessWidget {
               style: TextStyle(color: Colors.white24, fontSize: 12)),
         );
       }
+      final isMatch = pts == 170;
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-        child: Text(
-          '$pts',
-          textAlign: TextAlign.right,
-          style: TextStyle(
-            color: Colors.greenAccent.shade200,
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        child: isMatch
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text(
+                    'M ',
+                    style: TextStyle(
+                      color: Colors.amber.shade300,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    '$pts',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      color: Colors.amber.shade300,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              )
+            : Text(
+                '$pts',
+                textAlign: TextAlign.right,
+                style: TextStyle(
+                  color: Colors.greenAccent.shade200,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
       );
     }
 

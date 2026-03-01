@@ -215,15 +215,21 @@ class GameProvider extends ChangeNotifier {
 
       // Misere & Molotof: Ziel ist wenig Punkte → Gutschrift = 157 − eigene Punkte.
       // Alle anderen Modi: Rohpunkte direkt.
+      // Match (ein Team macht alle Stiche): 170 Punkte statt 157.
+      final bool isMisereMolotof = _state.gameMode == GameMode.molotof ||
+          _state.gameMode == GameMode.misere;
       final int finalTeam1;
       final int finalTeam2;
-      if (_state.gameMode == GameMode.molotof ||
-          _state.gameMode == GameMode.misere) {
-        finalTeam1 = 157 - rawTeam1;
-        finalTeam2 = 157 - rawTeam2;
+      if (isMisereMolotof) {
+        // Match in Misere/Molotof: Ansager-Team nimmt keinen Stich → 170 Punkte
+        final bool team1Match = rawTeam1 == 0 && ansagerIsTeam1;
+        final bool team2Match = rawTeam2 == 0 && !ansagerIsTeam1;
+        finalTeam1 = team1Match ? 170 : (157 - rawTeam1);
+        finalTeam2 = team2Match ? 170 : (157 - rawTeam2);
       } else {
-        finalTeam1 = rawTeam1;
-        finalTeam2 = rawTeam2;
+        // Match: Ein Team macht alle 157 Punkte → 170
+        finalTeam1 = rawTeam1 == 157 ? 170 : rawTeam1;
+        finalTeam2 = rawTeam2 == 157 ? 170 : rawTeam2;
       }
 
       final result = RoundResult(
@@ -284,10 +290,27 @@ class GameProvider extends ChangeNotifier {
     );
 
     // Elefant: erste Karte im 7. Stich bestimmt Trumpf
+    // Alle 6 bisherigen Stiche werden rückwirkend mit Trumpfwerten neu gezählt
     if (_state.gameMode == GameMode.elefant &&
         _state.completedTricks.length == 6 &&
         _state.currentTrickCards.isEmpty) {
-      _state = _state.copyWith(trumpSuit: card.suit);
+      final trumpSuit = card.suit;
+      final retroScores = <String, int>{'team1': 0, 'team2': 0};
+      for (final trick in _state.completedTricks) {
+        if (trick.winnerId == null) continue;
+        final pts = GameLogic.trickPoints(
+            trick.cards.values.toList(), GameMode.trump, trumpSuit);
+        final winner =
+            _state.players.firstWhere((p) => p.id == trick.winnerId);
+        final isTeam1 = winner.position == PlayerPosition.south ||
+            winner.position == PlayerPosition.north;
+        if (isTeam1) {
+          retroScores['team1'] = (retroScores['team1'] ?? 0) + pts;
+        } else {
+          retroScores['team2'] = (retroScores['team2'] ?? 0) + pts;
+        }
+      }
+      _state = _state.copyWith(trumpSuit: trumpSuit, teamScores: retroScores);
     }
 
     // Molotof: erster Spieler der nicht Farbe angeben kann, bestimmt den Modus
@@ -377,10 +400,12 @@ class GameProvider extends ChangeNotifier {
     );
 
     // Punkte mit effectiveMode berechnen (löst Elefant/Slalom/Misere auf)
-    // Molotof: keine Punkte solange Trumpf noch nicht bestimmt ist
+    // Elefant/Molotof: keine Punkte in den Vorstichen (werden rückwirkend gezählt)
+    final elefantPreTrump =
+        _state.gameMode == GameMode.elefant && trickNumber <= 6;
     final molotofPreTrump = _state.gameMode == GameMode.molotof &&
         _state.molotofSubMode == null;
-    final points = molotofPreTrump
+    final points = (elefantPreTrump || molotofPreTrump)
         ? 0
         : GameLogic.trickPoints(trickCards, effectiveMode, _state.trumpSuit);
     final winnerPlayer = updatedPlayers.firstWhere((p) => p.id == winnerId);
@@ -398,8 +423,8 @@ class GameProvider extends ChangeNotifier {
     final newTricks = [..._state.completedTricks, trick];
     final isLastTrick = newTricks.length == 9;
 
-    // Letzter Stich: 5 Bonuspunkte (nicht bei Molotof ohne Trumpf)
-    if (isLastTrick && !molotofPreTrump) {
+    // Letzter Stich: 5 Bonuspunkte (nicht bei Molotof/Elefant Vorstiche)
+    if (isLastTrick && !molotofPreTrump && !elefantPreTrump) {
       if (isTeam1Winner) {
         newScores['team1'] = (newScores['team1'] ?? 0) + 5;
       } else {
