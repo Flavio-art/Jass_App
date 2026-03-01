@@ -444,6 +444,7 @@ class GameProvider extends ChangeNotifier {
     return GameLogic.getPlayableCards(human.hand, _state.currentTrickCards,
         mode: _state.effectiveMode,
         trumpSuit: (_state.effectiveMode == GameMode.trump ||
+                _state.effectiveMode == GameMode.trumpUnten ||
                 _state.effectiveMode == GameMode.schafkopf)
             ? _state.trumpSuit
             : null).toSet();

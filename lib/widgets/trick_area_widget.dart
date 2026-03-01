@@ -33,8 +33,6 @@ class TrickAreaWidget extends StatelessWidget {
     return GestureDetector(
       onTap: isClearPending ? onTap : null,
       child: Container(
-        width: 220,
-        height: 190,
         decoration: BoxDecoration(
           color: Colors.black12,
           borderRadius: BorderRadius.circular(16),
