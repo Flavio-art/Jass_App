@@ -259,6 +259,7 @@ class TrumpSelectionScreen extends StatelessWidget {
     Suit? selectedSuit;
 
     showModalBottomSheet(
+      useSafeArea: true,
       context: context,
       isScrollControlled: true,
       backgroundColor: const Color(0xFF1B3A2A),
@@ -414,6 +415,7 @@ class TrumpSelectionScreen extends StatelessWidget {
   void _pickSlalomDirection(BuildContext context) {
     final human = context.read<GameProvider>().state.players.firstWhere((p) => p.isHuman);
     showModalBottomSheet(
+      useSafeArea: true,
       context: context,
       isScrollControlled: true,
       backgroundColor: const Color(0xFF1B3A2A),
@@ -509,6 +511,7 @@ class TrumpSelectionScreen extends StatelessWidget {
       BuildContext context, List<Suit> suits, CardType cardType) {
     final human = context.read<GameProvider>().state.players.firstWhere((p) => p.isHuman);
     showModalBottomSheet(
+      useSafeArea: true,
       context: context,
       isScrollControlled: true,
       backgroundColor: const Color(0xFF1B3A2A),

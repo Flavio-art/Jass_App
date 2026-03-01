@@ -62,6 +62,7 @@ class _GameScreenState extends State<GameScreen> {
   void _showTrickHistory(BuildContext context, GameState state) {
     if (state.completedTricks.isEmpty) return;
     showModalBottomSheet(
+      useSafeArea: true,
       context: context,
       backgroundColor: const Color(0xFF1B4D2E),
       shape: const RoundedRectangleBorder(
@@ -409,6 +410,7 @@ class _GameScreenState extends State<GameScreen> {
 
   void _showGameMenu(BuildContext context, GameProvider provider) {
     showModalBottomSheet(
+      useSafeArea: true,
       context: context,
       backgroundColor: AppColors.feltGreen,
       shape: const RoundedRectangleBorder(
