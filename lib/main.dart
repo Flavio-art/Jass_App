@@ -44,6 +44,22 @@ class JassApp extends StatelessWidget {
           ),
           useMaterial3: true,
         ),
+        // Android 15+ edge-to-edge: viewPadding.bottom enthält immer die
+        // Navigationsleisten-Höhe; padding.bottom kann innerhalb von Scaffold
+        // auf 0 sinken. Wir erzwingen hier den korrekten Wert für SafeArea.
+        builder: (context, child) {
+          final mq = MediaQuery.of(context);
+          return MediaQuery(
+            data: mq.copyWith(
+              padding: mq.padding.copyWith(
+                bottom: mq.viewPadding.bottom > mq.padding.bottom
+                    ? mq.viewPadding.bottom
+                    : mq.padding.bottom,
+              ),
+            ),
+            child: child!,
+          );
+        },
         home: const HomeScreen(),
       ),
     );
