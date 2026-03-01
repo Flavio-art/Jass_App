@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../constants/app_colors.dart';
 import '../models/card_model.dart';
+import '../models/game_state.dart';
 import '../providers/game_provider.dart';
 import 'game_screen.dart';
 import 'rules_screen.dart';
@@ -15,6 +16,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   CardType _selectedCardType = CardType.french;
+  GameType _selectedGameType = GameType.friseurTeam;
 
   @override
   Widget build(BuildContext context) {
@@ -84,6 +86,51 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
 
+              const SizedBox(height: 20),
+
+              // Game type selection
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.black26,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      'Spielmodus wählen',
+                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _GameTypeButton(
+                          label: 'Friseur',
+                          subtitle: 'Team',
+                          description: '2 Teams · Schieben erlaubt',
+                          emoji: '✂️',
+                          selected: _selectedGameType == GameType.friseurTeam,
+                          onTap: () => setState(
+                              () => _selectedGameType = GameType.friseurTeam),
+                        ),
+                        const SizedBox(width: 12),
+                        _GameTypeButton(
+                          label: 'Friseur',
+                          subtitle: 'Solo',
+                          description: 'Kommt bald… 🚧',
+                          emoji: '✂️',
+                          selected: _selectedGameType == GameType.friseur,
+                          onTap: () => setState(
+                              () => _selectedGameType = GameType.friseur),
+                          comingSoon: true,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
               const SizedBox(height: 32),
 
               // Play button
@@ -122,8 +169,20 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _startGame() {
+    if (_selectedGameType == GameType.friseur) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Friseur Solo kommt bald! 🚧'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
     final provider = context.read<GameProvider>();
-    provider.startNewGame(cardType: _selectedCardType);
+    provider.startNewGame(
+      cardType: _selectedCardType,
+      gameType: _selectedGameType,
+    );
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const GameScreen()),
@@ -134,6 +193,83 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const RulesScreen()),
+    );
+  }
+}
+
+class _GameTypeButton extends StatelessWidget {
+  final String label;
+  final String subtitle;
+  final String description;
+  final String emoji;
+  final bool selected;
+  final bool comingSoon;
+  final VoidCallback onTap;
+
+  const _GameTypeButton({
+    required this.label,
+    required this.subtitle,
+    required this.description,
+    required this.emoji,
+    required this.selected,
+    required this.onTap,
+    this.comingSoon = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 150,
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+        decoration: BoxDecoration(
+          color: selected
+              ? (comingSoon
+                  ? Colors.white10
+                  : AppColors.gold.withValues(alpha: 0.15))
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected
+                ? (comingSoon ? Colors.white38 : AppColors.gold)
+                : Colors.white24,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 28)),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: comingSoon ? Colors.white38 : Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+              ),
+            ),
+            Text(
+              subtitle,
+              style: TextStyle(
+                color: selected
+                    ? (comingSoon ? Colors.white38 : AppColors.gold)
+                    : Colors.white54,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              description,
+              style: const TextStyle(color: Colors.white38, fontSize: 10),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

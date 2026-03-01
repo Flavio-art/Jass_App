@@ -23,6 +23,11 @@ enum GameMode {
   molotof,
 }
 
+enum GameType {
+  friseurTeam, // Team-Spiel: jedes Team spielt jede Variante einmal (+ Schieben)
+  friseur,     // Solo-Spiel (Platzhalter – noch nicht implementiert)
+}
+
 // ─── Rundenresultat ───────────────────────────────────────────────────────────
 
 class RoundResult {
@@ -83,6 +88,7 @@ class Trick {
 
 class GameState {
   final CardType cardType;
+  final GameType gameType;
   final List<Player> players;
   final GamePhase phase;
   final GameMode gameMode;
@@ -94,6 +100,7 @@ class GameState {
   final int roundNumber;
   final Map<String, int> teamScores;
   final int ansagerIndex;
+  final int? trumpSelectorIndex; // null = Ansager wählt; gesetzt = Partner wählt (nach Schieben)
   final Set<String> usedVariantsTeam1;
   final Set<String> usedVariantsTeam2;
   final Map<String, int> totalTeamScores;
@@ -106,6 +113,7 @@ class GameState {
 
   const GameState({
     required this.cardType,
+    this.gameType = GameType.friseurTeam,
     required this.players,
     this.phase = GamePhase.setup,
     this.gameMode = GameMode.trump,
@@ -117,6 +125,7 @@ class GameState {
     this.roundNumber = 1,
     this.teamScores = const {'team1': 0, 'team2': 0},
     this.ansagerIndex = 0,
+    this.trumpSelectorIndex,
     this.usedVariantsTeam1 = const {},
     this.usedVariantsTeam2 = const {},
     this.totalTeamScores = const {'team1': 0, 'team2': 0},
@@ -130,6 +139,10 @@ class GameState {
   Player get currentPlayer => players[currentPlayerIndex];
   int get currentTrickNumber => completedTricks.length + 1;
   bool get slalomIsOben => currentTrickNumber % 2 == 1;
+
+  /// Wer aktuell den Spielmodus auswählt: Ansager oder Partner (nach Schieben).
+  Player get currentTrumpSelector =>
+      players[trumpSelectorIndex ?? ansagerIndex];
 
   GameMode get effectiveMode {
     switch (gameMode) {
@@ -226,6 +239,7 @@ class GameState {
 
   GameState copyWith({
     CardType? cardType,
+    GameType? gameType,
     List<Player>? players,
     GamePhase? phase,
     GameMode? gameMode,
@@ -237,6 +251,7 @@ class GameState {
     int? roundNumber,
     Map<String, int>? teamScores,
     int? ansagerIndex,
+    Object? trumpSelectorIndex = _sentinel,
     Set<String>? usedVariantsTeam1,
     Set<String>? usedVariantsTeam2,
     Map<String, int>? totalTeamScores,
@@ -248,6 +263,7 @@ class GameState {
   }) {
     return GameState(
       cardType: cardType ?? this.cardType,
+      gameType: gameType ?? this.gameType,
       players: players ?? this.players,
       phase: phase ?? this.phase,
       gameMode: gameMode ?? this.gameMode,
@@ -260,6 +276,9 @@ class GameState {
       roundNumber: roundNumber ?? this.roundNumber,
       teamScores: teamScores ?? this.teamScores,
       ansagerIndex: ansagerIndex ?? this.ansagerIndex,
+      trumpSelectorIndex: trumpSelectorIndex == _sentinel
+          ? this.trumpSelectorIndex
+          : trumpSelectorIndex as int?,
       usedVariantsTeam1: usedVariantsTeam1 ?? this.usedVariantsTeam1,
       usedVariantsTeam2: usedVariantsTeam2 ?? this.usedVariantsTeam2,
       totalTeamScores: totalTeamScores ?? this.totalTeamScores,

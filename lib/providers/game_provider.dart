@@ -20,7 +20,10 @@ class GameProvider extends ChangeNotifier {
 
   // ─── Spiel starten ───────────────────────────────────────────────────────
 
-  void startNewGame({required CardType cardType}) {
+  void startNewGame({
+    required CardType cardType,
+    GameType gameType = GameType.friseurTeam,
+  }) {
     _aiRunning = false;
     final deck = Deck(cardType: cardType);
     final hands = deck.deal(4);
@@ -36,6 +39,7 @@ class GameProvider extends ChangeNotifier {
 
     _state = GameState(
       cardType: cardType,
+      gameType: gameType,
       players: players,
       phase: GamePhase.trumpSelection,
       teamScores: const {'team1': 0, 'team2': 0},
@@ -120,6 +124,7 @@ class GameProvider extends ChangeNotifier {
       teamScores: {'team1': 0, 'team2': 0},
       roundNumber: currentState.roundNumber + 1,
       ansagerIndex: newAnsagerIndex,
+      trumpSelectorIndex: null, // Reset Schieben
       usedVariantsTeam1: newUsed1,
       usedVariantsTeam2: newUsed2,
       totalTeamScores: newTotal,
@@ -137,17 +142,37 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
+  // ─── Schieben (nur Friseur Team) ─────────────────────────────────────────
+
+  /// Ansager schiebt die Moduswahl an seinen Partner weiter.
+  /// Der Partner wählt dann den Modus, aber die Runde startet
+  /// weiterhin beim ursprünglichen Ansager.
+  void schieben() {
+    if (_state.phase != GamePhase.trumpSelection) return;
+    if (_state.trumpSelectorIndex != null) return; // Nur einmal schieben
+
+    final partnerIndex = (_state.ansagerIndex + 2) % 4;
+    _state = _state.copyWith(trumpSelectorIndex: partnerIndex);
+    notifyListeners();
+
+    // Partner ist KI → wählt automatisch
+    if (!_state.currentTrumpSelector.isHuman) {
+      _autoSelectMode();
+    }
+  }
+
   // ─── KI wählt automatisch einen Spielmodus ───────────────────────────────
 
   void _autoSelectMode() {
-    final ansager = _state.currentAnsager;
+    // Nach Schieben: der Partner wählt (currentTrumpSelector); sonst der Ansager.
+    final selector = _state.currentTrumpSelector;
     final available = _state.availableVariants(_state.isTeam1Ansager);
     if (available.isEmpty) return;
 
     // Hand-Evaluation im Hintergrund (kurze Denkpause für Realismus)
     Future.delayed(const Duration(milliseconds: 800), () {
       final result = ModeSelectorAI.selectMode(
-        player: ansager,
+        player: selector,
         state: _state,
       );
       selectGameMode(result.mode, trumpSuit: result.trumpSuit);
@@ -161,7 +186,8 @@ class GameProvider extends ChangeNotifier {
       gameMode: mode,
       trumpSuit: trumpSuit,
       phase: GamePhase.playing,
-      currentPlayerIndex: _state.ansagerIndex,
+      currentPlayerIndex: _state.ansagerIndex, // Runde startet beim Ansager
+      trumpSelectorIndex: null, // Reset nach Moduswahl
     );
     notifyListeners();
     _triggerAiIfNeeded();

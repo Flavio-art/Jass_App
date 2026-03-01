@@ -14,8 +14,11 @@ class TrumpSelectionScreen extends StatelessWidget {
     final state = context.watch<GameProvider>().state;
     final cardType = state.cardType;
     final ansager = state.currentAnsager;
+    final selector = state.currentTrumpSelector;
+    final hasSchieben = state.trumpSelectorIndex != null;
     final isTeam1 = state.isTeam1Ansager;
     final available = state.availableVariants(isTeam1).toSet();
+    final canSchieben = state.gameType == GameType.friseurTeam && !hasSchieben;
 
     final suits = cardType == CardType.french
         ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
@@ -35,7 +38,11 @@ class TrumpSelectionScreen extends StatelessWidget {
               child: Column(
                 children: [
                   Text(
-                    ansager.isHuman ? 'Du spielst' : '${ansager.name} spielt',
+                    hasSchieben
+                        ? (selector.isHuman
+                            ? 'Partner hat geschoben – Du wählst'
+                            : '${ansager.name} schob zu ${selector.name}')
+                        : (ansager.isHuman ? 'Du spielst' : '${ansager.name} spielt'),
                     style: const TextStyle(color: Colors.white54, fontSize: 12),
                     textAlign: TextAlign.center,
                   ),
@@ -141,6 +148,43 @@ class TrumpSelectionScreen extends StatelessWidget {
               ),
             ),
 
+            // ── Schieben (nur Friseur Team, nur vor erstem Schieben) ──────
+            if (canSchieben) ...[
+              const Divider(color: Colors.white12, height: 1),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+                child: GestureDetector(
+                  onTap: () {
+                    context.read<GameProvider>().schieben();
+                    Navigator.pop(context);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white10,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white24),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.swap_horiz, color: Colors.white54, size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Schieben – Partner wählt',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+
             // ── Kartenvorschau (Hand) ─────────────────────────────────────
             const Divider(color: Colors.white12, height: 1),
             Container(
@@ -193,11 +237,13 @@ class TrumpSelectionScreen extends StatelessWidget {
     final state = context.read<GameProvider>().state;
     final isTeam1 = state.isTeam1Ansager;
     final forced = state.forcedTrumpDirection(isTeam1, variantKey);
+    final human = state.players.firstWhere((p) => p.isHuman);
 
     Suit? selectedSuit;
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: const Color(0xFF1B3A2A),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -220,7 +266,36 @@ class TrumpSelectionScreen extends StatelessWidget {
                   style: const TextStyle(color: Colors.white54, fontSize: 12),
                 ),
               ],
-              const SizedBox(height: 20),
+              // ── Kartenvorschau ────────────────────────────────────────
+              const SizedBox(height: 14),
+              const Text('DEINE KARTEN',
+                  style: TextStyle(color: Colors.white38, fontSize: 9, letterSpacing: 1.2)),
+              const SizedBox(height: 8),
+              LayoutBuilder(builder: (_, cons) {
+                const cw = 42.0;
+                const ch = cw * 1.5;
+                final n = human.hand.length;
+                if (n == 0) return const SizedBox.shrink();
+                final step = n > 1
+                    ? ((cons.maxWidth - cw) / (n - 1)).clamp(8.0, cw + 4)
+                    : 0.0;
+                final totalW = n > 1 ? step * (n - 1) + cw : cw;
+                return SizedBox(
+                  height: ch,
+                  width: totalW,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      for (int i = 0; i < n; i++)
+                        Positioned(
+                          left: i * step,
+                          child: CardWidget(card: human.hand[i], width: cw),
+                        ),
+                    ],
+                  ),
+                );
+              }),
+              const SizedBox(height: 16),
               // Suit-Auswahl
               Row(
                 children: suits.map((suit) {

@@ -338,7 +338,7 @@ class _GameScreenState extends State<GameScreen> {
 
                 // ── Trumpf-Auswahl Button ──────────────────────────────
                 if (state.phase == GamePhase.trumpSelection &&
-                    state.currentAnsager.isHuman)
+                    state.currentTrumpSelector.isHuman)
                   Positioned(
                     left: 0,
                     right: 0,
