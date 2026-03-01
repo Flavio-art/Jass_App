@@ -4,15 +4,19 @@ import '../constants/app_colors.dart';
 class ScoreBoardWidget extends StatelessWidget {
   final Map<String, int> teamScores;
   final int roundNumber;
+  final bool isFriseurSolo;
 
   const ScoreBoardWidget({
     super.key,
     required this.teamScores,
     required this.roundNumber,
+    this.isFriseurSolo = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final label1 = isFriseurSolo ? 'Ans.' : 'Ihr';
+    final label2 = isFriseurSolo ? 'Geg.' : 'Sie';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
@@ -22,14 +26,14 @@ class ScoreBoardWidget extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _teamScore('Ihr', teamScores['team1'] ?? 0, AppColors.gold),
+          _teamScore(label1, teamScores['team1'] ?? 0, AppColors.gold),
           const SizedBox(width: 16),
           Text(
             'Runde $roundNumber',
             style: const TextStyle(color: Colors.white54, fontSize: 12),
           ),
           const SizedBox(width: 16),
-          _teamScore('Sie', teamScores['team2'] ?? 0, Colors.red.shade300),
+          _teamScore(label2, teamScores['team2'] ?? 0, Colors.red.shade300),
         ],
       ),
     );

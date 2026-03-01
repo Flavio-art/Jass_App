@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../constants/app_colors.dart';
 import '../models/card_model.dart';
+import '../models/deck.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
 import '../providers/game_provider.dart';
@@ -20,6 +21,9 @@ class GameScreen extends StatefulWidget {
 }
 
 class _GameScreenState extends State<GameScreen> {
+  bool _partnerRevealShowing = false;
+  String? _displayedSchiebungComment;
+
   void _showTrumpSelection() {
     Navigator.push(
       context,
@@ -124,6 +128,7 @@ class _GameScreenState extends State<GameScreen> {
     return Scaffold(
       backgroundColor: AppColors.feltGreen,
       body: SafeArea(
+        maintainBottomViewPadding: true,
         child: Consumer<GameProvider>(
           builder: (context, provider, _) {
             final state = provider.state;
@@ -176,6 +181,7 @@ class _GameScreenState extends State<GameScreen> {
                           ScoreBoardWidget(
                             teamScores: state.teamScores,
                             roundNumber: state.roundNumber,
+                            isFriseurSolo: state.gameType == GameType.friseur,
                           ),
                           Row(
                             mainAxisSize: MainAxisSize.min,
@@ -339,9 +345,68 @@ class _GameScreenState extends State<GameScreen> {
                   ],
                 ),
 
-                // ── Trumpf-Auswahl Button ──────────────────────────────
+                // ── Schieben-Kommentar (Friseur Solo) ─────────────────
+                if (state.soloSchiebungComment != null &&
+                    _displayedSchiebungComment != state.soloSchiebungComment) ...[
+                  Builder(builder: (ctx) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (!mounted) return;
+                      final comment = state.soloSchiebungComment;
+                      if (comment == null) return;
+                      if (_displayedSchiebungComment == comment) return;
+                      setState(() => _displayedSchiebungComment = comment);
+                      context.read<GameProvider>().clearSchiebungComment();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(comment,
+                              style: const TextStyle(color: Colors.white)),
+                          backgroundColor: Colors.black87,
+                          duration: const Duration(seconds: 3),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    });
+                    return const SizedBox.shrink();
+                  }),
+                ],
+
+                // ── Wunschkarte wählen (Friseur Solo) ─────────────────
+                if (state.phase == GamePhase.wishCardSelection)
+                  _WishCardOverlay(
+                    state: state,
+                    onConfirm: (card) =>
+                        context.read<GameProvider>().setWishCard(card),
+                  ),
+
+                // ── Partner aufgedeckt (Friseur Solo) ─────────────────
+                if (state.friseurPartnerJustRevealed && !_partnerRevealShowing) ...[
+                  Builder(builder: (ctx) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (!mounted) return;
+                      if (_partnerRevealShowing) return;
+                      setState(() => _partnerRevealShowing = true);
+                      final provider = context.read<GameProvider>();
+                      showDialog(
+                        context: ctx,
+                        barrierDismissible: false,
+                        builder: (_) => _PartnerRevealDialog(
+                          state: state,
+                          onDismiss: () {
+                            provider.acknowledgePartnerReveal();
+                            if (mounted) setState(() => _partnerRevealShowing = false);
+                          },
+                        ),
+                      );
+                    });
+                    return const SizedBox.shrink();
+                  }),
+                ],
+
+                // ── Trumpf-Auswahl Button (human selector) ────────────
                 if (state.phase == GamePhase.trumpSelection &&
-                    state.currentTrumpSelector.isHuman)
+                    state.currentTrumpSelector.isHuman) ...[
+                  // KI entscheidet-Anzeige: zeige wenn ein KI-Spieler
+                  // gerade wartet (nur kurz sichtbar, da KI auto-entscheidet)
                   Positioned(
                     left: 0,
                     right: 0,
@@ -353,7 +418,10 @@ class _GameScreenState extends State<GameScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 28, vertical: 14),
                           decoration: BoxDecoration(
-                            color: AppColors.gold,
+                            color: state.soloSchiebungRounds >= 2 &&
+                                    state.gameType == GameType.friseur
+                                ? Colors.red.shade700
+                                : AppColors.gold,
                             borderRadius: BorderRadius.circular(30),
                             boxShadow: const [
                               BoxShadow(
@@ -362,20 +430,56 @@ class _GameScreenState extends State<GameScreen> {
                                   offset: Offset(0, 4)),
                             ],
                           ),
-                          child: const Row(
+                          child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.casino, color: Colors.black),
-                              SizedBox(width: 8),
+                              Icon(
+                                state.soloSchiebungRounds >= 2 &&
+                                        state.gameType == GameType.friseur
+                                    ? Icons.warning_amber
+                                    : Icons.casino,
+                                color: Colors.white,
+                              ),
+                              const SizedBox(width: 8),
                               Text(
-                                'Spielmodus wählen',
-                                style: TextStyle(
-                                  color: Colors.black,
+                                state.soloSchiebungRounds >= 2 &&
+                                        state.gameType == GameType.friseur
+                                    ? 'Trumpf wählen (erzwungen)'
+                                    : 'Spielmodus wählen',
+                                style: const TextStyle(
+                                  color: Colors.white,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 16,
                                 ),
                               ),
                             ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+
+                // ── KI entscheidet (Schieben Solo) ────────────────────
+                if (state.phase == GamePhase.trumpSelection &&
+                    !state.currentTrumpSelector.isHuman)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 170,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '${state.currentTrumpSelector.name} überlegt...',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14,
                           ),
                         ),
                       ),
@@ -387,19 +491,32 @@ class _GameScreenState extends State<GameScreen> {
                   _RoundEndOverlay(
                     roundHistory: state.roundHistory,
                     cardType: state.cardType,
+                    isFriseurSolo: state.gameType == GameType.friseur,
+                    players: state.players,
+                    friseurPartnerIndex: state.friseurPartnerIndex,
                     onNextRound: () => provider.startNewRound(),
                     onHome: () => Navigator.pop(context),
                   ),
 
                 // ── Game end overlay ───────────────────────────────────
                 if (state.phase == GamePhase.gameEnd)
-                  _GameEndOverlay(
-                    totalTeamScores: state.totalTeamScores,
-                    onNewGame: () {
-                      provider.startNewGame(cardType: state.cardType);
-                    },
-                    onHome: () => Navigator.pop(context),
-                  ),
+                  state.gameType == GameType.friseur
+                      ? _FriseurSoloGameEndOverlay(
+                          players: state.players,
+                          friseurSoloScores: state.friseurSoloScores,
+                          onNewGame: () => provider.startNewGame(
+                            cardType: state.cardType,
+                            gameType: GameType.friseur,
+                          ),
+                          onHome: () => Navigator.pop(context),
+                        )
+                      : _GameEndOverlay(
+                          totalTeamScores: state.totalTeamScores,
+                          onNewGame: () {
+                            provider.startNewGame(cardType: state.cardType);
+                          },
+                          onHome: () => Navigator.pop(context),
+                        ),
               ],
             );
           },
@@ -554,6 +671,9 @@ class _TrickMiniView extends StatelessWidget {
 class _RoundEndOverlay extends StatelessWidget {
   final List<RoundResult> roundHistory;
   final CardType cardType;
+  final bool isFriseurSolo;
+  final List<Player> players;
+  final int? friseurPartnerIndex;
   final VoidCallback onNextRound;
   final VoidCallback onHome;
 
@@ -587,6 +707,9 @@ class _RoundEndOverlay extends StatelessWidget {
   const _RoundEndOverlay({
     required this.roundHistory,
     required this.cardType,
+    this.isFriseurSolo = false,
+    this.players = const [],
+    this.friseurPartnerIndex,
     required this.onNextRound,
     required this.onHome,
   });
@@ -609,10 +732,80 @@ class _RoundEndOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Sum only visible table values
+    final roundNum = roundHistory.isNotEmpty ? roundHistory.last.roundNumber : null;
+    final lastResult = roundHistory.isNotEmpty ? roundHistory.last : null;
+
+    // Friseur Solo: einfache Rundenübersicht
+    if (isFriseurSolo && lastResult != null) {
+      final partnerName = friseurPartnerIndex != null && players.isNotEmpty
+          ? players[friseurPartnerIndex!].name
+          : '—';
+      return Container(
+        color: Colors.black54,
+        child: Center(
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1B4D2E),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.gold, width: 2),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  roundNum != null ? 'Runde $roundNum beendet' : 'Runde beendet',
+                  style: const TextStyle(
+                      color: AppColors.gold,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                Text(lastResult.displayName,
+                    style: const TextStyle(color: Colors.white70, fontSize: 14)),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _resultBadge('Ansager-Team', lastResult.team1Score),
+                    const SizedBox(width: 16),
+                    _resultBadge('Gegner', lastResult.team2Score),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text('Partner: $partnerName',
+                    style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    TextButton(
+                      onPressed: onHome,
+                      child: const Text('Menü',
+                          style: TextStyle(color: Colors.white54)),
+                    ),
+                    ElevatedButton(
+                      onPressed: onNextRound,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.gold,
+                        foregroundColor: Colors.black,
+                      ),
+                      child: const Text('Nächste Runde',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Friseur Team: Tabelle wie gehabt
     final tot1 = _variants.fold(0, (s, v) => s + (_byTeam1(v)?.team1Score ?? 0));
     final tot2 = _variants.fold(0, (s, v) => s + (_byTeam2(v)?.team2Score ?? 0));
-    final roundNum = roundHistory.isNotEmpty ? roundHistory.last.roundNumber : null;
     final lastVariant = roundHistory.isNotEmpty ? roundHistory.last.variantKey : null;
 
     return Container(
@@ -890,6 +1083,19 @@ class _RoundEndOverlay extends StatelessWidget {
             style: TextStyle(
                 color: color, fontSize: 13, fontWeight: FontWeight.bold)),
       );
+
+  static Widget _resultBadge(String label, int score) => Column(
+        children: [
+          Text(label,
+              style: const TextStyle(color: Colors.white54, fontSize: 11)),
+          const SizedBox(height: 4),
+          Text('$score',
+              style: TextStyle(
+                  color: score >= 100 ? AppColors.gold : Colors.white70,
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold)),
+        ],
+      );
 }
 
 class _GameEndOverlay extends StatelessWidget {
@@ -973,4 +1179,545 @@ class _GameEndOverlay extends StatelessWidget {
       ),
     );
   }
+}
+
+// ── Wunschkarte Overlay (Friseur Solo) ───────────────────────────────────────
+
+class _WishCardOverlay extends StatefulWidget {
+  final GameState state;
+  final void Function(JassCard) onConfirm;
+
+  const _WishCardOverlay({required this.state, required this.onConfirm});
+
+  @override
+  State<_WishCardOverlay> createState() => _WishCardOverlayState();
+}
+
+class _WishCardOverlayState extends State<_WishCardOverlay> {
+  JassCard? _selectedCard;
+
+  static const _frenchSuits = [
+    Suit.spades,
+    Suit.hearts,
+    Suit.diamonds,
+    Suit.clubs,
+  ];
+  static const _germanSuits = [
+    Suit.schellen,
+    Suit.herzGerman,
+    Suit.eichel,
+    Suit.schilten,
+  ];
+
+  String _modeLabel() {
+    final state = widget.state;
+    final suit = state.trumpSuit;
+    switch (state.gameMode) {
+      case GameMode.trump:
+        return 'Trumpf Oben: ${suit?.symbol ?? '?'}';
+      case GameMode.trumpUnten:
+        return 'Trumpf Unten: ${suit?.symbol ?? '?'}';
+      case GameMode.oben:
+        return 'Obenabe';
+      case GameMode.unten:
+        return 'Undenufe';
+      case GameMode.slalom:
+        return 'Slalom';
+      case GameMode.elefant:
+        return 'Elefant';
+      case GameMode.misere:
+        return 'Misere';
+      case GameMode.allesTrumpf:
+        return 'Alles Trumpf';
+      case GameMode.schafkopf:
+        return 'Schafkopf';
+      case GameMode.molotof:
+        return 'Molotof';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.state;
+    final human = state.players.firstWhere((p) => p.isHuman);
+    final handSet = human.hand.toSet();
+    final allCards = Deck.allCards(state.cardType);
+    final suits =
+        state.cardType == CardType.french ? _frenchSuits : _germanSuits;
+
+    return Positioned.fill(
+      child: Container(
+        color: const Color(0xF21B3A2A),
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ── Header ─────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Column(
+                  children: [
+                    const Text(
+                      'Wunschkarte wählen',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Diese Karte enthüllt deinen Partner',
+                      style:
+                          TextStyle(color: Colors.white54, fontSize: 13),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _modeLabel(),
+                      style: const TextStyle(
+                          color: AppColors.gold,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(color: Colors.white24),
+
+              // ── Cards (4 rows × 9 cards) ────────────────────────────
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final cardWidth = (constraints.maxWidth - 32) / 9;
+                    return SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      child: Column(
+                        children: [
+                          for (final suit in suits) ...[
+                            Row(
+                              mainAxisAlignment:
+                                  MainAxisAlignment.spaceBetween,
+                              children: allCards
+                                  .where((c) => c.suit == suit)
+                                  .map((card) {
+                                final inHand = handSet.contains(card);
+                                final selected = _selectedCard == card;
+                                return _WishCardTile(
+                                  card: card,
+                                  width: cardWidth,
+                                  inHand: inHand,
+                                  selected: selected,
+                                  onTap: inHand
+                                      ? null
+                                      : () => setState(
+                                          () => _selectedCard = card),
+                                );
+                              }).toList(),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const Divider(color: Colors.white24),
+
+              // ── Confirm button ──────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _selectedCard == null
+                        ? null
+                        : () => widget.onConfirm(_selectedCard!),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.gold,
+                      foregroundColor: Colors.black,
+                      disabledBackgroundColor: Colors.white24,
+                      disabledForegroundColor: Colors.white60,
+                      padding:
+                          const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text(
+                      _selectedCard == null
+                          ? 'Karte antippen zum Wählen'
+                          : 'Wünschen: $_selectedCard',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Einzelne Kachel im Wunschkarten-Overlay ───────────────────────────────────
+
+class _WishCardTile extends StatelessWidget {
+  final JassCard card;
+  final double width;
+  final bool inHand;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  const _WishCardTile({
+    required this.card,
+    required this.width,
+    required this.inHand,
+    required this.selected,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(6),
+          border: selected
+              ? Border.all(color: AppColors.gold, width: 2.5)
+              : null,
+          boxShadow: selected
+              ? [const BoxShadow(color: Colors.amber, blurRadius: 6)]
+              : null,
+        ),
+        child: Opacity(
+          opacity: inHand ? 0.3 : 1.0,
+          child: CardWidget(card: card, width: width),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Partner aufgedeckt Dialog ─────────────────────────────────────────────────
+
+class _PartnerRevealDialog extends StatelessWidget {
+  final GameState state;
+  final VoidCallback onDismiss;
+
+  const _PartnerRevealDialog({required this.state, required this.onDismiss});
+
+  @override
+  Widget build(BuildContext context) {
+    final partnerIdx = state.friseurPartnerIndex;
+    final partnerName = partnerIdx != null ? state.players[partnerIdx].name : '?';
+    final wishCard = state.wishCard;
+
+    return Dialog(
+      backgroundColor: const Color(0xFF1B4D2E),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('🤝', style: TextStyle(fontSize: 48)),
+            const SizedBox(height: 12),
+            const Text(
+              'Partner aufgedeckt!',
+              style: TextStyle(
+                color: AppColors.gold,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            if (wishCard != null)
+              Text(
+                '$wishCard wurde gespielt',
+                style: const TextStyle(color: Colors.white54, fontSize: 13),
+              ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.white12,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.gold.withValues(alpha: 0.5)),
+              ),
+              child: Text(
+                partnerName,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'ist dein Partner!',
+              style: TextStyle(color: Colors.white70, fontSize: 14),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                onDismiss();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.gold,
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+              ),
+              child: const Text('Weiter spielen',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Friseur Solo Spielende-Overlay ────────────────────────────────────────────
+
+class _FriseurSoloGameEndOverlay extends StatelessWidget {
+  final List<Player> players;
+  final Map<String, Map<String, List<int>>> friseurSoloScores;
+  final VoidCallback onNewGame;
+  final VoidCallback onHome;
+
+  static const _variants = [
+    'trump_ss', 'trump_re', 'oben', 'unten', 'slalom',
+    'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof',
+  ];
+  static const _shortLabels = {
+    'trump_ss': '♦♠',
+    'trump_re': '♥♣',
+    'oben':       '⬇️',
+    'unten':      '⬆️',
+    'slalom':     '〰️',
+    'elefant':    '🐘',
+    'misere':     '😶',
+    'allesTrumpf':'👑',
+    'schafkopf':  '🐑',
+    'molotof':    '💣',
+  };
+
+  const _FriseurSoloGameEndOverlay({
+    required this.players,
+    required this.friseurSoloScores,
+    required this.onNewGame,
+    required this.onHome,
+  });
+
+  /// Durchschnitt der Scores für einen Spieler / Variante (gerundet)
+  int _avgScore(String playerId, String variant) {
+    final scores = friseurSoloScores[playerId]?[variant] ?? [];
+    if (scores.isEmpty) return 0;
+    return (scores.reduce((a, b) => a + b) / scores.length).round();
+  }
+
+  /// Gesamtdurchschnitt über alle Varianten
+  int _total(String playerId) {
+    return _variants.fold(0, (sum, v) => sum + _avgScore(playerId, v));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sortedPlayers = [...players]
+      ..sort((a, b) => _total(b.id).compareTo(_total(a.id)));
+    final winner = sortedPlayers.first;
+
+    return Container(
+      color: Colors.black87,
+      child: Center(
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 20),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1B4D2E),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.gold, width: 2),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Column(
+                  children: [
+                    const Text('🏆 Friseur Solo beendet!',
+                        style: TextStyle(color: Colors.white, fontSize: 16)),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${winner.name} gewinnt!',
+                      style: const TextStyle(
+                          color: AppColors.gold,
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(color: Colors.white24, height: 1),
+
+              Flexible(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.55,
+                  ),
+                  child: SingleChildScrollView(
+                    child: Table(
+                      columnWidths: {
+                        0: const FlexColumnWidth(1.6),
+                        for (int i = 0; i < players.length; i++)
+                          i + 1: const FlexColumnWidth(1.0),
+                      },
+                      children: [
+                        // Header
+                        TableRow(
+                          decoration: const BoxDecoration(color: Colors.black26),
+                          children: [
+                            _hCell('Spiel'),
+                            for (final p in players) _hCell(p.name, center: true),
+                          ],
+                        ),
+                        // Varianten-Zeilen
+                        for (final variant in _variants)
+                          TableRow(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 5, horizontal: 6),
+                                child: Text(
+                                  _shortLabels[variant] ?? variant,
+                                  style: const TextStyle(
+                                      color: Colors.white70, fontSize: 12),
+                                ),
+                              ),
+                              for (final p in players)
+                                _scoreCell(p.id, variant),
+                            ],
+                          ),
+                        // Trennlinie
+                        TableRow(
+                          decoration: const BoxDecoration(
+                              border: Border(
+                                  top: BorderSide(color: Colors.white38))),
+                          children: List.filled(players.length + 1,
+                              const SizedBox(height: 1)),
+                        ),
+                        // Gesamt
+                        TableRow(
+                          decoration:
+                              const BoxDecoration(color: Colors.black12),
+                          children: [
+                            const Padding(
+                              padding: EdgeInsets.symmetric(
+                                  vertical: 6, horizontal: 6),
+                              child: Text('Ges.',
+                                  style: TextStyle(
+                                      color: AppColors.gold,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold)),
+                            ),
+                            for (final p in players)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 6, horizontal: 4),
+                                child: Text(
+                                  '${_total(p.id)}',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: p.id == winner.id
+                                        ? AppColors.gold
+                                        : Colors.white70,
+                                    fontSize: 13,
+                                    fontWeight: p.id == winner.id
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              const Divider(color: Colors.white24, height: 1),
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    TextButton(
+                      onPressed: onHome,
+                      child: const Text('Menü',
+                          style: TextStyle(color: Colors.white54)),
+                    ),
+                    ElevatedButton(
+                      onPressed: onNewGame,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.gold,
+                        foregroundColor: Colors.black,
+                      ),
+                      child: const Text('Neues Spiel'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _scoreCell(String playerId, String variant) {
+    final avg = _avgScore(playerId, variant);
+    final scores = friseurSoloScores[playerId]?[variant] ?? [];
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 2),
+      child: scores.isEmpty
+          ? const Text('—',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white24, fontSize: 11))
+          : Tooltip(
+              message: scores.length > 1
+                  ? '${scores.join(' + ')} ÷ ${scores.length}'
+                  : '',
+              child: Text(
+                '$avg${scores.length > 1 ? '*' : ''}',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: avg >= 100 ? Colors.amber.shade300 : Colors.greenAccent.shade200,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+    );
+  }
+
+  static Widget _hCell(String text, {bool center = false}) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 4),
+        child: Text(text,
+            textAlign: center ? TextAlign.center : TextAlign.left,
+            style: const TextStyle(
+                color: Colors.white38,
+                fontSize: 9,
+                fontWeight: FontWeight.bold)),
+      );
 }

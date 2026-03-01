@@ -12,17 +12,19 @@ class ModeSelectorAI {
   static ({GameMode mode, Suit? trumpSuit, bool slalomStartsOben}) selectMode({
     required Player player,
     required GameState state,
+    List<String>? availableVariants,
   }) {
     final hand = player.hand;
     final isTeam1 = player.position == PlayerPosition.south ||
         player.position == PlayerPosition.north;
-    final available = state.availableVariants(isTeam1);
+    final available = availableVariants ?? state.availableVariants(isTeam1);
 
     // ── Neural Network (wenn geladen) ─────────────────────────────────────
     final nn     = JassNNModel.instance;
     final scores = nn.predict(hand, state.cardType);
     if (scores.isNotEmpty) {
-      return _selectWithNN(scores, hand, state, available, isTeam1);
+      return _selectWithNN(scores, hand, state, available, isTeam1,
+          forcedTrumpFn: (vk) => state.forcedTrumpDirection(isTeam1, vk));
     }
 
     // ── Fallback: regelbasierte Heuristik ─────────────────────────────────
@@ -34,7 +36,9 @@ class ModeSelectorAI {
 
     for (final variant in available) {
       if (variant == 'trump_ss' || variant == 'trump_re') {
-        final forced = state.forcedTrumpDirection(isTeam1, variant);
+        final forced = state.gameType == GameType.friseur
+            ? null  // Friseur Solo: keine Richtungspflicht
+            : state.forcedTrumpDirection(isTeam1, variant);
 
         final suits = variant == 'trump_ss'
             ? (state.cardType == CardType.french
@@ -112,16 +116,25 @@ class ModeSelectorAI {
     List<JassCard> hand,
     GameState state,
     List<String> available,
-    bool isTeam1,
-  ) {
+    bool isTeam1, {
+    bool? Function(String)? forcedTrumpFn,
+  }) {
     double bestScore = double.negativeInfinity;
     GameMode bestMode = GameMode.oben;
     Suit? bestTrump;
     bool bestSlalomStartsOben = true;
 
+    // NN-Score-Bereich für Normalisierung von Heuristik-Fallbacks.
+    // Das NN gibt lineare Werte aus (kein Softmax), die auf einer anderen Skala
+    // liegen als die Heuristik. Schafkopf/Molotof kennt das NN nicht → Heuristik
+    // muss auf dieselbe Skala normalisiert werden, damit sie fair verglichen werden.
+    final nnMin = scores.fold(double.infinity,  (a, b) => a < b ? a : b);
+    final nnMax = scores.fold(double.negativeInfinity, (a, b) => a > b ? a : b);
+    final nnRange = nnMax > nnMin ? nnMax - nnMin : 1.0;
+
     for (final variant in available) {
       if (variant == 'trump_ss' || variant == 'trump_re') {
-        final forced   = state.forcedTrumpDirection(isTeam1, variant);
+        final forced = (forcedTrumpFn ?? (vk) => state.forcedTrumpDirection(isTeam1, vk))(variant);
         // Farb-Indizes 0+3 = SS-Gruppe, 1+2 = RE-Gruppe
         final suitIdxs = variant == 'trump_ss' ? [0, 3] : [1, 2];
 
@@ -137,17 +150,21 @@ class ModeSelectorAI {
           }
         }
       } else if (variant == 'schafkopf') {
-        // Schafkopf: NN kennt es nicht → Heuristik
+        // NN kennt Schafkopf nicht → Heuristik auf NN-Skala normalisieren.
+        // Max-Heuristik-Score ≈ 150 (sehr gute Schafkopf-Hand).
         final suits = state.cardType == CardType.french
             ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
             : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
         for (final suit in suits) {
-          final s = _scoreSchafkopf(hand, suit);
+          final hNorm = (_scoreSchafkopf(hand, suit) / 150.0).clamp(0.0, 1.0);
+          final s = nnMin + hNorm * nnRange;
           if (s > bestScore) { bestScore = s; bestMode = GameMode.schafkopf; bestTrump = suit; }
         }
       } else if (variant == 'molotof') {
-        // Molotof: NN kennt es nicht → Heuristik
-        final s = _scoreMolotof(hand);
+        // NN kennt Molotof nicht → Heuristik auf NN-Skala normalisieren.
+        // Max-Heuristik-Score ≈ 110 (Hand ohne Asse/Zehner).
+        final hNorm = (_scoreMolotof(hand) / 110.0).clamp(0.0, 1.0);
+        final s = nnMin + hNorm * nnRange;
         if (s > bestScore) { bestScore = s; bestMode = GameMode.molotof; bestTrump = null; }
       } else {
         final nnIdx = _variantToNNIdx(variant);
@@ -183,6 +200,47 @@ class ModeSelectorAI {
   static Suit _suitForIndex(int idx, CardType type) => type == CardType.french
       ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs][idx]
       : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten][idx];
+
+  // ─── Schieben-Entscheidung: Heuristik-Score der besten Variante ─────────
+
+  /// Gibt den besten Heuristik-Score für die verfügbaren Varianten zurück.
+  /// Wird von der KI verwendet, um zu entscheiden ob sie schieben oder spielen soll.
+  static double bestHeuristicScore({
+    required List<JassCard> hand,
+    required GameState state,
+    required List<String> available,
+  }) {
+    double best = double.negativeInfinity;
+    for (final variant in available) {
+      if (variant == 'trump_ss' || variant == 'trump_re') {
+        final suits = variant == 'trump_ss'
+            ? (state.cardType == CardType.french
+                ? [Suit.spades, Suit.clubs]
+                : [Suit.schellen, Suit.schilten])
+            : (state.cardType == CardType.french
+                ? [Suit.hearts, Suit.diamonds]
+                : [Suit.herzGerman, Suit.eichel]);
+        for (final suit in suits) {
+          final s1 = _scoreTrump(hand, suit, oben: true);
+          final s2 = _scoreTrump(hand, suit, oben: false);
+          final s = s1 > s2 ? s1 : s2;
+          if (s > best) best = s;
+        }
+      } else if (variant == 'schafkopf') {
+        final suits = state.cardType == CardType.french
+            ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
+            : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
+        for (final suit in suits) {
+          final s = _scoreSchafkopf(hand, suit);
+          if (s > best) best = s;
+        }
+      } else {
+        final s = _scoreFlatMode(hand, variant);
+        if (s > best) best = s;
+      }
+    }
+    return best;
+  }
 
   // ─── Trumpf Oben / Unten ────────────────────────────────────────────────
 

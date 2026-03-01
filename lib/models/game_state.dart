@@ -4,6 +4,7 @@ import 'player.dart';
 enum GamePhase {
   setup,
   trumpSelection,
+  wishCardSelection, // Friseur Solo: nach Moduswahl, vor Wunschkarte
   playing,
   trickClearPending,
   roundEnd,
@@ -25,7 +26,7 @@ enum GameMode {
 
 enum GameType {
   friseurTeam, // Team-Spiel: jedes Team spielt jede Variante einmal (+ Schieben)
-  friseur,     // Solo-Spiel (Platzhalter – noch nicht implementiert)
+  friseur,     // Solo-Spiel: Jeder Spieler sagt jede Variante einmal an (Wunschkarte)
 }
 
 // ─── Rundenresultat ───────────────────────────────────────────────────────────
@@ -112,6 +113,27 @@ class GameState {
   final Map<String, bool> trumpObenTeam2;
   final bool slalomStartsOben; // true = 1. Stich Obenabe, false = 1. Stich Undenufe
 
+  // ─── Friseur Solo ──────────────────────────────────────────────────────────
+  /// Karte, die der Ansager sich wünscht (muss eine Karte sein, die er nicht hat).
+  final JassCard? wishCard;
+  /// Index des Partners (Spieler der die Wunschkarte hat), nach Aufdeckung.
+  final int? friseurPartnerIndex;
+  /// true sobald der Partner aufgedeckt wurde.
+  final bool friseurPartnerRevealed;
+  /// true nur im Moment der Aufdeckung (für UI-Benachrichtigung).
+  final bool friseurPartnerJustRevealed;
+  /// {playerId: {variantKey: [scores]}} – Punkte pro Spieler pro Variante.
+  final Map<String, Map<String, List<int>>> friseurSoloScores;
+  /// {playerId: Set<variantKey>} – Varianten die ein Spieler als Ansager gespielt hat.
+  final Map<String, Set<String>> friseurAnnouncedVariants;
+
+  // ─── Friseur Solo Schieben ─────────────────────────────────────────────────
+  /// Wie oft der ursprüngliche Ansager bereits vollständig geschoben hat.
+  /// 0 = noch nie, 1 = einmal (Mitspieler können annehmen), 2 = erzwungener Trumpf.
+  final int soloSchiebungRounds;
+  /// Kommentar eines KI-Spielers der genervt ist (2. Schieben-Runde).
+  final String? soloSchiebungComment;
+
   const GameState({
     required this.cardType,
     this.gameType = GameType.friseurTeam,
@@ -136,6 +158,14 @@ class GameState {
     this.trumpObenTeam1 = const {},
     this.trumpObenTeam2 = const {},
     this.slalomStartsOben = true,
+    this.wishCard,
+    this.friseurPartnerIndex,
+    this.friseurPartnerRevealed = false,
+    this.friseurPartnerJustRevealed = false,
+    this.friseurSoloScores = const {},
+    this.friseurAnnouncedVariants = const {},
+    this.soloSchiebungRounds = 0,
+    this.soloSchiebungComment,
   });
 
   Player get currentPlayer => players[currentPlayerIndex];
@@ -221,6 +251,24 @@ class GameState {
     return _allVariants().where((v) => !used.contains(v)).toList();
   }
 
+  /// Friseur Solo: Noch nicht angesagte Varianten für einen bestimmten Spieler.
+  List<String> availableVariantsForPlayer(String playerId) {
+    final announced = friseurAnnouncedVariants[playerId] ?? const {};
+    return _allVariants().where((v) => !announced.contains(v)).toList();
+  }
+
+  /// Friseur Solo: Gehört dieser Spieler zum ansagenden Team?
+  /// (Ansager + Partner, sobald bekannt; vorher Positions-Fallback)
+  bool isFriseurAnnouncingTeam(Player p) {
+    final announcer = players[ansagerIndex];
+    if (p.id == announcer.id) return true;
+    if (friseurPartnerIndex != null) {
+      return p.id == players[friseurPartnerIndex!].id;
+    }
+    // Vor Aufdeckung: provisorischer Positions-Fallback
+    return p.position == PlayerPosition.south || p.position == PlayerPosition.north;
+  }
+
   /// Gibt zurück ob die Trumpfrichtung erzwungen ist.
   /// true = muss Oben (normal), false = muss Unten, null = freie Wahl.
   bool? forcedTrumpDirection(bool isTeam1, String variantKey) {
@@ -265,6 +313,14 @@ class GameState {
     Map<String, bool>? trumpObenTeam1,
     Map<String, bool>? trumpObenTeam2,
     bool? slalomStartsOben,
+    Object? wishCard = _sentinel,
+    Object? friseurPartnerIndex = _sentinel,
+    bool? friseurPartnerRevealed,
+    bool? friseurPartnerJustRevealed,
+    Map<String, Map<String, List<int>>>? friseurSoloScores,
+    Map<String, Set<String>>? friseurAnnouncedVariants,
+    int? soloSchiebungRounds,
+    Object? soloSchiebungComment = _sentinel,
   }) {
     return GameState(
       cardType: cardType ?? this.cardType,
@@ -297,6 +353,18 @@ class GameState {
       trumpObenTeam1: trumpObenTeam1 ?? this.trumpObenTeam1,
       trumpObenTeam2: trumpObenTeam2 ?? this.trumpObenTeam2,
       slalomStartsOben: slalomStartsOben ?? this.slalomStartsOben,
+      wishCard: wishCard == _sentinel ? this.wishCard : wishCard as JassCard?,
+      friseurPartnerIndex: friseurPartnerIndex == _sentinel
+          ? this.friseurPartnerIndex
+          : friseurPartnerIndex as int?,
+      friseurPartnerRevealed: friseurPartnerRevealed ?? this.friseurPartnerRevealed,
+      friseurPartnerJustRevealed: friseurPartnerJustRevealed ?? this.friseurPartnerJustRevealed,
+      friseurSoloScores: friseurSoloScores ?? this.friseurSoloScores,
+      friseurAnnouncedVariants: friseurAnnouncedVariants ?? this.friseurAnnouncedVariants,
+      soloSchiebungRounds: soloSchiebungRounds ?? this.soloSchiebungRounds,
+      soloSchiebungComment: soloSchiebungComment == _sentinel
+          ? this.soloSchiebungComment
+          : soloSchiebungComment as String?,
     );
   }
 }

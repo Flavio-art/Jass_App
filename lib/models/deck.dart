@@ -61,4 +61,14 @@ class Deck {
   }
 
   List<JassCard> get cards => List.unmodifiable(_cards);
+
+  /// Returns all 36 cards of a given card type (without shuffling).
+  static List<JassCard> allCards(CardType cardType) {
+    final suits = cardType == CardType.french ? _frenchSuits : _germanSuits;
+    return [
+      for (final suit in suits)
+        for (final value in _values)
+          JassCard(suit: suit, value: value, cardType: cardType),
+    ];
+  }
 }
