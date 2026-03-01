@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../constants/app_colors.dart';
 import '../models/card_model.dart';
 import '../models/game_state.dart';
+import '../models/player.dart';
 import '../providers/game_provider.dart';
 import '../widgets/card_widget.dart';
 import 'rules_screen.dart';
@@ -17,9 +18,30 @@ class TrumpSelectionScreen extends StatelessWidget {
     final ansager = state.currentAnsager;
     final selector = state.currentTrumpSelector;
     final hasSchieben = state.trumpSelectorIndex != null;
+    final isFriseurSolo = state.gameType == GameType.friseur;
     final isTeam1 = state.isTeam1Ansager;
-    final available = state.availableVariants(isTeam1).toSet();
-    final canSchieben = state.gameType == GameType.friseurTeam && !hasSchieben;
+    final forcedTrump = isFriseurSolo &&
+        state.soloSchiebungRounds >= 2 &&
+        !hasSchieben; // Original-Ansager muss Trumpf wählen
+
+    // Verfügbare Varianten berechnen
+    Set<String> available;
+    if (isFriseurSolo) {
+      final allAvail = state.availableVariantsForPlayer(selector.id).toSet();
+      if (forcedTrump) {
+        final trumpOnly = allAvail.where((v) => v.startsWith('trump_')).toSet();
+        available = trumpOnly.isNotEmpty ? trumpOnly : allAvail;
+      } else {
+        available = allAvail;
+      }
+    } else {
+      available = state.availableVariants(isTeam1).toSet();
+    }
+
+    // Friseur Team: nur Ansager kann schieben (einmalig)
+    final canSchiebenTeam = state.gameType == GameType.friseurTeam && !hasSchieben;
+    // Friseur Solo: jeder Spieler kann passen, ausser der Original-Ansager nach 2 Runden
+    final canSchiebenSolo = isFriseurSolo && !forcedTrump;
 
     final suits = cardType == CardType.french
         ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
@@ -30,6 +52,7 @@ class TrumpSelectionScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
+        maintainBottomViewPadding: true,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -46,11 +69,13 @@ class TrumpSelectionScreen extends StatelessWidget {
                     child: Column(
                       children: [
                         Text(
-                          hasSchieben
-                              ? (selector.isHuman
-                                  ? 'Partner hat geschoben – Du wählst'
-                                  : '${ansager.name} schob zu ${selector.name}')
-                              : (ansager.isHuman ? 'Du spielst' : '${ansager.name} spielt'),
+                          isFriseurSolo
+                              ? _soloHeaderText(state, ansager, selector, hasSchieben, forcedTrump)
+                              : (hasSchieben
+                                  ? (selector.isHuman
+                                      ? 'Partner hat geschoben – Du wählst'
+                                      : '${ansager.name} schob zu ${selector.name}')
+                                  : (ansager.isHuman ? 'Du spielst' : '${ansager.name} spielt')),
                           style: const TextStyle(color: Colors.white54, fontSize: 12),
                           textAlign: TextAlign.center,
                         ),
@@ -165,8 +190,8 @@ class TrumpSelectionScreen extends StatelessWidget {
               ),
             ),
 
-            // ── Schieben (nur Friseur Team, nur vor erstem Schieben) ──────
-            if (canSchieben) ...[
+            // ── Schieben / Passen ─────────────────────────────────────────
+            if (canSchiebenTeam || canSchiebenSolo) ...[
               const Divider(color: Colors.white12, height: 1),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
@@ -182,14 +207,17 @@ class TrumpSelectionScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: Colors.white24),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.swap_horiz, color: Colors.white54, size: 20),
-                        SizedBox(width: 8),
+                        const Icon(Icons.swap_horiz,
+                            color: Colors.white54, size: 20),
+                        const SizedBox(width: 8),
                         Text(
-                          'Schieben – Partner wählt',
-                          style: TextStyle(
+                          canSchiebenTeam
+                              ? 'Schieben – Partner wählt'
+                              : 'Passen – Nächster entscheidet',
+                          style: const TextStyle(
                             color: Colors.white70,
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
@@ -249,11 +277,36 @@ class TrumpSelectionScreen extends StatelessWidget {
     );
   }
 
+  String _soloHeaderText(GameState state, Player ansager, Player selector,
+      bool hasSchieben, bool forcedTrump) {
+    if (forcedTrump) {
+      return selector.isHuman
+          ? '2× geschoben – Du musst Trumpf wählen!'
+          : '${selector.name} muss Trumpf wählen';
+    }
+    if (hasSchieben) {
+      // Intermediate player (not original announcer)
+      return selector.isHuman
+          ? '${ansager.name} hat gepasst – Du entscheidest'
+          : '${ansager.name} passte zu ${selector.name}';
+    }
+    // Original announcer
+    if (state.soloSchiebungRounds == 1) {
+      return selector.isHuman
+          ? '2. Runde – Gegner sind genervt! Du kannst nochmals passen.'
+          : '${ansager.name} sagt an (Runde 2)';
+    }
+    return selector.isHuman
+        ? 'Du sagst an – wähle Modus & Wunschkarte'
+        : '${ansager.name} sagt an';
+  }
+
   void _pickTrumpSuit(
       BuildContext context, List<Suit> suits, CardType cardType, String variantKey) {
     final state = context.read<GameProvider>().state;
+    final isFriseurSolo = state.gameType == GameType.friseur;
     final isTeam1 = state.isTeam1Ansager;
-    final forced = state.forcedTrumpDirection(isTeam1, variantKey);
+    final forced = isFriseurSolo ? null : state.forcedTrumpDirection(isTeam1, variantKey);
     final human = state.players.firstWhere((p) => p.isHuman);
 
     Suit? selectedSuit;
@@ -373,10 +426,8 @@ class TrumpSelectionScreen extends StatelessWidget {
                         color: Colors.blue.shade700,
                         isEnabled: forced != false,
                         onTap: () {
-                          context.read<GameProvider>().selectGameMode(
-                              GameMode.trump, trumpSuit: selectedSuit);
                           Navigator.pop(context); // Bottom Sheet
-                          Navigator.pop(context); // TrumpSelectionScreen
+                          _selectMode(context, GameMode.trump, suit: selectedSuit);
                         },
                       ),
                     ),
@@ -390,10 +441,8 @@ class TrumpSelectionScreen extends StatelessWidget {
                         color: Colors.orange.shade800,
                         isEnabled: forced != true,
                         onTap: () {
-                          context.read<GameProvider>().selectGameMode(
-                              GameMode.trumpUnten, trumpSuit: selectedSuit);
                           Navigator.pop(context); // Bottom Sheet
-                          Navigator.pop(context); // TrumpSelectionScreen
+                          _selectMode(context, GameMode.trumpUnten, suit: selectedSuit);
                         },
                       ),
                     ),
@@ -407,8 +456,8 @@ class TrumpSelectionScreen extends StatelessWidget {
     );
   }
 
-  void _selectMode(BuildContext context, GameMode mode, {Suit? suit}) {
-    context.read<GameProvider>().selectGameMode(mode, trumpSuit: suit);
+  void _selectMode(BuildContext context, GameMode mode, {Suit? suit, bool slalomStartsOben = true}) {
+    context.read<GameProvider>().selectGameMode(mode, trumpSuit: suit, slalomStartsOben: slalomStartsOben);
     Navigator.pop(context);
   }
 
@@ -476,10 +525,8 @@ class TrumpSelectionScreen extends StatelessWidget {
                     color: Colors.blue.shade700,
                     isEnabled: true,
                     onTap: () {
-                      context.read<GameProvider>().selectGameMode(
-                          GameMode.slalom, slalomStartsOben: true);
-                      Navigator.pop(context); // Bottom Sheet
-                      Navigator.pop(context); // TrumpSelectionScreen
+                      Navigator.pop(ctx); // Bottom Sheet
+                      _selectMode(context, GameMode.slalom, slalomStartsOben: true);
                     },
                   ),
                 ),
@@ -492,10 +539,8 @@ class TrumpSelectionScreen extends StatelessWidget {
                     color: Colors.orange.shade800,
                     isEnabled: true,
                     onTap: () {
-                      context.read<GameProvider>().selectGameMode(
-                          GameMode.slalom, slalomStartsOben: false);
-                      Navigator.pop(context); // Bottom Sheet
-                      Navigator.pop(context); // TrumpSelectionScreen
+                      Navigator.pop(ctx); // Bottom Sheet
+                      _selectMode(context, GameMode.slalom, slalomStartsOben: false);
                     },
                   ),
                 ),
@@ -720,9 +765,8 @@ class _TrumpButton extends StatelessWidget {
     return GestureDetector(
       onTap: isAvailable
           ? () {
-              context
-                  .read<GameProvider>()
-                  .selectGameMode(overrideMode ?? GameMode.trump, trumpSuit: suit);
+              context.read<GameProvider>().selectGameMode(
+                  overrideMode ?? GameMode.trump, trumpSuit: suit);
               Navigator.pop(context); // Bottom Sheet
               Navigator.pop(context); // TrumpSelectionScreen
             }

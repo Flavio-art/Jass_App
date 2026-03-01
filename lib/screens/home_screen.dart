@@ -23,6 +23,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
+        maintainBottomViewPadding: true,
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -118,12 +119,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         _GameTypeButton(
                           label: 'Friseur',
                           subtitle: 'Solo',
-                          description: 'Kommt bald… 🚧',
+                          description: 'Wunschkarte · 4× alle Varianten',
                           emoji: '✂️',
                           selected: _selectedGameType == GameType.friseur,
                           onTap: () => setState(
                               () => _selectedGameType = GameType.friseur),
-                          comingSoon: true,
                         ),
                       ],
                     ),
@@ -169,15 +169,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _startGame() {
-    if (_selectedGameType == GameType.friseur) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Friseur Solo kommt bald! 🚧'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-      return;
-    }
     final provider = context.read<GameProvider>();
     provider.startNewGame(
       cardType: _selectedCardType,
@@ -203,7 +194,6 @@ class _GameTypeButton extends StatelessWidget {
   final String description;
   final String emoji;
   final bool selected;
-  final bool comingSoon;
   final VoidCallback onTap;
 
   const _GameTypeButton({
@@ -213,7 +203,6 @@ class _GameTypeButton extends StatelessWidget {
     required this.emoji,
     required this.selected,
     required this.onTap,
-    this.comingSoon = false,
   });
 
   @override
@@ -226,15 +215,11 @@ class _GameTypeButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
         decoration: BoxDecoration(
           color: selected
-              ? (comingSoon
-                  ? Colors.white10
-                  : AppColors.gold.withValues(alpha: 0.15))
+              ? AppColors.gold.withValues(alpha: 0.15)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: selected
-                ? (comingSoon ? Colors.white38 : AppColors.gold)
-                : Colors.white24,
+            color: selected ? AppColors.gold : Colors.white24,
             width: selected ? 2 : 1,
           ),
         ),
@@ -245,8 +230,8 @@ class _GameTypeButton extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               label,
-              style: TextStyle(
-                color: comingSoon ? Colors.white38 : Colors.white,
+              style: const TextStyle(
+                color: Colors.white,
                 fontWeight: FontWeight.bold,
                 fontSize: 15,
               ),
@@ -254,9 +239,7 @@ class _GameTypeButton extends StatelessWidget {
             Text(
               subtitle,
               style: TextStyle(
-                color: selected
-                    ? (comingSoon ? Colors.white38 : AppColors.gold)
-                    : Colors.white54,
+                color: selected ? AppColors.gold : Colors.white54,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
