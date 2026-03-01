@@ -40,49 +40,49 @@ class RulesScreen extends StatelessWidget {
 
             // ── Kartenwerte: Trumpf ────────────────────────────────────────
             _Section('Kartenwerte – Trumpfspiel', []),
-            _ValueRow('Buur (Trumpfbube)',     '20 Punkte', isHighlight: true),
-            _ValueRow('Näll (Trumpfneun)',     '14 Punkte', isHighlight: true),
-            _ValueRow('Ass',                   '11 Punkte'),
-            _ValueRow('Zehner',                '10 Punkte'),
-            _ValueRow('König',                  '4 Punkte'),
-            _ValueRow('Dame / Ober',            '3 Punkte'),
-            _ValueRow('Bube / Unter (kein Trumpf)', '2 Punkte'),
+            _ValueRow('Buur (Trumpf-Bube J)',  '20 Punkte', isHighlight: true),
+            _ValueRow('Näll (Trumpf-Neun 9)', '14 Punkte', isHighlight: true),
+            _ValueRow('Ass  A',               '11 Punkte'),
+            _ValueRow('Zehner  10',           '10 Punkte'),
+            _ValueRow('König  K',              '4 Punkte'),
+            _ValueRow('Dame  Q',               '3 Punkte'),
+            _ValueRow('Bube  J  (kein Trumpf)', '2 Punkte'),
             _ValueRow('8, 7, 6 (Trumpf)  /  9, 8, 7, 6 (andere)', '0 Punkte'),
 
             // ── Kartenwerte: Trumpf Unten ──────────────────────────────────
             _Section('Kartenwerte – Trumpf Unten', [
-              _Rule('Stichstärke Trumpf: Buur (B) › Näll (9) › 6 › 7 › 8 › 10 › Dame › König › Ass.'),
+              _Rule('Stichstärke Trumpf: Buur (J) › Näll (9) › 6 › 7 › 8 › 10 › Dame › König › Ass.'),
               _Rule('Nicht-Trumpf: wie Undenufe (6 ist stärker als Ass).'),
             ]),
-            _ValueRow('Buur (Trumpfbube)',         '20 Punkte', isHighlight: true),
-            _ValueRow('Näll (Trumpfneun)',         '14 Punkte', isHighlight: true),
-            _ValueRow('Sechs (Trumpf oder nicht)', '11 Punkte', isHighlight: true),
-            _ValueRow('Zehner',                    '10 Punkte'),
-            _ValueRow('König',                      '4 Punkte'),
-            _ValueRow('Dame / Ober',               '3 Punkte'),
-            _ValueRow('Bube / Unter (kein Trumpf)', '2 Punkte'),
+            _ValueRow('Buur (Trumpf-Bube J)',          '20 Punkte', isHighlight: true),
+            _ValueRow('Näll (Trumpf-Neun 9)',          '14 Punkte', isHighlight: true),
+            _ValueRow('Sechs  6  (Trumpf oder nicht)', '11 Punkte', isHighlight: true),
+            _ValueRow('Zehner  10',                    '10 Punkte'),
+            _ValueRow('König  K',                       '4 Punkte'),
+            _ValueRow('Dame  Q',                        '3 Punkte'),
+            _ValueRow('Bube  J  (kein Trumpf)',         '2 Punkte'),
             _ValueRow('Ass, 8, 7 (Trumpf)  /  Ass, 9, 8, 7 (andere)', '0 Punkte'),
 
             // ── Kartenwerte: Obenabe & Undenufe ───────────────────────────
             _Section('Kartenwerte – Obenabe & Undenufe', []),
-            _ValueRow('Ass (Obenabe)  /  Sechs (Undenufe)', '11 Punkte', isHighlight: true),
-            _ValueRow('Zehner',                '10 Punkte'),
-            _ValueRow('Achter',                 '8 Punkte', isHighlight: true),
-            _ValueRow('König',                  '4 Punkte'),
-            _ValueRow('Dame / Ober',            '3 Punkte'),
-            _ValueRow('Bube / Unter',           '2 Punkte'),
+            _ValueRow('Ass A (Obenabe)  /  Sechs 6 (Undenufe)', '11 Punkte', isHighlight: true),
+            _ValueRow('Zehner  10',        '10 Punkte'),
+            _ValueRow('Achter  8',          '8 Punkte', isHighlight: true),
+            _ValueRow('König  K',           '4 Punkte'),
+            _ValueRow('Dame  Q',            '3 Punkte'),
+            _ValueRow('Bube  J',            '2 Punkte'),
             _ValueRow('9, 7 (Obenabe)  /  Ass, 9, 7 (Undenufe)', '0 Punkte'),
 
             // ── Kartenwerte: Alles Trumpf ──────────────────────────────────
             _Section('Kartenwerte – Alles Trumpf', []),
-            _ValueRow('Buur (Bube)',            '20 Punkte', isHighlight: true),
-            _ValueRow('Näll (Neun)',            '14 Punkte', isHighlight: true),
-            _ValueRow('König',                   '4 Punkte'),
-            _ValueRow('Alle anderen Karten',     '0 Punkte'),
+            _ValueRow('Buur (Bube J)',       '20 Punkte', isHighlight: true),
+            _ValueRow('Näll (Neun 9)',       '14 Punkte', isHighlight: true),
+            _ValueRow('König  K',             '4 Punkte'),
+            _ValueRow('Alle anderen Karten', '0 Punkte'),
 
             // ── Kartenwerte: Schafkopf ─────────────────────────────────────
             _Section('Kartenwerte – Schafkopf', [
-              _Rule('Gleiche Werte wie Obenabe: Ass=11, 10=10, 8=8, König=4, Dame=3, Bube=2, 9/7/6=0.'),
+              _Rule('Gleiche Werte wie Obenabe: A=11, 10=10, 8=8, K=4, Q=3, J=2, 9/7/6=0.'),
             ]),
 
             // ── Letzter Stich & Match ──────────────────────────────────────
@@ -96,23 +96,23 @@ class RulesScreen extends StatelessWidget {
             _Section('Spielmodi', []),
 
             _ModeCard(
-              '🔔🛡  Schellen / Schilten  (Trumpf)',
-              'Eine Farbe aus der Gruppe Schellen/Schilten (Französisch: Ecken/Schaufeln) wird als Trumpf bestimmt. '
+              '♦♠  Ecken / Schaufeln  (Trumpf)',
+              'Eine Farbe aus der Gruppe Ecken (♦) / Schaufeln (♠) wird als Trumpf bestimmt. '
               'Trumpfkarten schlagen alle anderen Farben. Der Buur (Trumpfbube) und die Näll (Trumpfneun) sind die stärksten Trumpfkarten.',
             ),
             _ModeCard(
-              '🌹🌰  Rosen / Eicheln  (Trumpf)',
-              'Eine Farbe aus der Gruppe Rosen/Eicheln (Französisch: Herz/Kreuz) wird als Trumpf bestimmt. '
+              '♥♣  Herz / Kreuz  (Trumpf)',
+              'Eine Farbe aus der Gruppe Herz (♥) / Kreuz (♣) wird als Trumpf bestimmt. '
               'Gleiche Regeln wie oben.',
             ),
             _ModeCard(
-              '⬆️🔔🛡🌹🌰  Trumpf Unten',
+              '⬆️♦♠♥♣  Trumpf Unten',
               'Wie Trumpfspiel, aber die Reihenfolge im Trumpf ist umgekehrt:\n'
               'Buur (B) › Näll (9) › 6 › 7 › 8 › 10 › Dame › König › Ass.\n\n'
               'Nicht-Trumpf-Farben folgen der Undenufe-Reihenfolge (6 schlägt Ass).\n\n'
               'Punkte: Sechs zählt 11 Punkte (statt Ass), Ass zählt 0 Punkte. '
               'Buur = 20 Pkt, Näll = 14 Pkt bleiben gleich.\n\n'
-              'Teamregel: Hat ein Team eine Trumpfgruppe (Schellen/Schilten oder Rosen/Eicheln) bereits als «Trumpf Oben» gespielt, '
+              'Teamregel: Hat ein Team eine Trumpfgruppe (Ecken/Schaufeln oder Herz/Kreuz) bereits als «Trumpf Oben» gespielt, '
               'muss die andere Gruppe zwingend als «Trumpf Unten» gespielt werden – und umgekehrt.',
             ),
             _ModeCard(
@@ -127,8 +127,8 @@ class RulesScreen extends StatelessWidget {
             ),
             _ModeCard(
               '〰️  Slalom',
-              'Abwechselnd Obenabe und Undenufe. Der 1. Stich gilt nach Obenabe-Regeln, '
-              'der 2. nach Undenufe-Regeln, und so weiter.',
+              'Abwechselnd Obenabe und Undenufe. Beim Slalom Oben gilt der 1. Stich nach Obenabe-Regeln, '
+              'der 2. nach Undenufe-Regeln usw. Beim Slalom Unten ist es umgekehrt.',
             ),
             _ModeCard(
               '🐘  Elefant',
@@ -151,9 +151,11 @@ class RulesScreen extends StatelessWidget {
             _ModeCard(
               '🐑  Schafkopf',
               '15 Trumpfkarten: alle vier Damen + alle vier Achter + alle Karten der gewählten Trumpffarbe.\n\n'
-              'Trumpfreihenfolge (höchste zuerst):\n'
-              'Kreuz-Dame › Schaufeln-Dame › Herz-Dame › Ecken-Dame\n'
-              'Kreuz-8 › Schaufeln-8 › Herz-8 › Ecken-8\n'
+              'Trumpfreihenfolge der Damen und Achter (höchste zuerst):\n'
+              'Französische Karten: ♣ Kreuz-Dame › ♠ Schaufeln-Dame › ♥ Herz-Dame › ♦ Ecken-Dame\n'
+              '♣ Kreuz-8 › ♠ Schaufeln-8 › ♥ Herz-8 › ♦ Ecken-8\n\n'
+              'Deutsche Karten: Eichel-Ober › Schilten-Ober › Rosen-Ober › Schellen-Ober\n'
+              'Eichel-8 › Schilten-8 › Rosen-8 › Schellen-8\n\n'
               'Dann Trumpffarbe: 10 › König › Bube › Ass › 9 › 7 › 6\n\n'
               'Man muss Trumpf spielen wenn Trumpf angeführt wird (kein Zurückhalten). '
               'Punktesystem: Obenabe-Werte (8 zählt 8 Punkte).',
@@ -187,8 +189,8 @@ class RulesScreen extends StatelessWidget {
             // ── Spielstruktur ─────────────────────────────────────────────
             _Section('Spielstruktur', [
               _Rule('Jedes Team muss alle 10 Spielvarianten je einmal ansagen:\n'
-                    'Schellen/Schilten-Trumpf, Rosen/Eicheln-Trumpf, Obenabe, Undenufe, Slalom, Elefant, Misere, Alles Trumpf, Schafkopf, Molotof.'),
-              _Rule('Trumpf Oben / Unten: Jede Trumpfgruppe (Schellen/Schilten und Rosen/Eicheln) muss ein Team je einmal als Oben und einmal als Unten spielen. '
+                    'Ecken/Schaufeln-Trumpf, Herz/Kreuz-Trumpf, Obenabe, Undenufe, Slalom, Elefant, Misere, Alles Trumpf, Schafkopf, Molotof.'),
+              _Rule('Trumpf Oben / Unten: Jede Trumpfgruppe (Ecken/Schaufeln ♦♠ und Herz/Kreuz ♥♣) muss ein Team je einmal als Oben und einmal als Unten spielen. '
                     'Die erste Wahl ist frei; die zweite Gruppe wird dann automatisch auf die entgegengesetzte Richtung erzwungen.'),
               _Rule('Der Ansager wechselt jede Runde: Süd → Ost → Nord → West → Süd → …'),
               _Rule('Bereits gespielte Varianten des eigenen Teams sind ausgegraut und nicht mehr wählbar.'),

@@ -10,9 +10,9 @@ Eine Flutter-App für das Schweizer Kartenspiel **Jass** – spielbar auf Androi
 
 ## Features
 
-- **Zwei Kartensets**: Französische Karten (♠️♥️♦️♣️) und Deutsche Karten (Schellen / Herz / Eichel / Schilten)
+- **Zwei Kartensets**: Französische Karten (♠️♥️♦️♣️) und Deutsche Karten
 - **10 Spielvarianten**:
-  - 🔔🛡 Schellen/Schilten-Trumpf · 🌹🌰 Rosen/Eicheln-Trumpf *(je Oben oder Unten)*
+  - ♦♠ Ecken/Schaufeln-Trumpf · ♥♣ Herz/Kreuz-Trumpf *(je Oben oder Unten)*
   - ⬇️ Obenabe – Ass gewinnt
   - ⬆️ Undenufe – Sechs gewinnt
   - 〰️ Slalom – abwechselnd Obenabe/Undenufe
@@ -21,7 +21,7 @@ Eine Flutter-App für das Schweizer Kartenspiel **Jass** – spielbar auf Androi
   - 👑 Alles Trumpf – Buur/Näll/König zählen, angespielte Farbe gewinnt
   - 🐑 Schafkopf – Damen + Achter + Trumpffarbe immer Trumpf
   - 💣 Molotof – Spielmodus wird erst während des Spiels bestimmt
-- **Trumpf Oben / Trumpf Unten**: Jede Trumpfgruppe muss ein Team je einmal als Oben und einmal als Unten spielen – die Richtung der zweiten Gruppe wird automatisch erzwungen
+- **Trumpf Oben / Trumpf Unten**: Jede Trumpfgruppe (♦♠ und ♥♣) muss ein Team je einmal als Oben und einmal als Unten spielen – die Richtung der zweiten Gruppe wird automatisch erzwungen
 - **Vollständige Spielstruktur**: Jedes Team muss alle 10 Varianten je einmal ansagen (20 Runden total)
 - **KI-Gegner** für 3 Spieler (Ost, Nord, West)
 - **Jass-Zurückhalten**: Buur darf zurückgehalten werden wenn er die einzige Trumpfkarte ist
