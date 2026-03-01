@@ -25,3 +25,4 @@ flutter:
     - assets/cards/french/
     - assets/cards/german/
     - assets/suit_icons/
+    - assets/jass_nn_weights.json
