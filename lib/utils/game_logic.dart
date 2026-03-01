@@ -152,10 +152,11 @@ class GameLogic {
     required Suit? trumpSuit,
     required int trickNumber,
     GameMode? molotofSubMode,
+    bool slalomStartsOben = true,
   }) {
     assert(cards.length == playerIds.length && cards.isNotEmpty);
 
-    final effectiveMode = _resolveMode(gameMode, trickNumber, molotofSubMode: molotofSubMode);
+    final effectiveMode = _resolveMode(gameMode, trickNumber, molotofSubMode: molotofSubMode, slalomStartsOben: slalomStartsOben);
     final ledSuit = cards.first.suit;
 
     int winnerIdx = 0;
@@ -167,10 +168,13 @@ class GameLogic {
     return playerIds[winnerIdx];
   }
 
-  static GameMode _resolveMode(GameMode mode, int trickNumber, {GameMode? molotofSubMode}) {
+  static GameMode _resolveMode(GameMode mode, int trickNumber, {GameMode? molotofSubMode, bool slalomStartsOben = true}) {
     switch (mode) {
       case GameMode.slalom:
-        return trickNumber % 2 == 1 ? GameMode.oben : GameMode.unten;
+        final isObenTrick = slalomStartsOben
+            ? trickNumber % 2 == 1
+            : trickNumber % 2 == 0;
+        return isObenTrick ? GameMode.oben : GameMode.unten;
       case GameMode.elefant:
         if (trickNumber <= 3) return GameMode.oben;
         if (trickNumber <= 6) return GameMode.unten;
@@ -504,6 +508,7 @@ class GameLogic {
       trumpSuit: trump,
       trickNumber: trickNumber,
       molotofSubMode: molotofSubMode,
+      slalomStartsOben: state.slalomStartsOben,
     );
 
     if (currentWinnerId == partner.id) {
@@ -522,6 +527,7 @@ class GameLogic {
         trumpSuit: trump,
         trickNumber: trickNumber,
         molotofSubMode: molotofSubMode,
+        slalomStartsOben: state.slalomStartsOben,
       );
       return winner == aiPlayer.id;
     }).toList();
