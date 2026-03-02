@@ -34,12 +34,18 @@ class TrumpSelectionScreen extends StatelessWidget {
       } else {
         available = allAvail;
       }
+    } else if (state.gameType == GameType.schieber) {
+      // Schieber: nur Trumpf Oben (4 Farben), Obenabe, Undenufe, Slalom
+      available = const {'trump_ss', 'trump_re', 'oben', 'unten', 'slalom'};
     } else {
       available = state.availableVariants(isTeam1).toSet();
     }
 
-    // Friseur Team: nur Ansager kann schieben (einmalig)
-    final canSchiebenTeam = state.gameType == GameType.friseurTeam && !hasSchieben;
+    // Friseur Team / Schieber: nur Ansager kann schieben (einmalig)
+    final canSchiebenTeam =
+        (state.gameType == GameType.friseurTeam ||
+            state.gameType == GameType.schieber) &&
+        !hasSchieben;
     // Friseur Solo: jeder Spieler kann passen, ausser der Original-Ansager nach 2 Runden
     final canSchiebenSolo = isFriseurSolo && !forcedTrump;
 
@@ -94,8 +100,11 @@ class TrumpSelectionScreen extends StatelessWidget {
                   IconButton(
                     icon: const Icon(Icons.help_outline, color: Colors.white54),
                     tooltip: 'Regeln',
-                    onPressed: () => Navigator.push(context,
-                        MaterialPageRoute(builder: (_) => const RulesScreen())),
+                    onPressed: () {
+                      final gt = context.read<GameProvider>().state.gameType;
+                      Navigator.push(context,
+                          MaterialPageRoute(builder: (_) => RulesScreen(initialGameType: gt)));
+                    },
                   ),
                 ],
               ),

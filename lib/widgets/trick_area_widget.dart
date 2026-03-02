@@ -15,6 +15,7 @@ class TrickAreaWidget extends StatelessWidget {
   final bool isClearPending;
   final bool slalomStartsOben;
   final VoidCallback? onTap;
+  final JassCard? wishCard; // Friseur Solo: öffentliche Wunschkarte
 
   const TrickAreaWidget({
     super.key,
@@ -28,6 +29,7 @@ class TrickAreaWidget extends StatelessWidget {
     this.isClearPending = false,
     this.slalomStartsOben = true,
     this.onTap,
+    this.wishCard,
   });
 
   @override
@@ -55,6 +57,20 @@ class TrickAreaWidget extends StatelessWidget {
                 slalomStartsOben: slalomStartsOben,
               ),
             ),
+            // Wunschkarte (Friseur Solo) oben links
+            if (wishCard != null)
+              Positioned(
+                top: 6,
+                left: 8,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('🎯',
+                        style: TextStyle(fontSize: 9, color: Colors.white54)),
+                    CardWidget(card: wishCard!, width: 28),
+                  ],
+                ),
+              ),
             // Gespielte Karten
             for (int i = 0; i < cards.length; i++)
               _positionedCard(cards[i], playerIds[i]),

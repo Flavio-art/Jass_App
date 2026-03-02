@@ -9,6 +9,7 @@ class PlayerHandWidget extends StatefulWidget {
   final bool showCards;
   final Set<JassCard> playableCards;
   final Function(JassCard)? onCardTap;
+  final Color? teamColor; // Team-Farbe wenn Partnerschaft bekannt
 
   const PlayerHandWidget({
     super.key,
@@ -17,6 +18,7 @@ class PlayerHandWidget extends StatefulWidget {
     this.showCards = false,
     this.playableCards = const {},
     this.onCardTap,
+    this.teamColor,
   });
 
   @override
@@ -56,6 +58,26 @@ class _PlayerHandWidgetState extends State<PlayerHandWidget> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (widget.teamColor != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+              decoration: BoxDecoration(
+                color: widget.teamColor!.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: widget.teamColor!, width: 1),
+              ),
+              child: Text(
+                'Du',
+                style: TextStyle(
+                  color: widget.teamColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
         if (widget.isActive)
           Padding(
             padding: const EdgeInsets.only(bottom: 6),
@@ -108,12 +130,17 @@ class _PlayerHandWidgetState extends State<PlayerHandWidget> {
     const overlap = 22.0;
     final count = cards.length;
 
+    final nameColor = widget.teamColor ?? Colors.white70;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           widget.player.name,
-          style: const TextStyle(color: Colors.white70, fontSize: 11),
+          style: TextStyle(
+            color: nameColor,
+            fontSize: 11,
+            fontWeight: widget.teamColor != null ? FontWeight.bold : FontWeight.normal,
+          ),
         ),
         const SizedBox(height: 4),
         SizedBox(

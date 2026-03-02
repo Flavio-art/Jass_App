@@ -5,6 +5,7 @@ enum GamePhase {
   setup,
   trumpSelection,
   wishCardSelection, // Friseur Solo: nach Moduswahl, vor Wunschkarte
+  prediction,        // Differenzler: Vorhersage-Phase vor dem Spielen
   playing,
   trickClearPending,
   roundEnd,
@@ -25,8 +26,10 @@ enum GameMode {
 }
 
 enum GameType {
-  friseurTeam, // Team-Spiel: jedes Team spielt jede Variante einmal (+ Schieben)
-  friseur,     // Solo-Spiel: Jeder Spieler sagt jede Variante einmal an (Wunschkarte)
+  friseurTeam,  // Team-Spiel: jedes Team spielt jede Variante einmal (+ Schieben)
+  friseur,      // Solo-Spiel: Jeder Spieler sagt jede Variante einmal an (Wunschkarte)
+  schieber,     // Team-Spiel: alle Modi verfügbar, kumulierte Punkte bis 1000
+  differenzler, // Einzel-Spiel: zufälliger Trumpf, 12 Runden, Vorhersage-Abweichung
 }
 
 // ─── Rundenresultat ───────────────────────────────────────────────────────────
@@ -40,6 +43,8 @@ class RoundResult {
   final int team2Score;
   final int rawTeam1Score;   // tatsächliche Rohpunkte für Anzeige
   final int rawTeam2Score;
+  final String announcerName; // Anzeige in Spielübersicht
+  final String? partnerName;  // Partner des Ansagers (null = unbekannt)
 
   const RoundResult({
     required this.roundNumber,
@@ -50,6 +55,8 @@ class RoundResult {
     required this.team2Score,
     required this.rawTeam1Score,
     required this.rawTeam2Score,
+    required this.announcerName,
+    this.partnerName,
   });
 
   /// Lesbare Bezeichnung des Spielmodus für die Tabelle
@@ -127,6 +134,20 @@ class GameState {
   /// {playerId: Set<variantKey>} – Varianten die ein Spieler als Ansager gespielt hat.
   final Map<String, Set<String>> friseurAnnouncedVariants;
 
+  // ─── Individuelle Stichpunkte (aktuelle Runde) ─────────────────────────────
+  /// {playerId: Punkte} – individuelle Stichpunkte pro Spieler (aktuelle Runde).
+  final Map<String, int> playerScores;
+
+  // ─── Schieber ──────────────────────────────────────────────────────────────
+  /// Zielpunktzahl (z. B. 1500, 2500, 3500) – das erste Team das diesen Wert erreicht gewinnt.
+  final int schieberWinTarget;
+
+  // ─── Differenzler ──────────────────────────────────────────────────────────
+  /// {playerId: vorhergesagte Punkte} – Vorhersagen für aktuelle Runde (-1 = noch nicht vorhergesagt).
+  final Map<String, int> differenzlerPredictions;
+  /// {playerId: kumulierte Strafe} – aufsummierte Strafen über alle Runden.
+  final Map<String, int> differenzlerPenalties;
+
   // ─── Friseur Solo Schieben ─────────────────────────────────────────────────
   /// Wie oft der ursprüngliche Ansager bereits vollständig geschoben hat.
   /// 0 = noch nie, 1 = einmal (Mitspieler können annehmen), 2 = erzwungener Trumpf.
@@ -166,6 +187,10 @@ class GameState {
     this.friseurAnnouncedVariants = const {},
     this.soloSchiebungRounds = 0,
     this.soloSchiebungComment,
+    this.playerScores = const {},
+    this.schieberWinTarget = 1500,
+    this.differenzlerPredictions = const {},
+    this.differenzlerPenalties = const {},
   });
 
   Player get currentPlayer => players[currentPlayerIndex];
@@ -281,10 +306,10 @@ class GameState {
 
   static GameState initial({required CardType cardType}) {
     final players = [
-      Player(id: 'p1', name: 'Du',       position: PlayerPosition.south),
-      Player(id: 'p2', name: 'Gegner 1', position: PlayerPosition.east),
-      Player(id: 'p3', name: 'Partner',  position: PlayerPosition.north),
-      Player(id: 'p4', name: 'Gegner 2', position: PlayerPosition.west),
+      Player(id: 'p1', name: 'Du',      position: PlayerPosition.south),
+      Player(id: 'p2', name: 'Freund 1', position: PlayerPosition.east),
+      Player(id: 'p3', name: 'Freund 2', position: PlayerPosition.north),
+      Player(id: 'p4', name: 'Freund 3', position: PlayerPosition.west),
     ];
     return GameState(cardType: cardType, players: players);
   }
@@ -321,6 +346,10 @@ class GameState {
     Map<String, Set<String>>? friseurAnnouncedVariants,
     int? soloSchiebungRounds,
     Object? soloSchiebungComment = _sentinel,
+    Map<String, int>? playerScores,
+    int? schieberWinTarget,
+    Map<String, int>? differenzlerPredictions,
+    Map<String, int>? differenzlerPenalties,
   }) {
     return GameState(
       cardType: cardType ?? this.cardType,
@@ -365,6 +394,10 @@ class GameState {
       soloSchiebungComment: soloSchiebungComment == _sentinel
           ? this.soloSchiebungComment
           : soloSchiebungComment as String?,
+      playerScores: playerScores ?? this.playerScores,
+      schieberWinTarget: schieberWinTarget ?? this.schieberWinTarget,
+      differenzlerPredictions: differenzlerPredictions ?? this.differenzlerPredictions,
+      differenzlerPenalties: differenzlerPenalties ?? this.differenzlerPenalties,
     );
   }
 }
