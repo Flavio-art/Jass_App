@@ -40,7 +40,15 @@ class _SplashScreenState extends State<SplashScreen>
     final rng = Random();
     final allCards = Deck.allCards(CardType.french);
     allCards.shuffle(rng);
-    final picked = allCards.take(9).toList();
+    final picked = allCards.take(9).toList()
+      ..sort((a, b) {
+        const suitOrder = {
+          Suit.clubs: 0, Suit.diamonds: 1, Suit.spades: 2, Suit.hearts: 3,
+        };
+        final sc = (suitOrder[a.suit] ?? 4).compareTo(suitOrder[b.suit] ?? 4);
+        if (sc != 0) return sc;
+        return a.value.index.compareTo(b.value.index);
+      });
     const count = 9;
     final angles = List.generate(
       count,
@@ -84,8 +92,8 @@ class _SplashScreenState extends State<SplashScreen>
 
     _anim.forward();
 
-    // 2.5 Sekunden Splash, dann zur HomeScreen
-    Timer(const Duration(milliseconds: 2500), () {
+    // 3.5 Sekunden Splash, dann zur HomeScreen
+    Timer(const Duration(milliseconds: 3500), () {
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(

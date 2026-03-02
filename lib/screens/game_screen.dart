@@ -332,13 +332,15 @@ class _GameScreenState extends State<GameScreen> {
                             const _AnsagerBadge(),
                           if (state.wyssDeclarationPending &&
                               state.completedTricks.isEmpty &&
-                              state.phase == GamePhase.playing)
+                              state.phase == GamePhase.playing &&
+                              (state.currentPlayer.id == north.id ||
+                                  state.currentTrickPlayerIds.contains(north.id)))
                             Builder(builder: (_) {
                               final w = _bestWyssFor(state, north.id);
                               return w != null
                                   ? Padding(
                                       padding: const EdgeInsets.only(bottom: 2),
-                                      child: _WyssBubble(wyss: w),
+                                      child: _WyssBubble(wyss: w, gameMode: state.gameMode, cardType: state.cardType),
                                     )
                                   : const SizedBox.shrink();
                             }),
@@ -409,13 +411,15 @@ class _GameScreenState extends State<GameScreen> {
                                     ),
                                   if (state.wyssDeclarationPending &&
                                       state.completedTricks.isEmpty &&
-                                      state.phase == GamePhase.playing)
+                                      state.phase == GamePhase.playing &&
+                                      (state.currentPlayer.id == west.id ||
+                                          state.currentTrickPlayerIds.contains(west.id)))
                                     Builder(builder: (_) {
                                       final w = _bestWyssFor(state, west.id);
                                       return w != null
                                           ? Padding(
                                               padding: const EdgeInsets.only(top: 2),
-                                              child: _WyssBubble(wyss: w),
+                                              child: _WyssBubble(wyss: w, gameMode: state.gameMode, cardType: state.cardType),
                                             )
                                           : const SizedBox.shrink();
                                     }),
@@ -490,13 +494,15 @@ class _GameScreenState extends State<GameScreen> {
                                     ),
                                   if (state.wyssDeclarationPending &&
                                       state.completedTricks.isEmpty &&
-                                      state.phase == GamePhase.playing)
+                                      state.phase == GamePhase.playing &&
+                                      (state.currentPlayer.id == east.id ||
+                                          state.currentTrickPlayerIds.contains(east.id)))
                                     Builder(builder: (_) {
                                       final w = _bestWyssFor(state, east.id);
                                       return w != null
                                           ? Padding(
                                               padding: const EdgeInsets.only(top: 2),
-                                              child: _WyssBubble(wyss: w),
+                                              child: _WyssBubble(wyss: w, gameMode: state.gameMode, cardType: state.cardType),
                                             )
                                           : const SizedBox.shrink();
                                     }),
@@ -543,13 +549,15 @@ class _GameScreenState extends State<GameScreen> {
                     // ── Human Wyss-Sprechblase ────────────────────────
                     if (state.wyssDeclarationPending &&
                         state.completedTricks.isEmpty &&
-                        state.phase == GamePhase.playing)
+                        state.phase == GamePhase.playing &&
+                        (state.currentPlayer.id == human.id ||
+                            state.currentTrickPlayerIds.contains(human.id)))
                       Builder(builder: (_) {
                         final w = _bestWyssFor(state, human.id);
                         return w != null
                             ? Padding(
                                 padding: const EdgeInsets.only(top: 4),
-                                child: _WyssBubble(wyss: w, isHuman: true),
+                                child: _WyssBubble(wyss: w, isHuman: true, gameMode: state.gameMode, cardType: state.cardType),
                               )
                             : const SizedBox.shrink();
                       }),
@@ -897,6 +905,7 @@ class _GameScreenState extends State<GameScreen> {
                 Navigator.push(context,
                     MaterialPageRoute(builder: (_) => RulesScreen(
                       initialGameType: provider.state.gameType,
+                      cardType: provider.state.cardType,
                     )));
               },
             ),
@@ -3384,14 +3393,18 @@ class _DifferenzlerGameEndOverlay extends StatelessWidget {
 class _WyssBubble extends StatelessWidget {
   final WyssEntry wyss;
   final bool isHuman;
+  final GameMode gameMode;
+  final CardType cardType;
 
-  const _WyssBubble({required this.wyss, this.isHuman = false});
+  const _WyssBubble({required this.wyss, this.isHuman = false, required this.gameMode, required this.cardType});
 
   @override
   Widget build(BuildContext context) {
-    final text = wyss.isFourOfAKind
-        ? '💬 ${wyss.typeName} +${wyss.points}'
-        : '💬 ${wyss.typeName} – ${wyss.topValueName} hoch (+${wyss.points})';
+    final isUnten = gameMode == GameMode.unten || gameMode == GameMode.trumpUnten;
+    final cardName = wyss.isFourOfAKind
+        ? wyss.topValueLabel(cardType)
+        : (isUnten ? wyss.bottomValueLabel(cardType) : wyss.topValueLabel(cardType));
+    final text = '💬 ${wyss.typeName} $cardName';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
@@ -3472,7 +3485,7 @@ class _WyssOverlayState extends State<_WyssOverlay> {
   @override
   void initState() {
     super.initState();
-    _timer = Timer(const Duration(seconds: 7), () {
+    _timer = Timer(const Duration(seconds: 10), () {
       if (mounted) widget.onAcknowledge();
     });
   }
@@ -3489,29 +3502,24 @@ class _WyssOverlayState extends State<_WyssOverlay> {
         p.position == PlayerPosition.north;
   }
 
-  WyssEntry? _bestWyss(List<WyssEntry> entries) {
-    if (entries.isEmpty) return null;
-    return entries.reduce((a, b) {
-      if (a.points != b.points) return a.points > b.points ? a : b;
-      if (a.isFourOfAKind != b.isFourOfAKind)
-        return a.isFourOfAKind ? a : b;
-      return CardValue.values.indexOf(a.topValue) >=
-              CardValue.values.indexOf(b.topValue)
-          ? a
-          : b;
-    });
-  }
-
-  String _wyssShort(WyssEntry w, CardType cardType) {
-    if (w.isFourOfAKind) return '${w.typeName} (${w.topValueName})';
-    final suitLabel = w.suit?.label(cardType) ?? '';
-    final isUnten = widget.state.gameMode == GameMode.unten ||
-        widget.state.gameMode == GameMode.slalom ||
-        widget.state.gameMode == GameMode.trumpUnten;
-    final cardName = isUnten ? '${w.bottomValueName} tief' : '${w.topValueName} hoch';
-    return '${w.typeName} – $cardName'
-        '${suitLabel.isNotEmpty ? ", $suitLabel" : ""}'
-        '${w.isTrumpSuit ? " (Trumpf)" : ""}';
+  /// Reconstructs the actual cards that make up a WyssEntry.
+  List<JassCard> _wyssCards(WyssEntry w) {
+    final ct = widget.state.cardType;
+    if (w.isFourOfAKind) {
+      final suits = ct == CardType.french
+          ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
+          : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
+      return suits
+          .map((s) => JassCard(suit: s, value: w.topValue, cardType: ct))
+          .toList();
+    }
+    final allValues = CardValue.values;
+    final from = allValues.indexOf(w.bottomValue);
+    final to = allValues.indexOf(w.topValue);
+    return [
+      for (int i = from; i <= to; i++)
+        JassCard(suit: w.suit!, value: allValues[i], cardType: ct)
+    ];
   }
 
   @override
@@ -3519,7 +3527,7 @@ class _WyssOverlayState extends State<_WyssOverlay> {
     final wyss = widget.state.playerWyss;
     final winner = widget.state.wyssWinnerTeam;
 
-    // Winning team's total Wyss points (all entries)
+    // Total points for winning team
     int winnerPts = 0;
     if (winner != null) {
       for (final entry in wyss.entries) {
@@ -3530,6 +3538,13 @@ class _WyssOverlayState extends State<_WyssOverlay> {
       }
     }
     final winnerName = winner == 'team1' ? 'Ihr Team' : 'Gegner';
+
+    // Only show winning team's players
+    final winnerPlayers = winner == null
+        ? <Player>[]
+        : widget.state.players
+            .where((p) => (_isTeam1(p.id)) == (winner == 'team1'))
+            .toList();
 
     return Positioned.fill(
       child: GestureDetector(
@@ -3583,7 +3598,7 @@ class _WyssOverlayState extends State<_WyssOverlay> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 8),
-                    if (wyss.isNotEmpty) ...[
+                    if (winnerPlayers.isNotEmpty) ...[
                       const Divider(color: Colors.white24, height: 1),
                       Flexible(
                         child: SingleChildScrollView(
@@ -3591,9 +3606,9 @@ class _WyssOverlayState extends State<_WyssOverlay> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              for (final player in widget.state.players) ...[
-                                _playerCompareRow(player, wyss[player.id], winner),
-                                const SizedBox(height: 8),
+                              for (final player in winnerPlayers) ...[
+                                _playerWyssCards(player, wyss[player.id]),
+                                const SizedBox(height: 12),
                               ],
                             ],
                           ),
@@ -3631,55 +3646,48 @@ class _WyssOverlayState extends State<_WyssOverlay> {
     );
   }
 
-  Widget _playerCompareRow(
-      Player player, List<WyssEntry>? entries, String? winner) {
-    final isTeam1 = _isTeam1(player.id);
-    final teamColor =
-        isTeam1 ? Colors.greenAccent.shade200 : Colors.orange.shade300;
-    final best = _bestWyss(entries ?? []);
-    final isWinner =
-        winner != null && (winner == 'team1') == isTeam1;
-
-    return Row(
+  Widget _playerWyssCards(Player player, List<WyssEntry>? entries) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          player.name,
-          style: TextStyle(
-              color: isWinner ? AppColors.gold : Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 13),
+        // Player name + points badge
+        Row(
+          children: [
+            Text(
+              player.name,
+              style: const TextStyle(
+                  color: AppColors.gold,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13),
+            ),
+            if (entries != null && entries.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              Text(
+                '+${entries.fold(0, (s, w) => s + w.points)}',
+                style: TextStyle(
+                    color: Colors.amber.shade300,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12),
+              ),
+            ],
+          ],
         ),
-        const SizedBox(width: 6),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-          decoration: BoxDecoration(
-            color: teamColor.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Text(
-            isTeam1 ? 'Ihr Team' : 'Gegner',
-            style: TextStyle(color: teamColor, fontSize: 9),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            best != null
-                ? _wyssShort(best, widget.state.cardType)
-                : 'kein Weis',
-            style: TextStyle(
-                color: best != null ? Colors.white70 : Colors.white30,
-                fontSize: 12),
-          ),
-        ),
-        if (best != null)
-          Text(
-            '+${best.points}',
-            style: TextStyle(
-                color: Colors.amber.shade300,
-                fontWeight: FontWeight.bold,
-                fontSize: 12),
-          ),
+        const SizedBox(height: 6),
+        if (entries == null || entries.isEmpty)
+          const Text('kein Weis',
+              style: TextStyle(color: Colors.white30, fontSize: 12))
+        else
+          // One row of cards per WyssEntry
+          for (final entry in entries) ...[
+            Wrap(
+              spacing: 3,
+              children: [
+                for (final card in _wyssCards(entry))
+                  CardWidget(card: card, width: 46),
+              ],
+            ),
+            const SizedBox(height: 4),
+          ],
       ],
     );
   }

@@ -131,10 +131,15 @@ class ModeSelectorAI {
     Suit? bestTrump;
     bool bestSlalomStartsOben = true;
 
+    // Mittelwert der NN-Scores als Baseline für Delta-Verstärkung.
+    // Formel: adjusted = mean + (raw - mean) × mult
+    // Damit verstärkt ein Multiplikator nur den Vorteil ÜBER dem Durchschnitt,
+    // nicht den Absolutwert. Slalom ×4 mit Durchschnittsscore gewinnt nicht mehr
+    // gegen Trump ×1 mit nur leicht überdurchschnittlichem Score.
+    final nnMean = scores.reduce((a, b) => a + b) / scores.length;
+    double adj(double raw, double m) => nnMean + (raw - nnMean) * m;
+
     // NN-Score-Bereich für Normalisierung von Heuristik-Fallbacks.
-    // Das NN gibt lineare Werte aus (kein Softmax), die auf einer anderen Skala
-    // liegen als die Heuristik. Schafkopf/Molotof kennt das NN nicht → Heuristik
-    // muss auf dieselbe Skala normalisiert werden, damit sie fair verglichen werden.
     final nnMin = scores.fold(double.infinity,  (a, b) => a < b ? a : b);
     final nnMax = scores.fold(double.negativeInfinity, (a, b) => a > b ? a : b);
     final nnRange = nnMax > nnMin ? nnMax - nnMin : 1.0;
@@ -155,35 +160,46 @@ class ModeSelectorAI {
         for (final si in suitIdxs) {
           final suit = _suitForIndex(si, state.cardType);
           if (forced == null || forced == true) {
-            final s = scores[si] * m; // trump oben
+            final s = adj(scores[si], m); // trump oben
             if (s > bestScore) { bestScore = s; bestMode = GameMode.trump; bestTrump = suit; }
           }
           if (forced == null || forced == false) {
-            final s = scores[si + 4] * m; // trump unten
+            final s = adj(scores[si + 4], m); // trump unten
             if (s > bestScore) { bestScore = s; bestMode = GameMode.trumpUnten; bestTrump = suit; }
           }
         }
       } else if (variant == 'schafkopf') {
-        // NN kennt Schafkopf nicht → Heuristik auf NN-Skala normalisieren.
-        // Max-Heuristik-Score ≈ 150 (sehr gute Schafkopf-Hand).
-        final suits = state.cardType == CardType.french
+        // NN-Indizes 15-18: Schafkopf mit Trumpf Farbe 0-3
+        final suitList = state.cardType == CardType.french
             ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
             : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
-        for (final suit in suits) {
-          final hNorm = (_scoreSchafkopf(hand, suit) / 150.0).clamp(0.0, 1.0);
-          final s = (nnMin + hNorm * nnRange) * mult(variant);
-          if (s > bestScore) { bestScore = s; bestMode = GameMode.schafkopf; bestTrump = suit; }
+        for (int si = 0; si < 4; si++) {
+          final nnIdx = 15 + si;
+          if (nnIdx < scores.length) {
+            final s = adj(scores[nnIdx], mult(variant));
+            if (s > bestScore) { bestScore = s; bestMode = GameMode.schafkopf; bestTrump = suitList[si]; }
+          } else {
+            // Fallback Heuristik falls NN noch altes Format (14 Outputs)
+            final hNorm = (_scoreSchafkopf(hand, suitList[si]) / 150.0).clamp(0.0, 1.0);
+            final s = adj(nnMin + hNorm * nnRange, mult(variant));
+            if (s > bestScore) { bestScore = s; bestMode = GameMode.schafkopf; bestTrump = suitList[si]; }
+          }
         }
       } else if (variant == 'molotof') {
-        // NN kennt Molotof nicht → Heuristik auf NN-Skala normalisieren.
-        // Max-Heuristik-Score ≈ 110 (Hand ohne Asse/Zehner).
-        final hNorm = (_scoreMolotof(hand) / 110.0).clamp(0.0, 1.0);
-        final s = (nnMin + hNorm * nnRange) * mult(variant);
-        if (s > bestScore) { bestScore = s; bestMode = GameMode.molotof; bestTrump = null; }
+        // NN-Index 14: Molotof
+        if (14 < scores.length) {
+          final s = adj(scores[14], mult(variant));
+          if (s > bestScore) { bestScore = s; bestMode = GameMode.molotof; bestTrump = null; }
+        } else {
+          // Fallback Heuristik falls NN noch altes Format (14 Outputs)
+          final hNorm = (_scoreMolotof(hand) / 110.0).clamp(0.0, 1.0);
+          final s = adj(nnMin + hNorm * nnRange, mult(variant));
+          if (s > bestScore) { bestScore = s; bestMode = GameMode.molotof; bestTrump = null; }
+        }
       } else {
         final nnIdx = _variantToNNIdx(variant);
         if (nnIdx >= 0 && nnIdx < scores.length) {
-          final s = scores[nnIdx] * mult(variant);
+          final s = adj(scores[nnIdx], mult(variant));
           if (s > bestScore) {
             bestScore = s;
             bestMode  = GameMode.values.firstWhere((m) => m.name == variant,

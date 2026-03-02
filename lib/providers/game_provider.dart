@@ -10,6 +10,7 @@ import '../models/player.dart';
 import '../utils/game_logic.dart';
 import '../utils/monte_carlo.dart';
 import '../utils/mode_selector.dart';
+import '../utils/nn_model.dart';
 
 class GameProvider extends ChangeNotifier {
   GameState _state = GameState.initial(cardType: CardType.french);
@@ -513,37 +514,61 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
+  /// Ob die KI spielen soll (true) oder schieben (false).
+  /// Nutzt NN wenn geladen, sonst Heuristik als Fallback.
+  /// [nnPlayThreshold]: NN-Schwelle (~0.35–0.85 Skala, trainiert auf Punkte/162).
+  /// [heuristicThreshold]: Fallback-Schwelle für Heuristik.
+  bool _shouldPlay({
+    required Player player,
+    required List<String> available,
+    required double nnPlayThreshold,
+    required double heuristicThreshold,
+  }) {
+    final nnScores = JassNNModel.instance.predict(player.hand, _state.cardType);
+    if (nnScores.isNotEmpty) {
+      final best = nnScores.reduce((a, b) => a > b ? a : b);
+      return best >= nnPlayThreshold;
+    }
+    final score = ModeSelectorAI.bestHeuristicScore(
+      hand: player.hand, state: _state, available: available,
+    );
+    return score >= heuristicThreshold;
+  }
+
+  /// Dynamischer NN-Schwellenwert für Schieben im Friseur Solo:
+  /// Je mehr Varianten noch verfügbar, desto wählerischer (höherer Schwellenwert).
+  /// Range: 0.60 (letzte Varianten) bis 0.90 (alles noch offen).
+  double _friseurSchiebenThreshold(List<String> available) {
+    const maxVariants = 10;
+    final ratio = (available.length / maxVariants).clamp(0.0, 1.0);
+    return 0.60 + 0.30 * ratio; // 0.60 → 0.90
+  }
+
   /// KI entscheidet ob sie schieben oder spielen will.
-  /// Intermediate player: spielt nur bei sehr guter Hand (Score > 160).
+  /// Friseur Solo: dynamischer Schwellenwert nach Anzahl verfügbarer Varianten.
   void _kiDecideSchieben() {
     final selector = _state.currentTrumpSelector;
-    final isOriginalAnnouncer = _state.trumpSelectorIndex == null;
 
     Future.delayed(const Duration(milliseconds: 700), () {
       if (!_state.players.contains(selector)) return; // State verändert
 
       final available = _state.availableVariantsForPlayer(selector.id);
       if (available.isEmpty) {
-        // Alle Varianten gespielt – muss spielen
         _autoSelectMode();
         return;
       }
 
-      final score = ModeSelectorAI.bestHeuristicScore(
-        hand: selector.hand,
-        state: _state,
+      final nnThreshold = _friseurSchiebenThreshold(available);
+      final play = _shouldPlay(
+        player: selector,
         available: available,
+        nnPlayThreshold:    nnThreshold,
+        heuristicThreshold: 105.0,  // Fallback ohne NN
       );
 
-      // Intermediate player: nur bei sehr guter Hand spielen (Score > 160)
-      // Ursprünglicher Ansager (2. Runde): geringere Schwelle
-      final threshold = isOriginalAnnouncer ? 105.0 : 160.0;
-
-      if (score >= threshold) {
-        // KI übernimmt das Spiel
+      if (play) {
         _autoSelectMode();
       } else {
-        // KI schiebt weiter (mit Kommentar wenn genervt)
         String? annoyedComment;
         if (_state.soloSchiebungRounds >= 1) {
           annoyedComment = _annoyedComment(selector.name);
@@ -581,6 +606,33 @@ class GameProvider extends ChangeNotifier {
       '$playerName: "Jetzt reicht\'s aber. Passe."',
       '$playerName: "Ich muss das nicht mitmachen. Passe."',
       '$playerName: "Schieben ist keine Antwort. Passe."',
+      '$playerName: "Du fragst NOCHMAL? Also: Passe."',
+      '$playerName: "Ach, ich bin wieder dran? Passe."',
+      '$playerName: "Das ist meine endgültige Antwort: Passe."',
+      '$playerName: "Meine Karten sind schlechter als deine Ideen. Passe."',
+      '$playerName: "Du bist unverbesserlich. Passe."',
+      '$playerName: "Wenigstens bin ich konsequent: Passe."',
+      '$playerName: "Ich hatte Zeit zum Nachdenken. Ergebnis: Passe."',
+      '$playerName: "Nein, nein und nochmals nein. Passe."',
+      '$playerName: "Ich hab\'s mir überlegt – und: Passe."',
+      '$playerName: "Nicht in diesem Leben. Passe."',
+      '$playerName: "Noch eine Chance? Nein danke. Passe."',
+      '$playerName: "Du hast mich falsch eingeschätzt. Passe!"',
+      '$playerName: "Ist das ein Test? Passe."',
+      '$playerName: "Respekt für die Dreistigkeit. Passe."',
+      '$playerName: "Ich passe. Und zwar gerne."',
+      '$playerName: "Du schmeichelst mir. Trotzdem: Passe."',
+      '$playerName: "Ich passe schneller, als du geschoben hast."',
+      '$playerName: "Nächstes Mal frage ich dich auch zweimal. Passe."',
+      '$playerName: "Mit Freude: Passe."',
+      '$playerName: "Zweimal fragt man mich nicht ohne Konsequenzen. Passe."',
+      '$playerName: "Das war meine letzte Chance zu passen. Genutzt."',
+      '$playerName: "Ich passe, und ich bin stolz darauf."',
+      '$playerName: "Du machst das extra, oder? Passe."',
+      '$playerName: "Ich dachte wir sind Freunde. Trotzdem: Passe."',
+      '$playerName: "Stell dir vor: Passe."',
+      '$playerName: "Wer hat eigentlich diese Regeln erfunden? Passe."',
+      '$playerName: "Zweite Runde, gleiche Antwort: Passe."',
     ];
     final rng = Random().nextInt(comments.length);
     return comments[rng];
@@ -614,6 +666,30 @@ class GameProvider extends ChangeNotifier {
       '$commentPlayerName: "Lustig. Weiter so."',
       '$commentPlayerName: "Mich hättest du nicht abwimmeln müssen."',
       '$commentPlayerName: "Zwei Runden Zögern und dann voller Einsatz. Chapeau."',
+      '$commentPlayerName: "Nur zur Klarheit: 2× gepasst, $score Punkte geholt. Okay."',
+      '$commentPlayerName: "Demnächst frage ich auch 2× ob du mitspielen willst."',
+      '$commentPlayerName: "Ich staune. Und ich staune selten."',
+      '$commentPlayerName: "Zum Glück hat das niemand gesehen. Oh wait."',
+      '$commentPlayerName: "$score Punkte für jemanden ohne gute Karten. Sehr überzeugend."',
+      '$commentPlayerName: "Wenigstens bist du ehrlich. Ehm... nein eigentlich nicht."',
+      '$commentPlayerName: "$announcerName, du hast uns verarscht, oder?"',
+      '$commentPlayerName: "Ich lerne: Zweimal passen = gute Strategie. Danke, $announcerName."',
+      '$commentPlayerName: "Das nächste Mal sagst du mir Bescheid, wenn du planst zu gewinnen."',
+      '$commentPlayerName: "Ich warte noch auf deine Entschuldigung."',
+      '$commentPlayerName: "2× Nein und dann $score Punkte. Das Buch schreibe ich selbst."',
+      '$commentPlayerName: "War das Absicht? Falls ja: Hut ab. Falls nein: auch Hut ab."',
+      '$commentPlayerName: "Du bist entweder sehr gut oder sehr mutig. Beides wohl."',
+      '$commentPlayerName: "Ah ja. Natürlich. $score Punkte. Logisch."',
+      '$commentPlayerName: "Ich werde das nie vergessen, $announcerName."',
+      '$commentPlayerName: "Schöne Karten, schlechtes Gewissen? Passe nächste Runde nicht."',
+      '$commentPlayerName: "Das war Poker, kein Jass. Aber okay."',
+      '$commentPlayerName: "Du hattest schlechte Karten. Und trotzdem $score Punkte. Aha."',
+      '$commentPlayerName: "Nächste Runde bin ich derjenige mit den schlechten Karten."',
+      '$commentPlayerName: "Ich bin beeindruckt und ein bisschen sauer. Beides."',
+      '$commentPlayerName: "So baut man Spannung auf. Chapeau, $announcerName."',
+      '$commentPlayerName: "Niemand glaubt dir mehr, wenn du sagst du hast schlechte Karten."',
+      '$commentPlayerName: "Nächstes Mal einfach gleich spielen – für uns alle."',
+      '$commentPlayerName: "$score Punkte. Ich bin sprachlos. Kurz zumindest."',
     ];
     final rng = Random().nextInt(comments.length);
     return comments[rng];
@@ -802,16 +878,19 @@ class GameProvider extends ChangeNotifier {
     }
     if (available.isEmpty) return;
 
-    // Friseur Solo: KI als Ursprungs-Ansager kann schieben wenn Hand schlecht
+    // Friseur Solo: KI als Ursprungs-Ansager kann schieben wenn Hand schlecht.
+    // Dynamischer Schwellenwert: je mehr Varianten noch offen, desto wählerischer.
     if (_state.gameType == GameType.friseur &&
         _state.soloSchiebungRounds < 2 &&
         _state.trumpSelectorIndex == null) {
-      final score = ModeSelectorAI.bestHeuristicScore(
-        hand: selector.hand,
-        state: _state,
+      final nnThreshold = _friseurSchiebenThreshold(available);
+      final shouldPlay = _shouldPlay(
+        player: selector,
         available: available,
+        nnPlayThreshold: nnThreshold,
+        heuristicThreshold: 105.0,
       );
-      if (score < 105.0) {
+      if (!shouldPlay) {
         Future.delayed(const Duration(milliseconds: 700), () {
           _schiebenSolo();
         });
@@ -865,39 +944,33 @@ class GameProvider extends ChangeNotifier {
 
     // Bei Obenabe: Ass wünschen
     if (mode == GameMode.oben) {
-      final ace = available.firstWhere(
+      return available.firstWhere(
         (c) => c.value == CardValue.ace,
         orElse: () => available.first,
       );
-      return ace;
     }
 
     // Bei Undenufe: Sechs wünschen
     if (mode == GameMode.unten) {
-      final six = available.firstWhere(
+      return available.firstWhere(
         (c) => c.value == CardValue.six,
         orElse: () => available.first,
       );
-      return six;
     }
 
     // Bei Misere: tiefste Karte (6 oder 7) von einer Farbe die man nicht hat
     if (mode == GameMode.misere) {
       final handSuits = selector.hand.map((c) => c.suit).toSet();
-      // Farben die man gar nicht auf der Hand hat → dort 6 oder 7 wünschen
       final missingSuits = Suit.values.where((s) => !handSuits.contains(s)).toList();
       for (final val in [CardValue.six, CardValue.seven]) {
         for (final suit in missingSuits) {
           final card = available.firstWhere(
             (c) => c.suit == suit && c.value == val,
-            orElse: () => available.firstWhere((_) => false, orElse: () => available[0]),
+            orElse: () => available[0],
           );
-          if (available.contains(card) && card.suit == suit && card.value == val) {
-            return card;
-          }
+          if (card.suit == suit && card.value == val) return card;
         }
       }
-      // Fallback: irgendeine Sechs oder Sieben
       for (final val in [CardValue.six, CardValue.seven]) {
         final card = available.firstWhere(
           (c) => c.value == val,
@@ -910,14 +983,11 @@ class GameProvider extends ChangeNotifier {
     }
 
     // Bei Schafkopf: höchste Dame oder 8 wünschen die man nicht hat
-    // (im Schafkopf sind alle 4 Damen und alle 4 Achter Trumpf)
     if (mode == GameMode.schafkopf && trumpSuit != null) {
-      // Suit-Priorität: Trumpffarbe zuerst, dann andere
       final suitOrder = [
         trumpSuit,
         ...Suit.values.where((s) => s != trumpSuit),
       ];
-      // Erst Damen (höchste Schafkopf-Trumpfkarten), dann Achter
       for (final val in [CardValue.queen, CardValue.eight]) {
         for (final suit in suitOrder) {
           final card = available.firstWhere(
@@ -927,12 +997,63 @@ class GameProvider extends ChangeNotifier {
           if (card.suit == suit && card.value == val) return card;
         }
       }
-      // Fallback: höchste Trumpfkarte
       available.shuffle();
       return available.first;
     }
 
-    // Sonstige Modi: zufällige verfügbare Karte
+    // Bei Molotof: 7 oder 8 wünschen (tiefer Kartenwert = wenig Punkte für Gegner)
+    if (mode == GameMode.molotof) {
+      for (final val in [CardValue.seven, CardValue.eight]) {
+        final card = available.firstWhere(
+          (c) => c.value == val,
+          orElse: () => available[0],
+        );
+        if (card.value == val) return card;
+      }
+      available.shuffle();
+      return available.first;
+    }
+
+    // Slalom & Elefant: Ass oder Sechs der Farbe mit den meisten Karten auf der Hand
+    // → wir können diese Farbe anspielen und der Partner gewinnt / deckt ab.
+    if (mode == GameMode.slalom || mode == GameMode.elefant) {
+      final allSuits = selector.hand.first.cardType == CardType.french
+          ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
+          : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
+      final counts = {for (final s in allSuits) s: 0};
+      for (final c in selector.hand) {
+        counts[c.suit] = (counts[c.suit] ?? 0) + 1;
+      }
+      // Farben mit den meisten Karten zuerst
+      final sortedSuits = [...allSuits]
+        ..sort((a, b) => counts[b]!.compareTo(counts[a]!));
+      for (final suit in sortedSuits) {
+        for (final val in [CardValue.ace, CardValue.six]) {
+          final card = available.firstWhere(
+            (c) => c.suit == suit && c.value == val,
+            orElse: () => available[0],
+          );
+          if (card.suit == suit && card.value == val) return card;
+        }
+      }
+      available.shuffle();
+      return available.first;
+    }
+
+    // Alles Trumpf: Buur (stärkste Karte), sonst Näll (9)
+    if (mode == GameMode.allesTrumpf) {
+      for (final val in [CardValue.jack, CardValue.nine]) {
+        final card = available.firstWhere(
+          (c) => c.value == val,
+          orElse: () => available[0],
+        );
+        if (card.value == val) return card;
+      }
+      available.shuffle();
+      return available.first;
+    }
+
+    // Sonstige Modi: zufällig
     available.shuffle();
     return available.first;
   }
@@ -1538,8 +1659,15 @@ class GameProvider extends ChangeNotifier {
     );
     notifyListeners();
 
-    _clearTrickTimer?.cancel();
-    _clearTrickTimer = Timer(const Duration(seconds: 2), clearTrick);
+    // Wyss-Overlay nach dem 1. Stich: kein Auto-Clear, damit das Overlay
+    // seine eigenen 10 Sekunden bekommt. acknowledgeWyssReveal() setzt
+    // wyssDeclarationPending=false; danach tippt der Spieler den Stich weg.
+    final showingWyssOverlay =
+        _state.wyssDeclarationPending && _state.completedTricks.length == 1;
+    if (!showingWyssOverlay) {
+      _clearTrickTimer?.cancel();
+      _clearTrickTimer = Timer(const Duration(seconds: 2), clearTrick);
+    }
   }
 
   // ─── Retrograde Score-Berechnung für Friseur Solo ────────────────────────
