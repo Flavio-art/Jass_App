@@ -144,10 +144,19 @@ class _ModeIndicator extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text('Trumpf', style: TextStyle(color: Colors.amber, fontSize: 10)),
-            Text(
-              trumpSuit!.label(CardType.french),
-              style: const TextStyle(
-                  color: Colors.amber, fontSize: 13, fontWeight: FontWeight.bold),
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Center(
+                child: Text(
+                  trumpSuit!.symbol,
+                  style: const TextStyle(fontSize: 18, color: Colors.black),
+                ),
+              ),
             ),
           ],
         );
@@ -156,11 +165,20 @@ class _ModeIndicator extends StatelessWidget {
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Trumpf ⬆️', style: TextStyle(color: Colors.orange, fontSize: 10)),
-            Text(
-              trumpSuit!.label(CardType.french),
-              style: const TextStyle(
-                  color: Colors.orange, fontSize: 13, fontWeight: FontWeight.bold),
+            const Text('⬆️ Trumpf', style: TextStyle(color: Colors.orange, fontSize: 10)),
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Center(
+                child: Text(
+                  trumpSuit!.symbol,
+                  style: const TextStyle(fontSize: 18, color: Colors.black),
+                ),
+              ),
             ),
           ],
         );
@@ -185,10 +203,19 @@ class _ModeIndicator extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text('Schafkopf 🐑', style: TextStyle(color: Colors.green, fontSize: 10)),
-            Text(
-              trumpSuit!.label(CardType.french),
-              style: const TextStyle(
-                  color: Colors.green, fontSize: 13, fontWeight: FontWeight.bold),
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Center(
+                child: Text(
+                  trumpSuit!.symbol,
+                  style: const TextStyle(fontSize: 18, color: Colors.black),
+                ),
+              ),
             ),
           ],
         );

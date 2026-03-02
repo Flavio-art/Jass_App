@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import '../models/card_model.dart';
@@ -69,6 +70,9 @@ class GameProvider extends ChangeNotifier {
       }
     }
 
+    // Zufälliger Startansager
+    final initialAnsager = Random().nextInt(4);
+
     // Differenzler: zufälligen Trumpf wählen und Vorhersage-Phase starten
     if (gameType == GameType.differenzler) {
       final trumpSuit = _pickRandomTrumpSuit(cardType);
@@ -80,7 +84,7 @@ class GameProvider extends ChangeNotifier {
         gameMode: GameMode.trump,
         trumpSuit: trumpSuit,
         teamScores: const {'team1': 0, 'team2': 0},
-        ansagerIndex: 0,
+        ansagerIndex: initialAnsager,
         totalTeamScores: const {'team1': 0, 'team2': 0},
         playerScores: {for (final p in players) p.id: 0},
         differenzlerPredictions: {for (final p in players) p.id: -1},
@@ -96,7 +100,7 @@ class GameProvider extends ChangeNotifier {
       players: players,
       phase: GamePhase.trumpSelection,
       teamScores: const {'team1': 0, 'team2': 0},
-      ansagerIndex: 0,
+      ansagerIndex: initialAnsager,
       usedVariantsTeam1: const {},
       usedVariantsTeam2: const {},
       totalTeamScores: const {'team1': 0, 'team2': 0},

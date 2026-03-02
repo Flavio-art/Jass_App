@@ -4,6 +4,7 @@ import '../constants/app_colors.dart';
 import '../models/card_model.dart';
 import '../models/game_state.dart';
 import '../providers/game_provider.dart';
+import '../widgets/card_widget.dart';
 import 'game_screen.dart';
 import 'rules_screen.dart';
 
@@ -106,7 +107,21 @@ class _HomeScreenState extends State<HomeScreen> {
                         children: [
                           _GameTypeButton(
                             label: 'Schieber',
-                            emoji: _selectedCardType == CardType.french ? '♥️' : '🌹',
+                            subtitle: 'Der Klassiker',
+                            iconWidget: SizedBox(
+                              width: 38,
+                              height: 52,
+                              child: CardWidget(
+                                card: JassCard(
+                                  suit: _selectedCardType == CardType.french
+                                      ? Suit.hearts
+                                      : Suit.herzGerman,
+                                  value: CardValue.ace,
+                                  cardType: _selectedCardType,
+                                ),
+                                width: 38,
+                              ),
+                            ),
                             selected: _selectedGameType == GameType.schieber,
                             onTap: () => setState(() => _selectedGameType = GameType.schieber),
                           ),
@@ -148,11 +163,56 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                     ),
-                    // ── Schieber: Zielpunkte ─────────────────────────────
+                    // ── Schieber: Spielmodi + Multiplikatoren ────────────
                     if (_selectedGameType == GameType.schieber) ...[
                       const SizedBox(height: 8),
                       const Divider(color: Colors.white12, height: 1),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
+                      SizedBox(
+                        width: 306,
+                        child: Column(
+                          children: [
+                            for (final entry in [
+                              ['♠♣', 'Oben Trumpf', '1×'],
+                              ['♥♦', 'Oben Trumpf', '2×'],
+                              ['⬇️', 'Obenabe', '3×'],
+                              ['⬆️', 'Undenufe', '3×'],
+                              ['〰️', 'Slalom', '4×'],
+                            ])
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 1.5),
+                                child: Row(
+                                  children: [
+                                    Text(
+                                      '${entry[0]}  ${entry[1]}',
+                                      style: const TextStyle(color: Colors.white70, fontSize: 11),
+                                    ),
+                                    const Spacer(),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.gold.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(color: AppColors.gold, width: 1),
+                                      ),
+                                      child: Text(
+                                        entry[2],
+                                        style: const TextStyle(
+                                          color: AppColors.gold,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Divider(color: Colors.white12, height: 1),
+                      const SizedBox(height: 6),
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -234,7 +294,8 @@ class _GameTypeButton extends StatelessWidget {
   final String label;
   final String? subtitle;
   final String? description;
-  final String emoji;
+  final String? emoji;
+  final Widget? iconWidget;
   final bool selected;
   final VoidCallback onTap;
 
@@ -242,7 +303,8 @@ class _GameTypeButton extends StatelessWidget {
     required this.label,
     this.subtitle,
     this.description,
-    required this.emoji,
+    this.emoji,
+    this.iconWidget,
     required this.selected,
     required this.onTap,
   });
@@ -268,7 +330,10 @@ class _GameTypeButton extends StatelessWidget {
         child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text(emoji, style: const TextStyle(fontSize: 22)),
+              if (iconWidget != null)
+                iconWidget!
+              else if (emoji != null)
+                Text(emoji!, style: const TextStyle(fontSize: 22)),
               const SizedBox(height: 3),
               Text(
                 label,

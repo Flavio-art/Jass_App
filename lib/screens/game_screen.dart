@@ -196,6 +196,13 @@ class _GameScreenState extends State<GameScreen> {
                 ? state.currentAnsager.id
                 : null;
 
+            // Ansager-Indikator: zeigt wer den Spielmodus ansagen kann / die Runde gestartet hat
+            final ansagerId = (state.phase == GamePhase.trumpSelection ||
+                    state.phase == GamePhase.prediction ||
+                    state.phase == GamePhase.wishCardSelection)
+                ? state.currentAnsager.id
+                : null;
+
             return Stack(
               children: [
                 // Felt gradient background
@@ -301,6 +308,8 @@ class _GameScreenState extends State<GameScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          if (ansagerId == north.id)
+                            const _AnsagerBadge(),
                           PlayerHandWidget(
                             player: north,
                             isActive:
@@ -355,6 +364,11 @@ class _GameScreenState extends State<GameScreen> {
                                             state.phase == GamePhase.playing,
                                     teamColor: teamColors[west.id],
                                   ),
+                                  if (ansagerId == west.id)
+                                    const Padding(
+                                      padding: EdgeInsets.only(top: 2),
+                                      child: _AnsagerBadge(),
+                                    ),
                                   if (inLochId == west.id)
                                     const Padding(
                                       padding: EdgeInsets.only(top: 2),
@@ -415,6 +429,11 @@ class _GameScreenState extends State<GameScreen> {
                                             state.phase == GamePhase.playing,
                                     teamColor: teamColors[east.id],
                                   ),
+                                  if (ansagerId == east.id)
+                                    const Padding(
+                                      padding: EdgeInsets.only(top: 2),
+                                      child: _AnsagerBadge(),
+                                    ),
                                   if (inLochId == east.id)
                                     const Padding(
                                       padding: EdgeInsets.only(top: 2),
@@ -434,6 +453,13 @@ class _GameScreenState extends State<GameScreen> {
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: _WonPile(wonByPlayer[PlayerPosition.south]!),
+                      ),
+
+                    // ── Ansager-Indikator (South/Human) ─────────────
+                    if (ansagerId == human.id)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 4),
+                        child: _AnsagerBadge(),
                       ),
 
                     // ── Im-Loch Indikator (South/Human) ─────────────
@@ -835,6 +861,32 @@ class _WonPile extends StatelessWidget {
           style: const TextStyle(color: Colors.white38, fontSize: 8),
         ),
       ],
+    );
+  }
+}
+
+// ── Ansager-Badge ──────────────────────────────────────────────────────────────
+
+class _AnsagerBadge extends StatelessWidget {
+  const _AnsagerBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.gold.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.gold, width: 1),
+      ),
+      child: const Text(
+        '★ Ansager',
+        style: TextStyle(
+          color: AppColors.gold,
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
     );
   }
 }
@@ -2589,8 +2641,6 @@ class _DifferenzlerPredictionOverlayState
   @override
   Widget build(BuildContext context) {
     final trump = widget.state.trumpSuit;
-    final human =
-        widget.state.players.firstWhere((p) => p.isHuman);
 
     return Positioned.fill(
       child: Container(
@@ -2618,23 +2668,6 @@ class _DifferenzlerPredictionOverlayState
                 Text(
                   'Trumpf: ${trump?.symbol ?? '?'}',
                   style: const TextStyle(color: Colors.white70, fontSize: 16),
-                ),
-                const SizedBox(height: 16),
-                const Text('Deine Hand:',
-                    style: TextStyle(color: Colors.white54, fontSize: 12)),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 66,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    children: human.hand
-                        .map((c) => Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 2),
-                              child: CardWidget(card: c, width: 40),
-                            ))
-                        .toList(),
-                  ),
                 ),
                 const SizedBox(height: 20),
                 const Text(

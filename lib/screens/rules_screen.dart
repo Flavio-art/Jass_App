@@ -176,7 +176,7 @@ class _RulesScreenState extends State<RulesScreen>
 
         _Section('Vorhersage', [
           _Rule('Bevor die Karten gespielt werden, muss jeder Spieler seine '
-              'erwarteten Stichpunkte voraussagen (0 bis 152).'),
+              'erwarteten Stichpunkte voraussagen (0 bis 157 – inkl. 5 Bonus für den letzten Stich).'),
           _Rule('Der menschliche Spieler wählt seine Vorhersage per Schieberegler. '
               'KI-Spieler schätzen anhand ihrer Handkarten.'),
           _Rule('Die Vorhersagen der anderen Spieler sind während des Spiels nicht sichtbar – '
@@ -239,15 +239,24 @@ class _RulesScreenState extends State<RulesScreen>
   // ── Friseur Solo ──────────────────────────────────────────────────────────────
 
   List<Widget> _buildFriseurSoloContent() => [
-        _Section('Spielstruktur – Friseur Solo', [
+        _Section('Spielstruktur – Wunschkarte', [
           _Rule('Kein festes Team – jeder Spieler spielt grundsätzlich für sich.'),
-          _Rule('Jeder Spieler muss alle 10 Varianten je einmal ansagen (4 × 10 = 40 Runden).'),
-          _Rule('Wunschkarte: Der Ansager wählt eine Wunschkarte. Wer diese Karte hat, ist für diese Runde sein Partner – ohne es preiszugeben.'),
-          _Rule('Sobald die Wunschkarte gespielt wird, ist der Partner aufgedeckt und die Spieler werden farblich markiert.'),
+          _Rule('Jeder Spieler hat eine eigene Liste von 10 Spielvarianten, die er ansagen muss. '
+              'Eine angesagte Variante wird von der eigenen Liste gestrichen.'),
+          _Rule('Wunschkarte: Der Ansager wählt eine Wunschkarte. '
+              'Wer diese Karte hat, ist für diese Runde sein geheimer Partner.'),
+          _Rule('Wichtig – Gewünscht ≠ Angesagt: Wird für dich eine Variante gewünscht '
+              '(du bist Partner), wird diese Variante von deiner Liste gestrichen – '
+              'du kannst sie danach nicht mehr selbst ansagen. '
+              'Du kannst aber erneut für dieselbe Variante gewünscht werden.'),
+          _Rule('Sobald die Wunschkarte gespielt wird, ist der Partner aufgedeckt '
+              'und die Spieler werden farblich markiert.'),
           _Rule('Schieben: Der Ansager kann die Trumpfwahl bis zu 2× weitergeben. '
               'Nach 2× Schieben muss er selbst Trumpf wählen (Im Loch 🕳️).'),
-          _Rule('Punkte: Jeder Spieler sammelt Punkte aus seinen gewonnenen Stichen (unabhängig).'),
-          _Rule('Ziel: Am Ende aller 40 Runden hat der Spieler mit den meisten Punkten gewonnen.'),
+          _Rule('Punkte: Jeder Spieler sammelt Punkte aus seinen gewonnenen Stichen '
+              '(unabhängig vom Partner).'),
+          _Rule('Ziel: Das Spiel endet, wenn alle Spieler ihre verbleibenden Varianten '
+              'angesagt haben. Wer am Ende die meisten Punkte hat, gewinnt.'),
         ]),
         ..._commonRules(),
       ];
