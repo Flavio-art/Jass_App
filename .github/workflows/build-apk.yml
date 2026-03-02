@@ -49,7 +49,7 @@ jobs:
           body: |
             ## Installation auf Android
 
-            1. **app-debug.apk** herunterladen (unten bei *Assets*)
+            1. **app-release.apk** herunterladen (unten bei *Assets*)
             2. Datei auf dem Handy öffnen
             3. „Aus unbekannter Quelle installieren" → **Erlauben**
             4. Installieren und spielen! 🃏
