@@ -141,6 +141,8 @@ class GameState {
   // ─── Schieber ──────────────────────────────────────────────────────────────
   /// Zielpunktzahl (z. B. 1500, 2500, 3500) – das erste Team das diesen Wert erreicht gewinnt.
   final int schieberWinTarget;
+  /// Multiplikatoren pro Variante: {'trump_ss':1, 'trump_re':2, 'oben':3, 'unten':3, 'slalom':4}
+  final Map<String, int> schieberMultipliers;
 
   // ─── Differenzler ──────────────────────────────────────────────────────────
   /// {playerId: vorhergesagte Punkte} – Vorhersagen für aktuelle Runde (-1 = noch nicht vorhergesagt).
@@ -189,6 +191,7 @@ class GameState {
     this.soloSchiebungComment,
     this.playerScores = const {},
     this.schieberWinTarget = 1500,
+    this.schieberMultipliers = const {'trump_ss': 1, 'trump_re': 2, 'oben': 3, 'unten': 3, 'slalom': 4},
     this.differenzlerPredictions = const {},
     this.differenzlerPenalties = const {},
   });
@@ -348,6 +351,7 @@ class GameState {
     Object? soloSchiebungComment = _sentinel,
     Map<String, int>? playerScores,
     int? schieberWinTarget,
+    Map<String, int>? schieberMultipliers,
     Map<String, int>? differenzlerPredictions,
     Map<String, int>? differenzlerPenalties,
   }) {
@@ -396,6 +400,7 @@ class GameState {
           : soloSchiebungComment as String?,
       playerScores: playerScores ?? this.playerScores,
       schieberWinTarget: schieberWinTarget ?? this.schieberWinTarget,
+      schieberMultipliers: schieberMultipliers ?? this.schieberMultipliers,
       differenzlerPredictions: differenzlerPredictions ?? this.differenzlerPredictions,
       differenzlerPenalties: differenzlerPenalties ?? this.differenzlerPenalties,
     );

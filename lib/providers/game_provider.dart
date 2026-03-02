@@ -38,17 +38,20 @@ class GameProvider extends ChangeNotifier {
     required CardType cardType,
     GameType gameType = GameType.friseurTeam,
     int schieberWinTarget = 1500,
+    Map<String, int> schieberMultipliers = const {'trump_ss': 1, 'trump_re': 2, 'oben': 3, 'unten': 3, 'slalom': 4},
   }) {
     _aiRunning = false;
     final deck = Deck(cardType: cardType);
     final hands = deck.deal(4);
 
     // Play order: South(0) → East(1) → North(2) → West(3)
+    // Teamspiele (Schieber, Friseur Team): Partner/Gegner; Einzelspiele: Freund 1/2/3
+    final hasTeams = gameType == GameType.schieber || gameType == GameType.friseurTeam;
     final players = [
-      Player(id: 'p1', name: 'Du',       position: PlayerPosition.south, hand: hands[0]),
-      Player(id: 'p2', name: 'Freund 1', position: PlayerPosition.east,  hand: hands[1]),
-      Player(id: 'p3', name: 'Freund 2', position: PlayerPosition.north, hand: hands[2]),
-      Player(id: 'p4', name: 'Freund 3', position: PlayerPosition.west,  hand: hands[3]),
+      Player(id: 'p1', name: 'Du',                        position: PlayerPosition.south, hand: hands[0]),
+      Player(id: 'p2', name: hasTeams ? 'Gegner 1' : 'Freund 1', position: PlayerPosition.east,  hand: hands[1]),
+      Player(id: 'p3', name: hasTeams ? 'Partner'  : 'Freund 2', position: PlayerPosition.north, hand: hands[2]),
+      Player(id: 'p4', name: hasTeams ? 'Gegner 2' : 'Freund 3', position: PlayerPosition.west,  hand: hands[3]),
     ];
     for (final p in players) { p.sortHand(); }
 
@@ -108,6 +111,7 @@ class GameProvider extends ChangeNotifier {
       friseurAnnouncedVariants: friseurAnnouncedVariants,
       playerScores: {for (final p in players) p.id: 0},
       schieberWinTarget: schieberWinTarget,
+      schieberMultipliers: schieberMultipliers,
     );
     notifyListeners();
 
@@ -117,15 +121,16 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
-  /// Schieber: Punktemultiplikator für den gewählten Spielmodus.
-  /// Schwarz-Trumpf (♠/♣) = 1×, Rot-Trumpf (♥/♦) = 2×, Oben/Unten = 3×, Slalom = 4×.
+  /// Schieber: Punktemultiplikator für den gewählten Spielmodus (aus state.schieberMultipliers).
   int _schieberMultiplier(GameMode mode, Suit? trumpSuit) {
-    if (mode == GameMode.slalom) return 4;
-    if (mode == GameMode.oben || mode == GameMode.unten) return 3;
+    final m = _state.schieberMultipliers;
+    if (mode == GameMode.slalom) return m['slalom'] ?? 4;
+    if (mode == GameMode.oben) return m['oben'] ?? 3;
+    if (mode == GameMode.unten) return m['unten'] ?? 3;
     if (mode == GameMode.trump && trumpSuit != null) {
       final isSchwarz = trumpSuit == Suit.spades || trumpSuit == Suit.clubs ||
           trumpSuit == Suit.schellen || trumpSuit == Suit.schilten;
-      return isSchwarz ? 1 : 2;
+      return isSchwarz ? (m['trump_ss'] ?? 1) : (m['trump_re'] ?? 2);
     }
     return 1;
   }
@@ -336,13 +341,8 @@ class GameProvider extends ChangeNotifier {
   }
 
   void _startNewRoundSchieber(GameState currentState) {
-    // Kumulierte Punkte aus letztem RoundResult (Rohpunkte für Schieber)
+    // totalTeamScores wurde bereits in clearTrick() aktualisiert – kein nochmaliges Hinzufügen.
     final newTotal = Map<String, int>.from(currentState.totalTeamScores);
-    if (currentState.roundHistory.isNotEmpty) {
-      final last = currentState.roundHistory.last;
-      newTotal['team1'] = (newTotal['team1'] ?? 0) + last.team1Score;
-      newTotal['team2'] = (newTotal['team2'] ?? 0) + last.team2Score;
-    }
 
     // Spielende: eines der Teams hat das Ziel erreicht
     if ((newTotal['team1'] ?? 0) >= currentState.schieberWinTarget ||
@@ -773,8 +773,8 @@ class GameProvider extends ChangeNotifier {
 
     List<RoundResult>? newHistory;
     Map<String, Map<String, List<int>>>? newFriseurSoloScores;
-
     Map<String, int>? newDifferenzlerPenalties;
+    Map<String, int>? newTotalTeamScores;
 
     if (roundOver) {
       final rawTeam1 = _state.teamScores['team1'] ?? 0;
@@ -869,6 +869,14 @@ class GameProvider extends ChangeNotifier {
         partnerName: partnerName,
       );
       newHistory = [..._state.roundHistory, result];
+
+      // Schieber: Gesamtstand sofort aktualisieren (für Rundenende-Overlay)
+      if (_state.gameType == GameType.schieber) {
+        newTotalTeamScores = {
+          'team1': (_state.totalTeamScores['team1'] ?? 0) + finalTeam1,
+          'team2': (_state.totalTeamScores['team2'] ?? 0) + finalTeam2,
+        };
+      }
     }
 
     _state = _state.copyWith(
@@ -880,6 +888,7 @@ class GameProvider extends ChangeNotifier {
       roundHistory: newHistory,
       friseurSoloScores: newFriseurSoloScores,
       differenzlerPenalties: newDifferenzlerPenalties,
+      totalTeamScores: newTotalTeamScores,
     );
     notifyListeners();
 
