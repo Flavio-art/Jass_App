@@ -60,18 +60,28 @@ class MonteCarloAI {
       final trumpCards = playable.where((c) => c.suit == trump).toList();
       if (trumpCards.isNotEmpty) {
         final hasJass = trumpCards.any((c) => c.value == CardValue.jack);
+        final jassGone = _jassPlayed(state);
+        final nellGone = _nellPlayed(state);
+
         if (hasJass) {
           // Jass ist unschlagbar → immer als Erster spielen
           return trumpCards.firstWhere((c) => c.value == CardValue.jack);
         }
         final hasNell = trumpCards.any((c) => c.value == CardValue.nine);
         if (hasNell) {
+          if (jassGone) {
+            // Jass bereits gespielt → Nell ist jetzt stärkster Trumpf → direkt spielen
+            return trumpCards.firstWhere((c) => c.value == CardValue.nine);
+          }
           // Nell schonen: niedrigsten anderen Trumpf spielen um den Jass herauszulocken
           final nonNell = trumpCards.where((c) => c.value != CardValue.nine).toList();
           if (nonNell.isNotEmpty) {
             return _weakest(nonNell, state.gameMode, trump);
           }
           // Nur Nell vorhanden → MC entscheidet (führen riskant)
+        } else if (jassGone && nellGone) {
+          // Jass + Nell weg → höchsten verbleibenden Trumpf spielen
+          return _strongest(trumpCards, state.gameMode, trump);
         } else {
           // Trumpfkarten aber kein Jass/Nell → niedrigsten Trumpf spielen
           return _weakest(trumpCards, state.gameMode, trump);
@@ -157,8 +167,7 @@ class MonteCarloAI {
     if (playable.isEmpty) return null;
     if (playable.length == 1) return playable.first;
 
-    // Anspielen: für Diversität zufällig unter den Top-3 Karten wählen.
-    // Gleichmässige Diversität verhindert, dass alle 50 Sims identisch starten.
+    // Anspielen: sichere Führungskarten bevorzugen (Kartenzählen).
     if (state.currentTrickCards.isEmpty) {
       final effectMode = state.effectiveMode;
       final trump = state.trumpSuit;
@@ -167,7 +176,20 @@ class MonteCarloAI {
           state.gameMode == GameMode.misere ||
           state.gameMode == GameMode.molotof;
       if (wantToLose) return _weakest(playable, effectMode, trump);
-      // Sortiere absteigend nach Spielstärke, wähle zufällig aus Top-3
+
+      // Sichere Karten: höchste verbleibende ihrer Farbe → garantiert gewinnen
+      final safeLeads = playable
+          .where((c) => _isHighestRemaining(c, state))
+          .toList();
+      if (safeLeads.isNotEmpty) {
+        // Bevorzuge die sicherste Karte mit dem höchsten Punktwert
+        safeLeads.sort((a, b) =>
+            GameLogic.cardPoints(b, effectMode, trump)
+                .compareTo(GameLogic.cardPoints(a, effectMode, trump)));
+        return safeLeads.first;
+      }
+
+      // Keine sichere Karte → zufällig aus Top-3 für Diversität
       final sorted = List.of(playable)
         ..sort((a, b) => GameLogic.cardPlayStrength(b, effectMode, trump)
             .compareTo(GameLogic.cardPlayStrength(a, effectMode, trump)));
@@ -352,6 +374,47 @@ class MonteCarloAI {
     }
   }
 
+  // ─── Kartenzählen ─────────────────────────────────────────────────────────
+
+  /// Alle bereits gespielten Karten (abgeschlossene Stiche + aktueller Stich).
+  static Set<JassCard> _playedCards(GameState state) {
+    final played = <JassCard>{};
+    for (final trick in state.completedTricks) {
+      played.addAll(trick.cards.values);
+    }
+    played.addAll(state.currentTrickCards);
+    return played;
+  }
+
+  /// Ob der Trumpf-Jass (Buur) bereits gespielt wurde.
+  static bool _jassPlayed(GameState state) {
+    if (state.trumpSuit == null) return false;
+    final played = _playedCards(state);
+    return played.any(
+        (c) => c.suit == state.trumpSuit && c.value == CardValue.jack);
+  }
+
+  /// Ob die Trumpf-Nell (9) bereits gespielt wurde.
+  static bool _nellPlayed(GameState state) {
+    if (state.trumpSuit == null) return false;
+    final played = _playedCards(state);
+    return played.any(
+        (c) => c.suit == state.trumpSuit && c.value == CardValue.nine);
+  }
+
+  /// Ob [card] die aktuell höchste verbleibende Karte ihrer Farbe ist —
+  /// d.h. keine stärkere Karte der gleichen Farbe ist noch bei einem Gegner.
+  static bool _isHighestRemaining(JassCard card, GameState state) {
+    final effectMode = state.effectiveMode;
+    final trump = state.trumpSuit;
+    final myStrength = GameLogic.cardPlayStrength(card, effectMode, trump);
+    // Prüfe alle anderen Spielerhände auf stärkere Karten der gleichen Farbe
+    return !state.players.expand((p) => p.hand).any((c) =>
+        c != card &&
+        c.suit == card.suit &&
+        GameLogic.cardPlayStrength(c, effectMode, trump) > myStrength);
+  }
+
   // ─── Hilfsmethoden ────────────────────────────────────────────────────────
 
   static List<JassCard> _getPlayable(Player player, GameState state) {
@@ -422,8 +485,17 @@ class MonteCarloAI {
       return _weakest(losing.isNotEmpty ? losing : playable, effectMode, trump);
     }
 
-    // Partner gewinnt → billigste Karte wegwerfen (nicht verschwenden)
+    // Partner gewinnt → Schmieren wenn letzter Spieler + Stich sicher
     if (partnerWins) {
+      final isLastInTrick = state.currentTrickCards.length == 3;
+      if (isLastInTrick) {
+        // Letzter Spieler: hohe Punktkarten auf sicheren Partner-Stich werfen
+        final highValue = playable.where((c) =>
+            GameLogic.cardPoints(c, effectMode, trump) >= 10).toList();
+        if (highValue.isNotEmpty) {
+          return _strongest(highValue, effectMode, trump);
+        }
+      }
       return _weakest(playable, effectMode, trump);
     }
 
