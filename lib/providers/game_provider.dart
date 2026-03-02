@@ -516,8 +516,7 @@ class GameProvider extends ChangeNotifier {
 
   /// Ob die KI spielen soll (true) oder schieben (false).
   /// Nutzt NN wenn geladen, sonst Heuristik als Fallback.
-  /// [nnPlayThreshold]: NN-Schwelle (~0.35–0.85 Skala, trainiert auf Punkte/162).
-  /// [heuristicThreshold]: Fallback-Schwelle für Heuristik.
+  /// Spezialvarianten (Elefant/Misere/Schafkopf/Molotof): 20% tiefere Schwelle.
   bool _shouldPlay({
     required Player player,
     required List<String> available,
@@ -529,19 +528,40 @@ class GameProvider extends ChangeNotifier {
       final best = nnScores.reduce((a, b) => a > b ? a : b);
       return best >= nnPlayThreshold;
     }
-    final score = ModeSelectorAI.bestHeuristicScore(
-      hand: player.hand, state: _state, available: available,
-    );
-    return score >= heuristicThreshold;
+    // Heuristik: normale und Spezialvarianten getrennt bewerten
+    const specialVariants = {'elefant', 'misere', 'schafkopf', 'molotof'};
+    final normalAvail  = available.where((v) => !specialVariants.contains(v)).toList();
+    final specialAvail = available.where((v) =>  specialVariants.contains(v)).toList();
+
+    if (normalAvail.isNotEmpty) {
+      final score = ModeSelectorAI.bestHeuristicScore(
+        hand: player.hand, state: _state, available: normalAvail,
+      );
+      if (score >= heuristicThreshold) return true;
+    }
+    if (specialAvail.isNotEmpty) {
+      final score = ModeSelectorAI.bestHeuristicScore(
+        hand: player.hand, state: _state, available: specialAvail,
+      );
+      if (score >= heuristicThreshold * 0.80) return true;
+    }
+    return false;
   }
 
-  /// Dynamischer NN-Schwellenwert für Schieben im Friseur Solo:
-  /// Je mehr Varianten noch verfügbar, desto wählerischer (höherer Schwellenwert).
-  /// Range: 0.60 (letzte Varianten) bis 0.90 (alles noch offen).
-  double _friseurSchiebenThreshold(List<String> available) {
+  /// Dynamischer NN-Schwellenwert für Schieben im Friseur Solo.
+  /// Range: 0.80 (letzte Varianten) bis 0.96 (alles noch offen).
+  double _friseurNNThreshold(List<String> available) {
     const maxVariants = 10;
     final ratio = (available.length / maxVariants).clamp(0.0, 1.0);
-    return 0.60 + 0.30 * ratio; // 0.60 → 0.90
+    return 0.80 + 0.16 * ratio; // 0.80 → 0.96
+  }
+
+  /// Dynamischer Heuristik-Schwellenwert für Schieben im Friseur Solo.
+  /// Range: 100 (letzte Varianten) bis 135 (alles noch offen).
+  double _friseurHeuristicThreshold(List<String> available) {
+    const maxVariants = 10;
+    final ratio = (available.length / maxVariants).clamp(0.0, 1.0);
+    return 100.0 + 35.0 * ratio; // 100 → 135
   }
 
   /// KI entscheidet ob sie schieben oder spielen will.
@@ -558,12 +578,12 @@ class GameProvider extends ChangeNotifier {
         return;
       }
 
-      final nnThreshold = _friseurSchiebenThreshold(available);
+      final nnThreshold = _friseurNNThreshold(available);
       final play = _shouldPlay(
         player: selector,
         available: available,
         nnPlayThreshold:    nnThreshold,
-        heuristicThreshold: 105.0,  // Fallback ohne NN
+        heuristicThreshold: _friseurHeuristicThreshold(available),
       );
 
       if (play) {
@@ -883,12 +903,12 @@ class GameProvider extends ChangeNotifier {
     if (_state.gameType == GameType.friseur &&
         _state.soloSchiebungRounds < 2 &&
         _state.trumpSelectorIndex == null) {
-      final nnThreshold = _friseurSchiebenThreshold(available);
+      final nnThreshold = _friseurNNThreshold(available);
       final shouldPlay = _shouldPlay(
         player: selector,
         available: available,
         nnPlayThreshold: nnThreshold,
-        heuristicThreshold: 105.0,
+        heuristicThreshold: _friseurHeuristicThreshold(available),
       );
       if (!shouldPlay) {
         Future.delayed(const Duration(milliseconds: 700), () {
@@ -940,23 +960,31 @@ class GameProvider extends ChangeNotifier {
       if (hasBuur && hasNaell) {
         // Buur+Näll schon auf der Hand → starke Nebenkarte wünschen
         if (mode == GameMode.trump) {
-          // Trumpf Oben: Ass einer anderen Farbe
-          return available.firstWhere(
-            (c) => c.value == CardValue.ace && c.suit != trumpSuit,
-            orElse: () => available.firstWhere(
-              (c) => c.value == CardValue.ace,
-              orElse: () => available.first,
-            ),
-          );
+          // Trumpf Oben: Ass → Zehner → König einer anderen Farbe
+          for (final val in [CardValue.ace, CardValue.ten, CardValue.king]) {
+            final c = available.firstWhere(
+              (c) => c.value == val && c.suit != trumpSuit,
+              orElse: () => available.firstWhere(
+                (c) => c.value == val,
+                orElse: () => available.first,
+              ),
+            );
+            if (c.value == val) return c;
+          }
+          return available.first;
         } else {
-          // Trumpf Unten: Sechs einer anderen Farbe
-          return available.firstWhere(
-            (c) => c.value == CardValue.six && c.suit != trumpSuit,
-            orElse: () => available.firstWhere(
-              (c) => c.value == CardValue.six,
-              orElse: () => available.first,
-            ),
-          );
+          // Trumpf Unten: Sechs → Sieben → Acht einer anderen Farbe
+          for (final val in [CardValue.six, CardValue.seven, CardValue.eight]) {
+            final c = available.firstWhere(
+              (c) => c.value == val && c.suit != trumpSuit,
+              orElse: () => available.firstWhere(
+                (c) => c.value == val,
+                orElse: () => available.first,
+              ),
+            );
+            if (c.value == val) return c;
+          }
+          return available.first;
         }
       }
 
@@ -1194,6 +1222,16 @@ class GameProvider extends ChangeNotifier {
       playerWyss: updatedWyss,
       wyssWinnerTeam: winner,
       phase: GamePhase.wyss,
+    );
+    notifyListeners();
+  }
+
+  /// Friseur Solo: Wunschkarten-Auswahl abbrechen → zurück zur Spielmodus-Wahl.
+  void cancelWishCardSelection() {
+    if (_state.phase != GamePhase.wishCardSelection) return;
+    _state = _state.copyWith(
+      phase: GamePhase.trumpSelection,
+      trumpSelectorIndex: null,
     );
     notifyListeners();
   }
