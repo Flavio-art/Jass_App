@@ -16,6 +16,8 @@ class TrickAreaWidget extends StatelessWidget {
   final bool slalomStartsOben;
   final VoidCallback? onTap;
   final JassCard? wishCard; // Friseur Solo: öffentliche Wunschkarte
+  final VoidCallback? onWishCardTap; // Tap auf Wunschkarte → Detail-Overlay
+  final bool isSchieber;
 
   const TrickAreaWidget({
     super.key,
@@ -30,6 +32,8 @@ class TrickAreaWidget extends StatelessWidget {
     this.slalomStartsOben = true,
     this.onTap,
     this.wishCard,
+    this.onWishCardTap,
+    this.isSchieber = false,
   });
 
   @override
@@ -55,6 +59,7 @@ class TrickAreaWidget extends StatelessWidget {
                 trumpSuit: trumpSuit,
                 trickNumber: trickNumber,
                 slalomStartsOben: slalomStartsOben,
+                isSchieber: isSchieber,
               ),
             ),
             // Wunschkarte (Friseur Solo) oben links
@@ -62,13 +67,16 @@ class TrickAreaWidget extends StatelessWidget {
               Positioned(
                 top: 6,
                 left: 8,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('🎯',
-                        style: TextStyle(fontSize: 9, color: Colors.white54)),
-                    CardWidget(card: wishCard!, width: 28),
-                  ],
+                child: GestureDetector(
+                  onTap: onWishCardTap,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('🎯',
+                          style: TextStyle(fontSize: 9, color: Colors.white54)),
+                      CardWidget(card: wishCard!, width: 40),
+                    ],
+                  ),
                 ),
               ),
             // Gespielte Karten
@@ -126,6 +134,7 @@ class _ModeIndicator extends StatelessWidget {
   final Suit? trumpSuit;
   final int trickNumber;
   final bool slalomStartsOben;
+  final bool isSchieber;
 
   const _ModeIndicator({
     required this.gameMode,
@@ -133,17 +142,19 @@ class _ModeIndicator extends StatelessWidget {
     required this.trumpSuit,
     required this.trickNumber,
     this.slalomStartsOben = true,
+    this.isSchieber = false,
   });
 
   @override
   Widget build(BuildContext context) {
     switch (gameMode) {
       case GameMode.trump:
+        if (isSchieber) return const SizedBox.shrink();
         if (trumpSuit == null) return const SizedBox.shrink();
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Trumpf', style: TextStyle(color: Colors.amber, fontSize: 10)),
+            const Text('⬇️ Trumpf', style: TextStyle(color: Colors.amber, fontSize: 10)),
             Container(
               width: 28,
               height: 28,
@@ -161,6 +172,7 @@ class _ModeIndicator extends StatelessWidget {
           ],
         );
       case GameMode.trumpUnten:
+        if (isSchieber) return const SizedBox.shrink();
         if (trumpSuit == null) return const SizedBox.shrink();
         return Column(
           mainAxisSize: MainAxisSize.min,

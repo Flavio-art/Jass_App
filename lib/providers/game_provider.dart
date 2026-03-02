@@ -810,12 +810,18 @@ class GameProvider extends ChangeNotifier {
         availableVariants: available,
       );
 
+      // Schieber: Trumpf Unten ist nicht erlaubt → immer Trumpf Oben wählen
+      final finalMode = (_state.gameType == GameType.schieber &&
+              result.mode == GameMode.trumpUnten)
+          ? GameMode.trump
+          : result.mode;
+
       JassCard? wishCard;
       if (_state.gameType == GameType.friseur) {
-        wishCard = _selectKiWishCard(selector, result.mode, result.trumpSuit);
+        wishCard = _selectKiWishCard(selector, finalMode, result.trumpSuit);
       }
 
-      selectGameMode(result.mode,
+      selectGameMode(finalMode,
           trumpSuit: result.trumpSuit,
           slalomStartsOben: result.slalomStartsOben,
           wishCard: wishCard);
@@ -888,29 +894,22 @@ class GameProvider extends ChangeNotifier {
     // Weisen detektieren für Schieber / Friseur Team
     Map<String, List<WyssEntry>> playerWyss = {};
     String? wyssWinner;
+    bool newWyssDeclarationPending = false;
     GamePhase nextPhase;
     if (needsWishCard) {
       nextPhase = GamePhase.wishCardSelection;
-    } else if (_state.gameType == GameType.schieber ||
-        _state.gameType == GameType.friseurTeam) {
-      bool humanHasWyss = false;
+    } else if (_state.gameType == GameType.schieber) {
       for (final p in _state.players) {
         final entries = _detectWyssForPlayer(p.hand, trumpSuit, p.id);
-        if (entries.isNotEmpty) {
-          playerWyss[p.id] = entries;
-          if (p.isHuman) humanHasWyss = true;
-        }
+        if (entries.isNotEmpty) playerWyss[p.id] = entries;
       }
       if (playerWyss.isEmpty) {
         nextPhase = GamePhase.playing;
-      } else if (humanHasWyss) {
-        // Menschlicher Spieler muss entscheiden ob er weisen will
-        nextPhase = GamePhase.wyssDeclaration;
-        // Gewinner noch nicht berechnen (Human hat noch nicht entschieden)
       } else {
-        // Nur KI hat Weisen → Gewinner berechnen und direkt Overlay zeigen
+        // Weisen vorhanden: sofort spielen, Blasen+Auswertung im Spiel
         wyssWinner = _computeWyssWinner(playerWyss, mode);
-        nextPhase = GamePhase.wyss;
+        nextPhase = GamePhase.playing;
+        newWyssDeclarationPending = true;
       }
     } else {
       nextPhase = GamePhase.playing;
@@ -933,11 +932,21 @@ class GameProvider extends ChangeNotifier {
       roundWasImLoch: wasImLoch,
       playerWyss: playerWyss,
       wyssWinnerTeam: wyssWinner,
+      wyssDeclarationPending: newWyssDeclarationPending,
+      wyssResolved: false,
     );
     notifyListeners();
     if (nextPhase == GamePhase.playing) {
       _triggerAiIfNeeded();
     }
+  }
+
+  /// Spieler bestätigt die Weisen-Auswertung nach dem 1. Stich.
+  void acknowledgeWyssReveal() {
+    if (!_state.wyssDeclarationPending) return;
+    _state = _state.copyWith(wyssDeclarationPending: false, wyssResolved: true);
+    notifyListeners();
+    // Bleibt in trickClearPending – Spieler tippt Stichbereich zum Weitermachen.
   }
 
   /// Menschlicher Spieler entscheidet ob er weisen möchte.
