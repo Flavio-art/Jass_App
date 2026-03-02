@@ -878,6 +878,57 @@ class GameProvider extends ChangeNotifier {
       return six;
     }
 
+    // Bei Misere: tiefste Karte (6 oder 7) von einer Farbe die man nicht hat
+    if (mode == GameMode.misere) {
+      final handSuits = selector.hand.map((c) => c.suit).toSet();
+      // Farben die man gar nicht auf der Hand hat → dort 6 oder 7 wünschen
+      final missingSuits = Suit.values.where((s) => !handSuits.contains(s)).toList();
+      for (final val in [CardValue.six, CardValue.seven]) {
+        for (final suit in missingSuits) {
+          final card = available.firstWhere(
+            (c) => c.suit == suit && c.value == val,
+            orElse: () => available.firstWhere((_) => false, orElse: () => available[0]),
+          );
+          if (available.contains(card) && card.suit == suit && card.value == val) {
+            return card;
+          }
+        }
+      }
+      // Fallback: irgendeine Sechs oder Sieben
+      for (final val in [CardValue.six, CardValue.seven]) {
+        final card = available.firstWhere(
+          (c) => c.value == val,
+          orElse: () => available[0],
+        );
+        if (card.value == val) return card;
+      }
+      available.shuffle();
+      return available.first;
+    }
+
+    // Bei Schafkopf: höchste Trumpfkarte wünschen die man nicht hat
+    if (mode == GameMode.schafkopf && trumpSuit != null) {
+      // Reihenfolge: Under → Ass → König → Ober → 10 → 9 → 8 → 7 → 6
+      const order = [
+        CardValue.jack, CardValue.ace, CardValue.king,
+        CardValue.queen, CardValue.ten, CardValue.nine,
+        CardValue.eight, CardValue.seven, CardValue.six,
+      ];
+      for (final val in order) {
+        final card = available.firstWhere(
+          (c) => c.suit == trumpSuit && c.value == val,
+          orElse: () => available[0],
+        );
+        if (card.suit == trumpSuit && card.value == val) return card;
+      }
+      // Fallback: irgendeine Trumpfkarte
+      final anyTrump = available.firstWhere(
+        (c) => c.suit == trumpSuit,
+        orElse: () => available.first,
+      );
+      return anyTrump;
+    }
+
     // Sonstige Modi: zufällige verfügbare Karte
     available.shuffle();
     return available.first;
