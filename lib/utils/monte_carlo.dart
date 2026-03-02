@@ -494,7 +494,7 @@ class MonteCarloAI {
         // (höchste verbleibende ihrer Farbe → Ass, 6, etc. aufbehalten)
         final schmierbar = playable.where((c) {
           final pts = GameLogic.cardPoints(c, effectMode, trump);
-          if (pts < 10) return false; // zu wenig Punkte
+          if (pts < 8) return false; // zu wenig Punkte (8=Achter, 10=Zehner, 11=Ass)
           // Nicht schmieren wenn diese Karte noch Stiche gewinnen kann
           return !_isHighestRemaining(c, state);
         }).toList();
