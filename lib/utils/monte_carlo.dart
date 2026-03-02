@@ -402,17 +402,33 @@ class MonteCarloAI {
         (c) => c.suit == state.trumpSuit && c.value == CardValue.nine);
   }
 
-  /// Ob [card] die aktuell höchste verbleibende Karte ihrer Farbe ist —
-  /// d.h. keine stärkere Karte der gleichen Farbe ist noch bei einem Gegner.
+  /// Ob [card] ein sicherer Stichgewinner ist:
+  /// - Keine stärkere Karte der gleichen Farbe bei anderen Spielern, UND
+  /// - Kein Trumpf mehr bei Gegnern (sonst wird die Karte gestochen).
   static bool _isHighestRemaining(JassCard card, GameState state) {
     final effectMode = state.effectiveMode;
     final trump = state.trumpSuit;
     final myStrength = GameLogic.cardPlayStrength(card, effectMode, trump);
-    // Prüfe alle anderen Spielerhände auf stärkere Karten der gleichen Farbe
-    return !state.players.expand((p) => p.hand).any((c) =>
+
+    // Prüfe ob stärkere gleichfarbige Karte noch vorhanden
+    final beatenBySameSuit = state.players.expand((p) => p.hand).any((c) =>
         c != card &&
         c.suit == card.suit &&
         GameLogic.cardPlayStrength(c, effectMode, trump) > myStrength);
+    if (beatenBySameSuit) return false;
+
+    // Wenn Trumpfmodus aktiv und Karte ist kein Trumpf:
+    // prüfe ob Gegner noch Trumpf haben (dann kann Ass/etc. gestochen werden)
+    if (trump != null &&
+        card.suit != trump &&
+        effectMode != GameMode.oben &&
+        effectMode != GameMode.unten) {
+      final opponentsTrump = state.players.expand((p) => p.hand).any((c) =>
+          c != card && c.suit == trump);
+      if (opponentsTrump) return false; // kann gestochen werden → kein sicherer Gewinner
+    }
+
+    return true;
   }
 
   // ─── Hilfsmethoden ────────────────────────────────────────────────────────
