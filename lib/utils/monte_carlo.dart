@@ -489,11 +489,17 @@ class MonteCarloAI {
     if (partnerWins) {
       final isLastInTrick = state.currentTrickCards.length == 3;
       if (isLastInTrick) {
-        // Letzter Spieler: hohe Punktkarten auf sicheren Partner-Stich werfen
-        final highValue = playable.where((c) =>
-            GameLogic.cardPoints(c, effectMode, trump) >= 10).toList();
-        if (highValue.isNotEmpty) {
-          return _strongest(highValue, effectMode, trump);
+        // Letzter Spieler: hohe Punktkarten auf sicheren Partner-Stich werfen.
+        // NICHT schmieren mit Karten die noch Stiche gewinnen könnten
+        // (höchste verbleibende ihrer Farbe → Ass, 6, etc. aufbehalten)
+        final schmierbar = playable.where((c) {
+          final pts = GameLogic.cardPoints(c, effectMode, trump);
+          if (pts < 10) return false; // zu wenig Punkte
+          // Nicht schmieren wenn diese Karte noch Stiche gewinnen kann
+          return !_isHighestRemaining(c, state);
+        }).toList();
+        if (schmierbar.isNotEmpty) {
+          return _strongest(schmierbar, effectMode, trump);
         }
       }
       return _weakest(playable, effectMode, trump);
