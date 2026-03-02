@@ -27,13 +27,8 @@ class TrumpSelectionScreen extends StatelessWidget {
     // Verfügbare Varianten berechnen
     Set<String> available;
     if (isFriseurSolo) {
-      final allAvail = state.availableVariantsForPlayer(selector.id).toSet();
-      if (forcedTrump) {
-        final trumpOnly = allAvail.where((v) => v.startsWith('trump_')).toSet();
-        available = trumpOnly.isNotEmpty ? trumpOnly : allAvail;
-      } else {
-        available = allAvail;
-      }
+      // Nach 2× Schieben: alle verfügbaren Varianten (kein Trumpfzwang mehr)
+      available = state.availableVariantsForPlayer(selector.id).toSet();
     } else if (state.gameType == GameType.schieber) {
       // Schieber: nur Trumpf Oben (4 Farben), Obenabe, Undenufe, Slalom
       available = const {'trump_ss', 'trump_re', 'oben', 'unten', 'slalom'};
@@ -54,6 +49,7 @@ class TrumpSelectionScreen extends StatelessWidget {
         : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
 
     final human = state.players.firstWhere((p) => p.isHuman);
+    final isSchieber = state.gameType == GameType.schieber;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -156,44 +152,49 @@ class TrumpSelectionScreen extends StatelessWidget {
                       ],
                     )),
                     const SizedBox(height: 8),
+                    // Slalom (+ Elefant wenn nicht Schieber)
                     Expanded(child: Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Expanded(child: _ModeButton(label: 'Slalom', subtitle: 'Oben · Unten · …', emoji: '〰️',
                           color: Colors.purple.shade700, isAvailable: available.contains('slalom'),
                           onTap: () => _pickSlalomDirection(context))),
-                        const SizedBox(width: 8),
-                        Expanded(child: _ModeButton(label: 'Elefant', subtitle: '3× Oben·Unten·Trumpf', emoji: '🐘',
-                          color: Colors.teal.shade700, isAvailable: available.contains('elefant'),
-                          onTap: () => _selectMode(context, GameMode.elefant))),
+                        if (!isSchieber) ...[
+                          const SizedBox(width: 8),
+                          Expanded(child: _ModeButton(label: 'Elefant', subtitle: '3× Oben·Unten·Trumpf', emoji: '🐘',
+                            color: Colors.teal.shade700, isAvailable: available.contains('elefant'),
+                            onTap: () => _selectMode(context, GameMode.elefant))),
+                        ],
                       ],
                     )),
-                    const SizedBox(height: 8),
-                    Expanded(child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(child: _ModeButton(label: 'Misere', subtitle: 'Wenigste Punkte', emoji: '😶',
-                          color: Colors.red.shade900, isAvailable: available.contains('misere'),
-                          onTap: () => _selectMode(context, GameMode.misere))),
-                        const SizedBox(width: 8),
-                        Expanded(child: _ModeButton(label: 'Alles Trumpf', subtitle: 'Nur K·9·B zählen', emoji: '👑',
-                          color: Colors.yellow.shade800, isAvailable: available.contains('allesTrumpf'),
-                          onTap: () => _selectMode(context, GameMode.allesTrumpf))),
-                      ],
-                    )),
-                    const SizedBox(height: 8),
-                    Expanded(child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(child: _ModeButton(label: 'Schafkopf', subtitle: 'D + 8 immer Trumpf', emoji: '🐑',
-                          color: Colors.green.shade800, isAvailable: available.contains('schafkopf'),
-                          onTap: () => _pickSchafkopfTrump(context, suits, cardType))),
-                        const SizedBox(width: 8),
-                        Expanded(child: _ModeButton(label: 'Molotof', subtitle: '6=↓ · A=↑ · Farbe=Trumpf', emoji: '💣',
-                          color: Colors.deepOrange.shade900, isAvailable: available.contains('molotof'),
-                          onTap: () => _selectMode(context, GameMode.molotof))),
-                      ],
-                    )),
+                    if (!isSchieber) ...[
+                      const SizedBox(height: 8),
+                      Expanded(child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(child: _ModeButton(label: 'Misere', subtitle: 'Wenigste Punkte', emoji: '😶',
+                            color: Colors.red.shade900, isAvailable: available.contains('misere'),
+                            onTap: () => _selectMode(context, GameMode.misere))),
+                          const SizedBox(width: 8),
+                          Expanded(child: _ModeButton(label: 'Alles Trumpf', subtitle: 'Nur K·9·B zählen', emoji: '👑',
+                            color: Colors.yellow.shade800, isAvailable: available.contains('allesTrumpf'),
+                            onTap: () => _selectMode(context, GameMode.allesTrumpf))),
+                        ],
+                      )),
+                      const SizedBox(height: 8),
+                      Expanded(child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(child: _ModeButton(label: 'Schafkopf', subtitle: 'D + 8 immer Trumpf', emoji: '🐑',
+                            color: Colors.green.shade800, isAvailable: available.contains('schafkopf'),
+                            onTap: () => _pickSchafkopfTrump(context, suits, cardType))),
+                          const SizedBox(width: 8),
+                          Expanded(child: _ModeButton(label: 'Molotof', subtitle: '6=↓ · A=↑ · Farbe=Trumpf', emoji: '💣',
+                            color: Colors.deepOrange.shade900, isAvailable: available.contains('molotof'),
+                            onTap: () => _selectMode(context, GameMode.molotof))),
+                        ],
+                      )),
+                    ],
                   ],
                 ),
               ),
@@ -290,8 +291,8 @@ class TrumpSelectionScreen extends StatelessWidget {
       bool hasSchieben, bool forcedTrump) {
     if (forcedTrump) {
       return selector.isHuman
-          ? '2× geschoben – Du musst Trumpf wählen!'
-          : '${selector.name} muss Trumpf wählen';
+          ? '2× geschoben – Du musst spielen!'
+          : '${selector.name} muss spielen';
     }
     if (hasSchieben) {
       // Intermediate player (not original announcer)
@@ -315,7 +316,12 @@ class TrumpSelectionScreen extends StatelessWidget {
     final state = context.read<GameProvider>().state;
     final isFriseurSolo = state.gameType == GameType.friseur;
     final isTeam1 = state.isTeam1Ansager;
-    final forced = isFriseurSolo ? null : state.forcedTrumpDirection(isTeam1, variantKey);
+    // Schieber: nur Trumpf Oben verfügbar (forced=true → Unten deaktiviert)
+    final forced = isFriseurSolo
+        ? null
+        : (state.gameType == GameType.schieber
+            ? true
+            : state.forcedTrumpDirection(isTeam1, variantKey));
     final human = state.players.firstWhere((p) => p.isHuman);
 
     Suit? selectedSuit;
@@ -384,7 +390,15 @@ class TrumpSelectionScreen extends StatelessWidget {
                     child: Padding(
                       padding: EdgeInsets.only(right: suit == suits.first ? 10 : 0),
                       child: GestureDetector(
-                        onTap: () => setSheetState(() => selectedSuit = suit),
+                        onTap: () {
+                          if (forced == true) {
+                            // Schieber: immer Oben → sofort wählen ohne Richtungs-Dialog
+                            Navigator.pop(context);
+                            _selectMode(context, GameMode.trump, suit: suit);
+                          } else {
+                            setSheetState(() => selectedSuit = suit);
+                          }
+                        },
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 150),
                           decoration: BoxDecoration(

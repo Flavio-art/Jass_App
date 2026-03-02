@@ -247,6 +247,7 @@ class GameProvider extends ChangeNotifier {
       friseurPartnerJustRevealed: false,
       soloSchiebungRounds: 0,
       soloSchiebungComment: null,
+      stockeComment: null,
       playerScores: {for (final p in updatedPlayers) p.id: 0},
     );
     notifyListeners();
@@ -331,6 +332,7 @@ class GameProvider extends ChangeNotifier {
       friseurAnnouncedVariants: newAnnounced,
       soloSchiebungRounds: 0,
       soloSchiebungComment: null,
+      stockeComment: null,
       playerScores: {for (final p in updatedPlayers) p.id: 0},
     );
     notifyListeners();
@@ -384,6 +386,7 @@ class GameProvider extends ChangeNotifier {
       currentPlayerIndex: newAnsagerIndex,
       molotofSubMode: null,
       slalomStartsOben: true,
+      stockeComment: null,
       playerScores: {for (final p in updatedPlayers) p.id: 0},
     );
     notifyListeners();
@@ -545,8 +548,60 @@ class GameProvider extends ChangeNotifier {
       '$playerName: "Unglaublich. Ich passe auch."',
       '$playerName: "So eine Frechheit! Passe."',
       '$playerName: "Ich glaub ich spinne. Passe."',
+      '$playerName: "Danke für gar nichts. Passe."',
+      '$playerName: "Immer ich... Passe."',
+      '$playerName: "Ich bin doch nicht dein persönlicher Trumpfwähler! Passe."',
+      '$playerName: "Was soll das? Passe."',
+      '$playerName: "Meine Geduld hat Grenzen. Passe."',
+      '$playerName: "Typisch. Ich passe natürlich."',
+      '$playerName: "Wenn das so weitergeht... Passe."',
+      '$playerName: "Ich hab auch keine guten Karten! Passe."',
+      '$playerName: "Weiterleiten ist keine Strategie. Passe."',
+      '$playerName: "Na wunderbar. Passe."',
+      '$playerName: "Herzlichen Glückwunsch zu deiner tollen Hand. Passe."',
+      '$playerName: "Du scherzt wohl. Passe."',
+      '$playerName: "Ich kann auch nicht. Passe."',
+      '$playerName: "Sehr witzig. Passe."',
+      '$playerName: "Das ist doch kein Jass mehr... Passe."',
+      '$playerName: "Schönen Dank auch. Passe."',
+      '$playerName: "Jetzt reicht\'s aber. Passe."',
+      '$playerName: "Ich muss das nicht mitmachen. Passe."',
+      '$playerName: "Schieben ist keine Antwort. Passe."',
     ];
-    final rng = DateTime.now().millisecondsSinceEpoch % comments.length;
+    final rng = Random().nextInt(comments.length);
+    return comments[rng];
+  }
+
+  /// Kommentar eines Gegners nach einer "Im Loch" Runde mit vielen Punkten.
+  String _postImLochComment(String announcerName, int score, String commentPlayerName) {
+    final comments = [
+      '$commentPlayerName: "Du hast ja gute Karten, warum hast du 2× geschoben?"',
+      '$commentPlayerName: "So viel Glück möchte ich auch mal haben."',
+      '$commentPlayerName: "$announcerName, mit solchen Karten hätte ich nicht gezögert."',
+      '$commentPlayerName: "$score Punkte... Und vorhin wolltest du nicht spielen?"',
+      '$commentPlayerName: "Zwei Mal passen und dann $score Punkte. Klassisch."',
+      '$commentPlayerName: "War das ein Test? Wenn ja, nicht bestanden."',
+      '$commentPlayerName: "$announcerName, du hättest von Anfang an spielen sollen."',
+      '$commentPlayerName: "Die Karten waren gut, die Entscheidung weniger."',
+      '$commentPlayerName: "$score Punkte nach 2× Passen. Ich fasse es nicht."',
+      '$commentPlayerName: "Wenn das Strategie war, verstehe ich sie nicht."',
+      '$commentPlayerName: "Du hättest direkt spielen können – alle wären glücklicher gewesen."',
+      '$commentPlayerName: "Na toll. Nächste Runde bin ich Ansager."',
+      '$commentPlayerName: "Das nächste Mal bitte gleich spielen!"',
+      '$commentPlayerName: "Aha, $score Punkte. Und vorhin wollte $announcerName nicht spielen..."',
+      '$commentPlayerName: "Mit solchen Karten hätte ich sofort gespielt."',
+      '$commentPlayerName: "Toll, $score Punkte. Schön dass wir das jetzt wissen."',
+      '$commentPlayerName: "Zwei Mal geschoben... und dann das. Unglaublich."',
+      '$commentPlayerName: "Wann schaust du dir endlich deine Karten an, $announcerName?"',
+      '$commentPlayerName: "Ich dachte du hast schlechte Karten?"',
+      '$commentPlayerName: "So läuft das hier? Dreist."',
+      '$commentPlayerName: "Nächstes Mal spielst du gleich. Versprochen?"',
+      '$commentPlayerName: "$announcerName, ich schäme mich ein bisschen für dich."',
+      '$commentPlayerName: "Lustig. Weiter so."',
+      '$commentPlayerName: "Mich hättest du nicht abwimmeln müssen."',
+      '$commentPlayerName: "Zwei Runden Zögern und dann voller Einsatz. Chapeau."',
+    ];
+    final rng = Random().nextInt(comments.length);
     return comments[rng];
   }
 
@@ -556,22 +611,173 @@ class GameProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Bestätigt das Weisen-Overlay und startet das Spiel.
+  void acknowledgeWyss() {
+    if (_state.phase != GamePhase.wyss) return;
+    _state = _state.copyWith(phase: GamePhase.playing, stockeComment: null);
+    notifyListeners();
+    _triggerAiIfNeeded();
+  }
+
+  /// Löscht die Stöcke-Ankündigung (nach Anzeige in der UI).
+  void clearStockeComment() {
+    if (_state.stockeComment == null) return;
+    _state = _state.copyWith(stockeComment: null);
+    notifyListeners();
+  }
+
+  // ─── Weisen-Logik ────────────────────────────────────────────────────────
+
+  /// Detektiert alle Weisen (Folgen + Vierling) für einen Spieler.
+  List<WyssEntry> _detectWyssForPlayer(
+      List<JassCard> hand, Suit? trumpSuit, String playerId) {
+    final entries = <WyssEntry>[];
+
+    // Vierling (4 gleiche Werte)
+    final valueCounts = <CardValue, int>{};
+    for (final card in hand) {
+      valueCounts[card.value] = (valueCounts[card.value] ?? 0) + 1;
+    }
+    for (final ve in valueCounts.entries) {
+      if (ve.value == 4) {
+        final v = ve.key;
+        final pts = v == CardValue.jack ? 200 : (v == CardValue.nine ? 150 : 100);
+        entries.add(WyssEntry(
+          playerId: playerId,
+          isFourOfAKind: true,
+          points: pts,
+          topValue: v,
+        ));
+      }
+    }
+
+    // Folgen pro Farbe
+    for (final suit in hand.map((c) => c.suit).toSet()) {
+      final suitVals = hand
+          .where((c) => c.suit == suit)
+          .map((c) => c.value)
+          .toList()
+        ..sort((a, b) =>
+            CardValue.values.indexOf(a).compareTo(CardValue.values.indexOf(b)));
+
+      int i = 0;
+      while (i < suitVals.length) {
+        int j = i;
+        while (j + 1 < suitVals.length &&
+            CardValue.values.indexOf(suitVals[j + 1]) ==
+                CardValue.values.indexOf(suitVals[j]) + 1) {
+          j++;
+        }
+        final runLen = j - i + 1;
+        if (runLen >= 3) {
+          final pts = runLen == 3 ? 20 : (runLen == 4 ? 50 : 100);
+          entries.add(WyssEntry(
+            playerId: playerId,
+            isFourOfAKind: false,
+            points: pts,
+            topValue: suitVals[j],
+            suit: suit,
+            isTrumpSuit: suit == trumpSuit,
+          ));
+        }
+        i = j + 1;
+      }
+    }
+
+    return entries;
+  }
+
+  /// Vergleicht zwei WyssEntry-Einträge. Positiv = a ist besser.
+  int _compareWyss(WyssEntry a, WyssEntry b) {
+    if (a.points != b.points) return a.points.compareTo(b.points);
+    if (a.isFourOfAKind != b.isFourOfAKind) return a.isFourOfAKind ? 1 : -1;
+    if (!a.isFourOfAKind) {
+      final aOrd = CardValue.values.indexOf(a.topValue);
+      final bOrd = CardValue.values.indexOf(b.topValue);
+      if (aOrd != bOrd) return aOrd.compareTo(bOrd);
+      if (a.isTrumpSuit != b.isTrumpSuit) return a.isTrumpSuit ? 1 : -1;
+    }
+    return 0;
+  }
+
+  /// Bestimmt welches Team das Weisen gewinnt.
+  /// Bei Gleichstand: höchste Karte (ausser bei Unten-Spielen), dann Spielreihenfolge.
+  String? _computeWyssWinner(
+      Map<String, List<WyssEntry>> playerWyss, GameMode mode) {
+    // Bei Unten-Spielen (Unten, Slalom) gilt Höchste-Karte-Tiebreaker nicht
+    final isUnten = mode == GameMode.unten || mode == GameMode.slalom;
+
+    Player? bestPlayerTeam1;
+    WyssEntry? bestTeam1;
+    Player? bestPlayerTeam2;
+    WyssEntry? bestTeam2;
+
+    for (final player in _state.players) {
+      final entries = playerWyss[player.id];
+      if (entries == null || entries.isEmpty) continue;
+      final best = entries.reduce((a, b) => _compareWyss(a, b) >= 0 ? a : b);
+      final isTeam1 = player.position == PlayerPosition.south ||
+          player.position == PlayerPosition.north;
+      if (isTeam1) {
+        if (bestTeam1 == null || _compareWyss(best, bestTeam1) > 0) {
+          bestTeam1 = best;
+          bestPlayerTeam1 = player;
+        }
+      } else {
+        if (bestTeam2 == null || _compareWyss(best, bestTeam2) > 0) {
+          bestTeam2 = best;
+          bestPlayerTeam2 = player;
+        }
+      }
+    }
+
+    if (bestTeam1 == null && bestTeam2 == null) return null;
+    if (bestTeam1 == null) return 'team2';
+    if (bestTeam2 == null) return 'team1';
+
+    // Vergleich: erst Punkte, dann Höchste Karte (ausser Unten-Spiele)
+    final cmp = _compareWyssForWinner(bestTeam1, bestTeam2, isUnten);
+    if (cmp > 0) return 'team1';
+    if (cmp < 0) return 'team2';
+
+    // Gleichstand: Spielreihenfolge ab Ansager entscheidet
+    final idx1 = _state.players.indexOf(bestPlayerTeam1!);
+    final idx2 = _state.players.indexOf(bestPlayerTeam2!);
+    final order1 = (idx1 - _state.ansagerIndex + 4) % 4;
+    final order2 = (idx2 - _state.ansagerIndex + 4) % 4;
+    return order1 <= order2 ? 'team1' : 'team2';
+  }
+
+  /// Vergleicht zwei WyssEntry für die Team-Entscheidung.
+  /// [ignoreTopCard]: Bei Unten-Spielen wird Höchste-Karte-Tiebreaker übersprungen.
+  int _compareWyssForWinner(WyssEntry a, WyssEntry b, bool ignoreTopCard) {
+    if (a.points != b.points) return a.points.compareTo(b.points);
+    if (a.isFourOfAKind != b.isFourOfAKind) return a.isFourOfAKind ? 1 : -1;
+    if (!a.isFourOfAKind && !ignoreTopCard) {
+      final aOrd = CardValue.values.indexOf(a.topValue);
+      final bOrd = CardValue.values.indexOf(b.topValue);
+      if (aOrd != bOrd) return aOrd.compareTo(bOrd);
+      if (a.isTrumpSuit != b.isTrumpSuit) return a.isTrumpSuit ? 1 : -1;
+    }
+    return 0;
+  }
+
+  /// Summe aller Weisen-Punkte (beide Teams zusammen).
+  int _totalWyssPoints() {
+    return _state.playerWyss.values
+        .expand((entries) => entries)
+        .fold(0, (sum, e) => sum + e.points);
+  }
+
   // ─── KI wählt automatisch einen Spielmodus ───────────────────────────────
 
   void _autoSelectMode() {
     final selector = _state.currentTrumpSelector;
 
-    // Für Friseur Solo: Varianten pro Spieler; ggf. nur Trumpf wenn erzwungen
+    // Für Friseur Solo: Varianten pro Spieler; nach 2× Schieben alle Varianten erlaubt
     final List<String> available;
     if (_state.gameType == GameType.friseur) {
-      final allAvail = _state.availableVariantsForPlayer(selector.id);
-      // Nach 2 Schieben-Runden muss der ursprüngliche Ansager Trumpf wählen
-      if (_state.soloSchiebungRounds >= 2 && _state.trumpSelectorIndex == null) {
-        final trumpOnly = allAvail.where((v) => v.startsWith('trump_')).toList();
-        available = trumpOnly.isNotEmpty ? trumpOnly : allAvail;
-      } else {
-        available = allAvail;
-      }
+      available = _state.availableVariantsForPlayer(selector.id);
     } else if (_state.gameType == GameType.schieber) {
       // Schieber: nur Trumpf Oben (4 Farben), Obenabe, Undenufe, Slalom
       available = const ['trump_ss', 'trump_re', 'oben', 'unten', 'slalom'];
@@ -674,10 +880,46 @@ class GameProvider extends ChangeNotifier {
         _state.players[effectiveAnsagerIndex].isHuman &&
         wishCard == null;
 
+    // Merken ob diese Runde nach 2× Schieben gestartet wird (Im Loch)
+    final wasImLoch = _state.gameType == GameType.friseur &&
+        _state.soloSchiebungRounds >= 2 &&
+        _state.trumpSelectorIndex == null;
+
+    // Weisen detektieren für Schieber / Friseur Team
+    Map<String, List<WyssEntry>> playerWyss = {};
+    String? wyssWinner;
+    GamePhase nextPhase;
+    if (needsWishCard) {
+      nextPhase = GamePhase.wishCardSelection;
+    } else if (_state.gameType == GameType.schieber ||
+        _state.gameType == GameType.friseurTeam) {
+      bool humanHasWyss = false;
+      for (final p in _state.players) {
+        final entries = _detectWyssForPlayer(p.hand, trumpSuit, p.id);
+        if (entries.isNotEmpty) {
+          playerWyss[p.id] = entries;
+          if (p.isHuman) humanHasWyss = true;
+        }
+      }
+      if (playerWyss.isEmpty) {
+        nextPhase = GamePhase.playing;
+      } else if (humanHasWyss) {
+        // Menschlicher Spieler muss entscheiden ob er weisen will
+        nextPhase = GamePhase.wyssDeclaration;
+        // Gewinner noch nicht berechnen (Human hat noch nicht entschieden)
+      } else {
+        // Nur KI hat Weisen → Gewinner berechnen und direkt Overlay zeigen
+        wyssWinner = _computeWyssWinner(playerWyss, mode);
+        nextPhase = GamePhase.wyss;
+      }
+    } else {
+      nextPhase = GamePhase.playing;
+    }
+
     _state = _state.copyWith(
       gameMode: mode,
       trumpSuit: trumpSuit,
-      phase: needsWishCard ? GamePhase.wishCardSelection : GamePhase.playing,
+      phase: nextPhase,
       currentPlayerIndex: effectiveAnsagerIndex,
       ansagerIndex: effectiveAnsagerIndex,
       trumpSelectorIndex: null,
@@ -688,11 +930,47 @@ class GameProvider extends ChangeNotifier {
       friseurPartnerJustRevealed: false,
       soloSchiebungRounds: 0,
       soloSchiebungComment: null,
+      roundWasImLoch: wasImLoch,
+      playerWyss: playerWyss,
+      wyssWinnerTeam: wyssWinner,
     );
     notifyListeners();
-    if (!needsWishCard) {
+    if (nextPhase == GamePhase.playing) {
       _triggerAiIfNeeded();
     }
+  }
+
+  /// Menschlicher Spieler entscheidet ob er weisen möchte.
+  /// [showWyss] = true → Weisen werden angesagt; false → verzichtet.
+  void declareWyss(bool showWyss) {
+    if (_state.phase != GamePhase.wyssDeclaration) return;
+
+    final updatedWyss = Map<String, List<WyssEntry>>.from(_state.playerWyss);
+    if (!showWyss) {
+      // Human verzichtet → aus dem Weis-Vergleich entfernen
+      final human = _state.players.firstWhere((p) => p.isHuman);
+      updatedWyss.remove(human.id);
+    }
+
+    if (updatedWyss.isEmpty) {
+      // Niemand weist → direkt spielen
+      _state = _state.copyWith(
+        playerWyss: updatedWyss,
+        wyssWinnerTeam: null,
+        phase: GamePhase.playing,
+      );
+      notifyListeners();
+      _triggerAiIfNeeded();
+      return;
+    }
+
+    final winner = _computeWyssWinner(updatedWyss, _state.gameMode);
+    _state = _state.copyWith(
+      playerWyss: updatedWyss,
+      wyssWinnerTeam: winner,
+      phase: GamePhase.wyss,
+    );
+    notifyListeners();
   }
 
   /// Friseur Solo: Wunschkarte setzen und Spiel starten.
@@ -775,19 +1053,27 @@ class GameProvider extends ChangeNotifier {
     Map<String, Map<String, List<int>>>? newFriseurSoloScores;
     Map<String, int>? newDifferenzlerPenalties;
     Map<String, int>? newTotalTeamScores;
+    String? postRoundComment;
 
     if (roundOver) {
       final rawTeam1 = _state.teamScores['team1'] ?? 0;
       final rawTeam2 = _state.teamScores['team2'] ?? 0;
 
-      final int finalTeam1;
-      final int finalTeam2;
+      int finalTeam1;
+      int finalTeam2;
+      int roundWyssPoints1 = 0;
+      int roundWyssPoints2 = 0;
 
       if (_state.gameType == GameType.schieber) {
         // Schieber: Rohpunkte × Multiplikator (Match = 257)
         final mult = _schieberMultiplier(_state.gameMode, _state.trumpSuit);
-        finalTeam1 = (rawTeam1 == 157 ? 257 : rawTeam1) * mult;
-        finalTeam2 = (rawTeam2 == 157 ? 257 : rawTeam2) * mult;
+        // Weisen-Punkte werden VOR Multiplikation addiert
+        final wyssBonus1 = _state.wyssWinnerTeam == 'team1' ? _totalWyssPoints() : 0;
+        final wyssBonus2 = _state.wyssWinnerTeam == 'team2' ? _totalWyssPoints() : 0;
+        finalTeam1 = ((rawTeam1 == 157 ? 257 : rawTeam1) + wyssBonus1) * mult;
+        finalTeam2 = ((rawTeam2 == 157 ? 257 : rawTeam2) + wyssBonus2) * mult;
+        roundWyssPoints1 = wyssBonus1 * mult;
+        roundWyssPoints2 = wyssBonus2 * mult;
       } else if (_state.gameType == GameType.differenzler) {
         // Differenzler: individuelle Punkte, Strafen berechnen
         finalTeam1 = rawTeam1;
@@ -817,6 +1103,17 @@ class GameProvider extends ChangeNotifier {
         } else {
           finalTeam1 = rawTeam1 == 157 ? 170 : rawTeam1;
           finalTeam2 = rawTeam2 == 157 ? 170 : rawTeam2;
+        }
+        // Weisen-Punkte nach Berechnung addieren (FriseurTeam, FriseurSolo)
+        if (_state.playerWyss.isNotEmpty && _state.wyssWinnerTeam != null) {
+          final totalW = _totalWyssPoints();
+          if (_state.wyssWinnerTeam == 'team1') {
+            finalTeam1 += totalW;
+            roundWyssPoints1 = totalW;
+          } else {
+            finalTeam2 += totalW;
+            roundWyssPoints2 = totalW;
+          }
         }
       }
 
@@ -854,6 +1151,21 @@ class GameProvider extends ChangeNotifier {
         partnerName = _state.players[partnerIdx].name;
       }
 
+      // Post-Runde "Im Loch" Kommentar: Gegner kommentieren wenn Score > Schwelle
+      if (_state.gameType == GameType.friseur && _state.roundWasImLoch) {
+        final threshold = 80 + Random().nextInt(41); // 80–120
+        if (finalTeam1 > threshold) {
+          final announcerName = _state.players[_state.ansagerIndex].name;
+          final aiOpponents = _state.players
+              .where((p) => !p.isHuman && p.id != _state.players[_state.ansagerIndex].id)
+              .toList();
+          if (aiOpponents.isNotEmpty) {
+            final commentor = aiOpponents[Random().nextInt(aiOpponents.length)];
+            postRoundComment = _postImLochComment(announcerName, finalTeam1, commentor.name);
+          }
+        }
+      }
+
       final result = RoundResult(
         roundNumber: _state.roundNumber,
         variantKey: varKey,
@@ -867,6 +1179,8 @@ class GameProvider extends ChangeNotifier {
         rawTeam2Score: rawTeam2,
         announcerName: _state.players[_state.ansagerIndex].name,
         partnerName: partnerName,
+        wyssPoints1: roundWyssPoints1,
+        wyssPoints2: roundWyssPoints2,
       );
       newHistory = [..._state.roundHistory, result];
 
@@ -889,6 +1203,7 @@ class GameProvider extends ChangeNotifier {
       friseurSoloScores: newFriseurSoloScores,
       differenzlerPenalties: newDifferenzlerPenalties,
       totalTeamScores: newTotalTeamScores,
+      soloSchiebungComment: postRoundComment,
     );
     notifyListeners();
 
@@ -1004,6 +1319,39 @@ class GameProvider extends ChangeNotifier {
         teamScores: retroScores,
         playerScores: _computeIndividualScores(subMode, newTrump),
       );
+    }
+
+    // Stöcke: König + Dame von Trumpffarbe (nur in Trumpf-Spielen)
+    if (_state.trumpSuit != null &&
+        card.suit == _state.trumpSuit &&
+        (card.value == CardValue.king || card.value == CardValue.queen) &&
+        (_state.gameMode == GameMode.trump ||
+            _state.gameMode == GameMode.trumpUnten ||
+            (_state.gameMode == GameMode.elefant &&
+                _state.completedTricks.length >= 6))) {
+      final otherValue =
+          card.value == CardValue.king ? CardValue.queen : CardValue.king;
+      final otherAlreadyPlayed =
+          _state.completedTricks.any((t) => t.cards.values
+              .any((c) => c.suit == _state.trumpSuit && c.value == otherValue)) ||
+          _state.currentTrickCards.any(
+              (c) => c.suit == _state.trumpSuit && c.value == otherValue);
+      if (otherAlreadyPlayed) {
+        final stocker = updatedPlayers.firstWhere((p) => p.id == playerId);
+        final stockeName = stocker.isHuman ? 'Du' : stocker.name;
+        final isTeam1 = _isAnnouncingTeam(stocker);
+        final stockeScores = Map<String, int>.from(_state.teamScores);
+        if (isTeam1) {
+          stockeScores['team1'] = (stockeScores['team1'] ?? 0) + 20;
+        } else {
+          stockeScores['team2'] = (stockeScores['team2'] ?? 0) + 20;
+        }
+        _state = _state.copyWith(
+          teamScores: stockeScores,
+          stockeComment: '$stockeName: Stöcke! +20',
+        );
+        notifyListeners();
+      }
     }
 
     final newTrickCards = [..._state.currentTrickCards, card];
