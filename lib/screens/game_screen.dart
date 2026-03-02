@@ -642,6 +642,12 @@ class _GameScreenState extends State<GameScreen> {
                     state: state,
                     onConfirm: (card) =>
                         context.read<GameProvider>().setWishCard(card),
+                    onBack: () {
+                      context
+                          .read<GameProvider>()
+                          .cancelWishCardSelection();
+                      _showTrumpSelection();
+                    },
                   ),
 
                 // ── Partner aufgedeckt (Friseur Solo) ─────────────────
@@ -1748,8 +1754,10 @@ class _GameEndOverlay extends StatelessWidget {
 class _WishCardOverlay extends StatefulWidget {
   final GameState state;
   final void Function(JassCard) onConfirm;
+  final VoidCallback onBack;
 
-  const _WishCardOverlay({required this.state, required this.onConfirm});
+  const _WishCardOverlay(
+      {required this.state, required this.onConfirm, required this.onBack});
 
   @override
   State<_WishCardOverlay> createState() => _WishCardOverlayState();
@@ -1816,22 +1824,34 @@ class _WishCardOverlayState extends State<_WishCardOverlay> {
             children: [
               // ── Header ─────────────────────────────────────────────
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                padding: const EdgeInsets.fromLTRB(4, 8, 16, 8),
                 child: Column(
                   children: [
-                    const Text(
-                      'Wunschkarte wählen',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.center,
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.arrow_back_ios_new_rounded,
+                              color: Colors.white70, size: 20),
+                          onPressed: widget.onBack,
+                          tooltip: 'Zurück zur Spielauswahl',
+                        ),
+                        const Expanded(
+                          child: Text(
+                            'Wunschkarte wählen',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        const SizedBox(width: 48), // balance for back button
+                      ],
                     ),
                     const SizedBox(height: 4),
                     const Text(
                       'Diese Karte enthüllt deinen Partner',
-                      style:
-                          TextStyle(color: Colors.white54, fontSize: 13),
+                      style: TextStyle(color: Colors.white54, fontSize: 13),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 6),

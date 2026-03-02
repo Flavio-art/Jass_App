@@ -118,8 +118,8 @@ class MonteCarloAI {
       for (int i = 0; i < simulations; i++) {
         // Neue Welt: eigene Hand bleibt, andere Spieler kriegen zufällige Karten
         final world = _sampleWorld(state, aiPlayer.id, voidSuits);
-        final finalScores = _simulate(world, aiPlayer.id, card);
-        total += _scoreFor(finalScores, aiIsTeam1, state);
+        final finalState = _simulate(world, aiPlayer.id, card);
+        total += _scoreFor(finalState, aiIsTeam1, aiPlayer.id);
       }
       final avg = total / simulations;
       if (avg > bestScore) {
@@ -133,34 +133,77 @@ class MonteCarloAI {
 
   // ─── Score-Funktion ────────────────────────────────────────────────────────
 
-  /// Gibt zurück welchen Wert ein Simulation-Ergebnis für das AI-Team hat.
+  /// Gibt zurück welchen Wert ein Simulation-Ergebnis für diesen Spieler hat.
+  /// Friseur Solo vor Partner-Aufdeckung: individuelle Punkte statt Team-Punkte.
   static double _scoreFor(
-    Map<String, int> scores,
+    GameState finalState,
     bool aiIsTeam1,
-    GameState state,
+    String playerId,
   ) {
+    // ── Friseur Solo vor Partner-Aufdeckung ──────────────────────────────────
+    if (finalState.gameType == GameType.friseur &&
+        !finalState.friseurPartnerRevealed) {
+      final announcerId = finalState.players[finalState.ansagerIndex].id;
+      final myPoints = finalState.playerScores[playerId] ?? 0;
+
+      // Partner kennt seine Rolle → maximiert eigene + Ansager-Punkte
+      final partnerId = _friseurPartnerId(finalState);
+      if (partnerId != null && playerId == partnerId) {
+        return (myPoints + (finalState.playerScores[announcerId] ?? 0))
+            .toDouble();
+      }
+      // Alle anderen: eigene Punkte maximieren
+      return myPoints.toDouble();
+    }
+
+    // ── Standard: Team-Punkte ────────────────────────────────────────────────
+    final scores = finalState.teamScores;
     final my = (aiIsTeam1 ? scores['team1'] : scores['team2']) ?? 0;
     final opp = (aiIsTeam1 ? scores['team2'] : scores['team1']) ?? 0;
 
-    switch (state.gameMode) {
+    switch (finalState.gameMode) {
       case GameMode.misere:
-        // Ansager will wenig Punkte; Gegner will viele für den Ansager
-        final iAmAnnouncer = aiIsTeam1 == state.isTeam1Ansager;
+        final iAmAnnouncer = aiIsTeam1 == finalState.isTeam1Ansager;
         return iAmAnnouncer ? -my.toDouble() : opp.toDouble();
       case GameMode.molotof:
-        // Weniger Rohpunkte = höhere Gutschrift (157 − eigene)
         return -my.toDouble();
       default:
         return my.toDouble();
     }
   }
 
+  /// Gibt die ID des Friseur-Solo-Partners zurück (Spieler mit Wunschkarte).
+  static String? _friseurPartnerId(GameState state) {
+    if (state.wishCard == null) return null;
+    final announcerId = state.players[state.ansagerIndex].id;
+    // In Händen suchen (noch nicht gespielt)
+    for (final p in state.players) {
+      if (p.id != announcerId && p.hand.contains(state.wishCard)) return p.id;
+    }
+    // In abgeschlossenen Stichen suchen
+    for (final trick in state.completedTricks) {
+      for (final entry in trick.cards.entries) {
+        if (entry.key != announcerId && entry.value == state.wishCard) {
+          return entry.key;
+        }
+      }
+    }
+    // Im laufenden Stich suchen
+    for (int i = 0; i < state.currentTrickCards.length; i++) {
+      if (state.currentTrickPlayerIds[i] != announcerId &&
+          state.currentTrickCards[i] == state.wishCard) {
+        return state.currentTrickPlayerIds[i];
+      }
+    }
+    return null;
+  }
+
   // ─── Simulation ───────────────────────────────────────────────────────────
 
   /// Spielt [state] (bereits geklont) bis Stich 9 mit der KI-Karte [first].
   /// Jeder Rollout-Schritt wählt via _innerMcCard (nested MC).
-  static Map<String, int> _simulate(
-      GameState state, String aiId, JassCard first) {
+  /// Gibt den finalen GameState zurück (inkl. teamScores + playerScores).
+  static GameState _simulate(GameState state, String aiId, JassCard first) {
     var s = _playCard(state, aiId, first);
 
     while (s.completedTricks.length < 9) {
@@ -171,7 +214,7 @@ class MonteCarloAI {
       s = _playCard(s, player.id, card);
     }
 
-    return s.teamScores;
+    return s;
   }
 
   /// Nested MC für einen einzelnen Rollout-Schritt:
@@ -239,7 +282,7 @@ class MonteCarloAI {
           if (c == null) break;
           s = _playCard(s, p.id, c);
         }
-        total += _scoreFor(s.teamScores, isTeam1, state);
+        total += _scoreFor(s, isTeam1, player.id);
       }
       if (total > best) {
         best = total;
@@ -341,6 +384,10 @@ class MonteCarloAI {
       newScores['team2'] = (newScores['team2'] ?? 0) + points;
     }
 
+    // Individuelle Spieler-Punkte (für Friseur Solo pre-reveal Scoring)
+    final newPlayerScores = Map<String, int>.from(state.playerScores);
+    newPlayerScores[winnerId] = (newPlayerScores[winnerId] ?? 0) + points;
+
     final winnerIdx = newPlayers.indexWhere((p) => p.id == winnerId);
     final newTricks = [
       ...state.completedTricks,
@@ -358,6 +405,7 @@ class MonteCarloAI {
       } else {
         newScores['team2'] = (newScores['team2'] ?? 0) + 5;
       }
+      newPlayerScores[winnerId] = (newPlayerScores[winnerId] ?? 0) + 5;
     }
 
     return state.copyWith(
@@ -367,6 +415,7 @@ class MonteCarloAI {
       currentTrickPlayerIds: [],
       currentPlayerIndex: winnerIdx,
       teamScores: newScores,
+      playerScores: newPlayerScores,
       trumpSuit: newTrump,
     );
   }
@@ -660,9 +709,20 @@ class MonteCarloAI {
     return aT1 == bT1;
   }
 
-  /// Schafkopf: Team-Zuordnung anhand des Trumpf-Ass (dynamisch).
-  /// Ansager + Inhaber des Trumpf-Ass sind ein Team.
+  /// Team-Zuordnung: Schafkopf (Trumpf-Ass) und Friseur Solo (Wunschkarte).
   static bool _sameTeamFor(Player a, Player b, GameState state) {
+    // Friseur Solo vor Partner-Aufdeckung: jeder spielt für sich.
+    // Ausnahme: der Partner kennt seine Rolle und kooperiert mit dem Ansager.
+    if (state.gameType == GameType.friseur && !state.friseurPartnerRevealed) {
+      if (state.wishCard == null) return false;
+      final announcerId = state.players[state.ansagerIndex].id;
+      final partnerId = _friseurPartnerId(state);
+      if (partnerId == null) return false;
+      // Nur Partner+Ansager gelten als Team (vom Partner's Sicht)
+      final aIsTeam = a.id == announcerId || a.id == partnerId;
+      final bIsTeam = b.id == announcerId || b.id == partnerId;
+      return aIsTeam && bIsTeam;
+    }
     if (state.gameMode != GameMode.schafkopf || state.trumpSuit == null) {
       return _sameTeam(a, b);
     }
@@ -793,7 +853,8 @@ class MonteCarloAI {
     double bestScore = double.negativeInfinity;
 
     for (final card in playable) {
-      final score = _minimaxScore(_playCard(state, aiPlayer.id, card), aiIsTeam1);
+      final score = _minimaxScore(
+          _playCard(state, aiPlayer.id, card), aiIsTeam1, aiPlayer.id);
       if (score > bestScore) {
         bestScore = score;
         bestCard = card;
@@ -803,23 +864,24 @@ class MonteCarloAI {
   }
 
   /// Rekursiver Minimax bis Spielende. Jedes Team spielt für sich selbst optimal.
-  static double _minimaxScore(GameState state, bool aiIsTeam1) {
+  static double _minimaxScore(GameState state, bool aiIsTeam1, String aiPlayerId) {
     if (state.completedTricks.length >= 9) {
-      return _scoreFor(state.teamScores, aiIsTeam1, state);
+      return _scoreFor(state, aiIsTeam1, aiPlayerId);
     }
     final player = state.players[state.currentPlayerIndex];
-    if (player.hand.isEmpty) return _scoreFor(state.teamScores, aiIsTeam1, state);
+    if (player.hand.isEmpty) return _scoreFor(state, aiIsTeam1, aiPlayerId);
 
     final isTeam1 = player.position == PlayerPosition.south ||
         player.position == PlayerPosition.north;
     final maximize = isTeam1 == aiIsTeam1;
 
     final playable = _getPlayable(player, state);
-    if (playable.isEmpty) return _scoreFor(state.teamScores, aiIsTeam1, state);
+    if (playable.isEmpty) return _scoreFor(state, aiIsTeam1, aiPlayerId);
 
     double? best;
     for (final card in playable) {
-      final val = _minimaxScore(_playCard(state, player.id, card), aiIsTeam1);
+      final val = _minimaxScore(
+          _playCard(state, player.id, card), aiIsTeam1, aiPlayerId);
       if (best == null || (maximize ? val > best : val < best)) {
         best = val;
       }
