@@ -1612,9 +1612,12 @@ class GameProvider extends ChangeNotifier {
         _state.gameMode == GameMode.elefant && trickNumber <= 6;
     final molotofPreTrump = _state.gameMode == GameMode.molotof &&
         _state.molotofSubMode == null;
+    final pointMode = _state.gameMode == GameMode.slalom
+        ? (_state.slalomStartsOben ? GameMode.oben : GameMode.unten)
+        : effectiveMode;
     final points = (elefantPreTrump || molotofPreTrump)
         ? 0
-        : GameLogic.trickPoints(trickCards, effectiveMode, _state.trumpSuit);
+        : GameLogic.trickPoints(trickCards, pointMode, _state.trumpSuit);
 
     final winnerPlayer = updatedPlayers.firstWhere((p) => p.id == winnerId);
     final isAnnouncingTeam = _isAnnouncingTeam(winnerPlayer);
@@ -1688,7 +1691,6 @@ class GameProvider extends ChangeNotifier {
       final trick = state.completedTricks[i];
       if (trick.winnerId == null) continue;
 
-      final trickNum = trick.trickNumber;
       int pts;
 
       if (state.gameMode == GameMode.elefant) {
@@ -1706,11 +1708,8 @@ class GameProvider extends ChangeNotifier {
               trick.cards.values.toList(), state.molotofSubMode!, state.trumpSuit);
         }
       } else if (state.gameMode == GameMode.slalom) {
-        final isOben = state.slalomStartsOben
-            ? trickNum % 2 == 1
-            : trickNum % 2 == 0;
         pts = GameLogic.trickPoints(trick.cards.values.toList(),
-            isOben ? GameMode.oben : GameMode.unten, null);
+            state.slalomStartsOben ? GameMode.oben : GameMode.unten, null);
       } else if (state.gameMode == GameMode.misere) {
         pts = GameLogic.trickPoints(
             trick.cards.values.toList(), GameMode.oben, null);
