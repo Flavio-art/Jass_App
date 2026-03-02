@@ -1330,8 +1330,9 @@ class GameProvider extends ChangeNotifier {
       );
     }
 
-    // Stöcke: König + Dame von Trumpffarbe (nur in Trumpf-Spielen)
-    if (_state.trumpSuit != null &&
+    // Stöcke: König + Dame von Trumpffarbe (nur im Schieber und nur in Trumpf-Spielen)
+    if (_state.gameType == GameType.schieber &&
+        _state.trumpSuit != null &&
         card.suit == _state.trumpSuit &&
         (card.value == CardValue.king || card.value == CardValue.queen) &&
         (_state.gameMode == GameMode.trump ||
