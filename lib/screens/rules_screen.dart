@@ -72,8 +72,8 @@ class _RulesScreenState extends State<RulesScreen>
         children: [
           _buildScrollable(_buildFriseurTeamContent()),
           _buildScrollable(_buildFriseurSoloContent()),
-          _buildComingSoon('Schieber 🃏'),
-          _buildComingSoon('Differenzler 🎯'),
+          _buildScrollable(_buildSchieberContent()),
+          _buildScrollable(_buildDifferenzlerContent()),
         ],
       ),
     );
@@ -90,25 +90,133 @@ class _RulesScreenState extends State<RulesScreen>
     );
   }
 
-  Widget _buildComingSoon(String name) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Text('🚧', style: TextStyle(fontSize: 56)),
-          const SizedBox(height: 16),
-          Text(name,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          const Text('Kommt bald!',
-              style: TextStyle(color: Colors.white54, fontSize: 16)),
-        ],
-      ),
-    );
-  }
+  // ── Schieber ──────────────────────────────────────────────────────────────────
+
+  List<Widget> _buildSchieberContent() => [
+        _Section('Spielstruktur – Schieber', [
+          _Rule('2 Teams: Süd & Nord gegen West & Ost.'),
+          _Rule('Jede Runde wählt der Ansager einen der 5 Spielmodi. '
+              'Es gibt keine Variantenbeschränkung – jeder Modus kann beliebig oft gespielt werden.'),
+          _Rule('Schieben: Der Ansager kann die Modusauswahl einmalig an den Partner weitergeben. '
+              'Der Partner muss dann wählen.'),
+          _Rule('Der Ansager wechselt jede Runde: Süd → Ost → Nord → West → Süd → …'),
+          _Rule('Gespielt wird bis das erste Team das vereinbarte Punktelimit '
+              '(1500 / 2500 / 3500) erreicht hat.'),
+        ]),
+
+        _Section('Spielvarianten & Multiplikatoren', [
+          _Rule('Nur 5 Varianten sind verfügbar. Jede hat einen Multiplikator '
+              'der auf beide Team-Punkte angewendet wird:'),
+        ]),
+        _MultCard('♠♣  Schaufeln / Kreuz-Trumpf', '1×',
+            'Schwarze Trumpffarbe (Schaufeln oder Kreuz). '
+            'Buur und Näll sind die stärksten Trumpfkarten.'),
+        _MultCard('♥♦  Herz / Ecken-Trumpf', '2×',
+            'Rote Trumpffarbe (Herz oder Ecken). '
+            'Gleiche Regeln wie schwarz, aber doppelte Punkte.'),
+        _MultCard('⬇️  Obenabe', '3×',
+            'Kein Trumpf. Ass gewinnt, Sechs verliert. Achter = 8 Pkt. '
+            'Dreifache Punkte.'),
+        _MultCard('⬆️  Undenufe', '3×',
+            'Kein Trumpf. Sechs gewinnt, Ass verliert. Achter = 8 Pkt. '
+            'Dreifache Punkte.'),
+        _MultCard('〰️  Slalom', '4×',
+            'Abwechselnd Obenabe und Undenufe (1. Stich Obenabe). '
+            'Vierfache Punkte.'),
+
+        _Section('Wertung', [
+          _Rule('Beide Teams erhalten ihre Stichpunkte × Multiplikator – unabhängig davon, wer angesagt hat.'),
+          _Rule('Gesamtpunkte pro Runde: 157 × Multiplikator (152 Kartenwerte + 5 Bonus für letzten Stich).'),
+          _Rule('Match: Gewinnt ein Team alle 9 Stiche, erhält es 257 × Multiplikator Punkte. '
+              'Das andere Team erhält 0.'),
+          _Rule('Punkte werden aufsummiert. Das erste Team das das Limit erreicht oder überschreitet gewinnt sofort.'),
+        ]),
+
+        _Section('Kartenwerte – Trumpfspiel', []),
+        _ValueRow('Buur (Trumpf-Bube J)', '20 Pkt', isHighlight: true),
+        _ValueRow('Näll (Trumpf-Neun 9)', '14 Pkt', isHighlight: true),
+        _ValueRow('Ass A', '11 Pkt'),
+        _ValueRow('Zehner 10', '10 Pkt'),
+        _ValueRow('König K', '4 Pkt'),
+        _ValueRow('Dame Q', '3 Pkt'),
+        _ValueRow('Bube J (kein Trumpf)', '2 Pkt'),
+        _ValueRow('8, 7, 6 (Trumpf) / 9, 8, 7, 6 (andere)', '0 Pkt'),
+
+        _Section('Kartenwerte – Obenabe & Undenufe', []),
+        _ValueRow('Ass A (Obenabe) / Sechs 6 (Undenufe)', '11 Pkt', isHighlight: true),
+        _ValueRow('Zehner 10', '10 Pkt'),
+        _ValueRow('Achter 8', '8 Pkt', isHighlight: true),
+        _ValueRow('König K', '4 Pkt'),
+        _ValueRow('Dame Q', '3 Pkt'),
+        _ValueRow('Bube J', '2 Pkt'),
+        _ValueRow('9, 7 (Obenabe) / Ass, 9, 7 (Undenufe)', '0 Pkt'),
+
+        _Section('Grundregeln', [
+          _Rule('36 Karten (6 bis Ass, 4 Farben), je 9 Karten pro Spieler.'),
+          _Rule('Spielrichtung: Süd → Ost → Nord → West (Uhrzeigersinn).'),
+          _Rule('Farbenpflicht: Man muss die angespielte Farbe bedienen. '
+              'Hat man keine, darf man frei spielen.'),
+          _Rule('Jass zurückhalten: Ist der Buur die einzige Trumpfkarte, muss er nicht gespielt werden.'),
+          _Rule('Wer einen Stich gewinnt, spielt den nächsten an.'),
+        ]),
+
+        const SizedBox(height: 8),
+      ];
+
+  // ── Differenzler ──────────────────────────────────────────────────────────────
+
+  List<Widget> _buildDifferenzlerContent() => [
+        _Section('Spielstruktur – Differenzler', [
+          _Rule('Kein festes Team – alle 4 Spieler spielen für sich.'),
+          _Rule('Gespielt werden 4 Runden. Am Ende gewinnt, wer die '
+              'geringste Gesamtstrafe angesammelt hat.'),
+          _Rule('Jede Runde wird ein zufälliger Trumpf bestimmt. '
+              'Kein Schieben, keine Modusauswahl.'),
+        ]),
+
+        _Section('Vorhersage', [
+          _Rule('Bevor die Karten gespielt werden, muss jeder Spieler seine '
+              'erwarteten Stichpunkte voraussagen (0 bis 152).'),
+          _Rule('Der menschliche Spieler wählt seine Vorhersage per Schieberegler. '
+              'KI-Spieler schätzen anhand ihrer Handkarten.'),
+          _Rule('Die Vorhersagen der anderen Spieler sind während des Spiels nicht sichtbar – '
+              'jeder sieht nur seine eigenen Punkte.'),
+        ]),
+
+        _Section('Wertung & Strafe', [
+          _Rule('Nach jeder Runde: Strafe = |Vorhersage − tatsächliche Stichpunkte|.'),
+          _Rule('Je genauer die Vorhersage, desto kleiner die Strafe. '
+              'Eine perfekte Vorhersage ergibt 0 Strafe.'),
+          _Rule('Die Rundenstraf-Punkte werden über alle 4 Runden aufsummiert.'),
+          _Rule('Nach jeder Runde erscheint eine Übersicht aller Spieler:\n'
+              'Vorhersage (Ziel) · Ist-Punkte · Differenz diese Runde · Gesamtstrafe.'),
+          _Rule('Nach der 4. Runde gewinnt der Spieler mit der kleinsten Gesamtstrafe.'),
+        ]),
+
+        _Section('Kartenwerte – Trumpfspiel', [
+          _Rule('Da jede Runde Trumpf gespielt wird, gelten die Standard-Trumpfwerte:'),
+        ]),
+        _ValueRow('Buur (Trumpf-Bube J)', '20 Pkt', isHighlight: true),
+        _ValueRow('Näll (Trumpf-Neun 9)', '14 Pkt', isHighlight: true),
+        _ValueRow('Ass A', '11 Pkt'),
+        _ValueRow('Zehner 10', '10 Pkt'),
+        _ValueRow('König K', '4 Pkt'),
+        _ValueRow('Dame Q', '3 Pkt'),
+        _ValueRow('Bube J (kein Trumpf)', '2 Pkt'),
+        _ValueRow('8, 7, 6 (Trumpf) / 9, 8, 7, 6 (andere)', '0 Pkt'),
+
+        _Section('Grundregeln', [
+          _Rule('36 Karten (6 bis Ass, 4 Farben), je 9 Karten pro Spieler.'),
+          _Rule('Spielrichtung: Süd → Ost → Nord → West (Uhrzeigersinn).'),
+          _Rule('Farbenpflicht: Man muss die angespielte Farbe bedienen. '
+              'Hat man keine, darf man frei spielen.'),
+          _Rule('Jass zurückhalten: Ist der Buur die einzige Trumpfkarte, muss er nicht gespielt werden.'),
+          _Rule('Letzter Stich: +5 Bonuspunkte für den Gewinner. '
+              'Gesamtpunkte pro Runde: 157.'),
+        ]),
+
+        const SizedBox(height: 8),
+      ];
 
   // ── Friseur Team ─────────────────────────────────────────────────────────────
 
@@ -330,6 +438,63 @@ class _ValueRow extends StatelessWidget {
                   fontSize: 14,
                   fontWeight:
                       isHighlight ? FontWeight.bold : FontWeight.normal)),
+        ],
+      ),
+    );
+  }
+}
+
+class _MultCard extends StatelessWidget {
+  final String title;
+  final String multiplier;
+  final String description;
+  const _MultCard(this.title, this.multiplier, this.description);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14)),
+                const SizedBox(height: 4),
+                Text(description,
+                    style: const TextStyle(
+                        color: Colors.white60, fontSize: 12, height: 1.4)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.gold.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.gold.withValues(alpha: 0.5)),
+            ),
+            child: Text(
+              multiplier,
+              style: const TextStyle(
+                  color: AppColors.gold,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15),
+            ),
+          ),
         ],
       ),
     );
