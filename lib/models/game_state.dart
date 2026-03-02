@@ -4,8 +4,10 @@ import 'player.dart';
 enum GamePhase {
   setup,
   trumpSelection,
-  wishCardSelection, // Friseur Solo: nach Moduswahl, vor Wunschkarte
-  prediction,        // Differenzler: Vorhersage-Phase vor dem Spielen
+  wishCardSelection,  // Friseur Solo: nach Moduswahl, vor Wunschkarte
+  wyssDeclaration,    // Menschlicher Spieler entscheidet ob er weisen will
+  wyss,               // Weisen-Vergleich-Overlay (nach Entscheid)
+  prediction,         // Differenzler: Vorhersage-Phase vor dem Spielen
   playing,
   trickClearPending,
   roundEnd,
@@ -45,6 +47,10 @@ class RoundResult {
   final int rawTeam2Score;
   final String announcerName; // Anzeige in Spielübersicht
   final String? partnerName;  // Partner des Ansagers (null = unbekannt)
+  /// Wyss-Punkte (inkl. Multiplikator) die Team 1 erhalten hat (0 wenn Team 2 gewonnen hat).
+  final int wyssPoints1;
+  /// Wyss-Punkte (inkl. Multiplikator) die Team 2 erhalten hat (0 wenn Team 1 gewonnen hat).
+  final int wyssPoints2;
 
   const RoundResult({
     required this.roundNumber,
@@ -57,6 +63,8 @@ class RoundResult {
     required this.rawTeam2Score,
     required this.announcerName,
     this.partnerName,
+    this.wyssPoints1 = 0,
+    this.wyssPoints2 = 0,
   });
 
   /// Lesbare Bezeichnung des Spielmodus für die Tabelle
@@ -75,6 +83,51 @@ class RoundResult {
       case 'schafkopf':   return 'Schafkopf 🐑';
       case 'molotof':     return 'Molotof 💣';
       default: return variantKey;
+    }
+  }
+}
+
+// ─── Weisen-Eintrag ───────────────────────────────────────────────────────────
+
+class WyssEntry {
+  final String playerId;
+  final bool isFourOfAKind;
+  final int points;        // 20=Dreierfolge, 50=Quart, 100=Quinte/Vierling, 150=Vierling 9, 200=Vierling Bube
+  final CardValue topValue; // Höchste Karte der Folge / Wert des Vierlings
+  final Suit? suit;         // Nur für Folgen (nicht Vierling)
+  final bool isTrumpSuit;   // Folge in der Trumpffarbe
+
+  const WyssEntry({
+    required this.playerId,
+    required this.isFourOfAKind,
+    required this.points,
+    required this.topValue,
+    this.suit,
+    this.isTrumpSuit = false,
+  });
+
+  String get typeName {
+    if (isFourOfAKind) {
+      if (points == 200) return 'Vierling Under';
+      if (points == 150) return 'Vierling Neun';
+      return 'Vierling';
+    }
+    if (points == 20) return 'Dreierfolge';
+    if (points == 50) return 'Quart';
+    return 'Quinte';
+  }
+
+  String get topValueName {
+    switch (topValue) {
+      case CardValue.six:   return '6';
+      case CardValue.seven: return '7';
+      case CardValue.eight: return '8';
+      case CardValue.nine:  return '9';
+      case CardValue.ten:   return '10';
+      case CardValue.jack:  return 'U';
+      case CardValue.queen: return 'O';
+      case CardValue.king:  return 'K';
+      case CardValue.ace:   return 'A';
     }
   }
 }
@@ -152,10 +205,26 @@ class GameState {
 
   // ─── Friseur Solo Schieben ─────────────────────────────────────────────────
   /// Wie oft der ursprüngliche Ansager bereits vollständig geschoben hat.
-  /// 0 = noch nie, 1 = einmal (Mitspieler können annehmen), 2 = erzwungener Trumpf.
+  /// 0 = noch nie, 1 = einmal (Mitspieler können annehmen), 2 = erzwungen.
   final int soloSchiebungRounds;
   /// Kommentar eines KI-Spielers der genervt ist (2. Schieben-Runde).
   final String? soloSchiebungComment;
+  /// Ob die aktuelle Runde nach 2× Schieben (Im Loch) gestartet wurde.
+  final bool roundWasImLoch;
+
+  // ─── Weisen ────────────────────────────────────────────────────────────────
+  /// {playerId: [WyssEntry]} – detektierte Weisen aller Spieler (aktuelle Runde).
+  final Map<String, List<WyssEntry>> playerWyss;
+  /// 'team1' oder 'team2' oder null – welches Team das Weisen gewonnen hat.
+  final String? wyssWinnerTeam;
+  /// true = menschlicher Spieler muss noch entscheiden ob er weisen will.
+  final bool wyssDeclarationPending;
+  /// true = Weis-Punkte wurden bereits dem teamScores hinzugefügt (nach 1. Stich).
+  final bool wyssResolved;
+
+  // ─── Stöcke ────────────────────────────────────────────────────────────────
+  /// Ankündigung für die UI wenn Dame + König von Trumpf beide gespielt wurden.
+  final String? stockeComment;
 
   const GameState({
     required this.cardType,
@@ -189,6 +258,12 @@ class GameState {
     this.friseurAnnouncedVariants = const {},
     this.soloSchiebungRounds = 0,
     this.soloSchiebungComment,
+    this.roundWasImLoch = false,
+    this.playerWyss = const {},
+    this.wyssWinnerTeam,
+    this.wyssDeclarationPending = false,
+    this.wyssResolved = false,
+    this.stockeComment,
     this.playerScores = const {},
     this.schieberWinTarget = 1500,
     this.schieberMultipliers = const {'trump_ss': 1, 'trump_re': 2, 'oben': 3, 'unten': 3, 'slalom': 4},
@@ -349,6 +424,12 @@ class GameState {
     Map<String, Set<String>>? friseurAnnouncedVariants,
     int? soloSchiebungRounds,
     Object? soloSchiebungComment = _sentinel,
+    bool? roundWasImLoch,
+    Map<String, List<WyssEntry>>? playerWyss,
+    Object? wyssWinnerTeam = _sentinel,
+    bool? wyssDeclarationPending,
+    bool? wyssResolved,
+    Object? stockeComment = _sentinel,
     Map<String, int>? playerScores,
     int? schieberWinTarget,
     Map<String, int>? schieberMultipliers,
@@ -398,6 +479,16 @@ class GameState {
       soloSchiebungComment: soloSchiebungComment == _sentinel
           ? this.soloSchiebungComment
           : soloSchiebungComment as String?,
+      roundWasImLoch: roundWasImLoch ?? this.roundWasImLoch,
+      playerWyss: playerWyss ?? this.playerWyss,
+      wyssWinnerTeam: wyssWinnerTeam == _sentinel
+          ? this.wyssWinnerTeam
+          : wyssWinnerTeam as String?,
+      wyssDeclarationPending: wyssDeclarationPending ?? this.wyssDeclarationPending,
+      wyssResolved: wyssResolved ?? this.wyssResolved,
+      stockeComment: stockeComment == _sentinel
+          ? this.stockeComment
+          : stockeComment as String?,
       playerScores: playerScores ?? this.playerScores,
       schieberWinTarget: schieberWinTarget ?? this.schieberWinTarget,
       schieberMultipliers: schieberMultipliers ?? this.schieberMultipliers,
