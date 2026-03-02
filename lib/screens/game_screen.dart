@@ -196,10 +196,12 @@ class _GameScreenState extends State<GameScreen> {
                 ? state.currentAnsager.id
                 : null;
 
-            // Ansager-Indikator: zeigt wer den Spielmodus ansagen kann / die Runde gestartet hat
+            // Ansager-Indikator: zeigt wer den Trumpf angesagt hat / ansagen kann
             final ansagerId = (state.phase == GamePhase.trumpSelection ||
                     state.phase == GamePhase.prediction ||
-                    state.phase == GamePhase.wishCardSelection)
+                    state.phase == GamePhase.wishCardSelection ||
+                    state.phase == GamePhase.playing ||
+                    state.phase == GamePhase.trickClearPending)
                 ? state.currentAnsager.id
                 : null;
 
@@ -736,6 +738,7 @@ class _GameScreenState extends State<GameScreen> {
                                 cardType: state.cardType,
                                 gameType: GameType.schieber,
                                 schieberWinTarget: state.schieberWinTarget,
+                                schieberMultipliers: state.schieberMultipliers,
                               ),
                               onHome: () => Navigator.pop(context),
                             )

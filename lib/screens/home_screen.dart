@@ -19,248 +19,282 @@ class _HomeScreenState extends State<HomeScreen> {
   CardType _selectedCardType = CardType.french;
   GameType _selectedGameType = GameType.friseurTeam;
   int _schieberWinTarget = 1500;
+  final Map<String, int> _schieberMultipliers = {
+    'trump_ss': 1,
+    'trump_re': 2,
+    'oben': 3,
+    'unten': 3,
+    'slalom': 4,
+  };
+
+  static const _modeKeys  = ['trump_ss', 'trump_re', 'oben',     'unten',     'slalom'];
+  static const _modeIcons = ['♠♣',       '♥♦',       '⬇️',       '⬆️',        '〰️'];
+  static const _modeNames = ['Trumpf Schwarz', 'Trumpf Rot', 'Obenabe', 'Undenufe', 'Slalom'];
+
+  void _editMultiplier(String key, String label) async {
+    final result = await showDialog<int>(
+      context: context,
+      builder: (ctx) => _MultiplierDialog(
+        label: label,
+        initial: _schieberMultipliers[key]!,
+      ),
+    );
+    if (result != null) setState(() => _schieberMultipliers[key] = result);
+  }
 
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.of(context).viewPadding.bottom;
+    final topPad  = MediaQuery.of(context).viewPadding.top;
+    final screenH = MediaQuery.of(context).size.height;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         bottom: false,
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // ── Titel ──────────────────────────────────────────────────
-              const Text(
-                'JASS',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 52,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 12,
-                ),
-              ),
-              const SizedBox(height: 14),
-
-              // ── Kartenart ──────────────────────────────────────────────
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.black26,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('Kartenart wählen',
-                        style: TextStyle(color: Colors.white70, fontSize: 13)),
-                    const SizedBox(height: 8),
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _CardTypeButton(
-                            label: 'Französisch',
-                            suits: const [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs],
-                            cardType: CardType.french,
-                            subtitle: 'Schaufeln · Herz\nEcken · Kreuz',
-                            selected: _selectedCardType == CardType.french,
-                            onTap: () => setState(() => _selectedCardType = CardType.french),
-                          ),
-                          const SizedBox(width: 10),
-                          _CardTypeButton(
-                            label: 'Deutsch',
-                            suits: const [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten],
-                            cardType: CardType.german,
-                            subtitle: 'Schellen · Rosen\nEichel · Schilten',
-                            selected: _selectedCardType == CardType.german,
-                            onTap: () => setState(() => _selectedCardType = CardType.german),
-                          ),
-                        ],
-                      ),
+        child: SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: screenH - topPad),
+            child: IntrinsicHeight(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // ── Titel ──────────────────────────────────────────────────
+                  const Text(
+                    'JASS',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 52,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 12,
                     ),
-                  ],
-                ),
-              ),
+                  ),
+                  const SizedBox(height: 14),
 
-              const SizedBox(height: 8),
-
-              // ── Spielmodus ─────────────────────────────────────────────
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.black26,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('Spielmodus wählen',
-                        style: TextStyle(color: Colors.white70, fontSize: 13)),
-                    const SizedBox(height: 8),
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _GameTypeButton(
-                            label: 'Schieber',
-                            subtitle: 'Der Klassiker',
-                            iconWidget: SizedBox(
-                              width: 38,
-                              height: 52,
-                              child: CardWidget(
-                                card: JassCard(
-                                  suit: _selectedCardType == CardType.french
-                                      ? Suit.hearts
-                                      : Suit.herzGerman,
-                                  value: CardValue.ace,
-                                  cardType: _selectedCardType,
-                                ),
-                                width: 38,
+                  // ── Kartenart ──────────────────────────────────────────────
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.black26,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('Kartenart wählen',
+                            style: TextStyle(color: Colors.white70, fontSize: 13)),
+                        const SizedBox(height: 8),
+                        IntrinsicHeight(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _CardTypeButton(
+                                label: 'Französisch',
+                                suits: const [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs],
+                                cardType: CardType.french,
+                                subtitle: 'Schaufeln · Herz\nEcken · Kreuz',
+                                selected: _selectedCardType == CardType.french,
+                                onTap: () => setState(() => _selectedCardType = CardType.french),
                               ),
-                            ),
-                            selected: _selectedGameType == GameType.schieber,
-                            onTap: () => setState(() => _selectedGameType = GameType.schieber),
-                          ),
-                          const SizedBox(width: 10),
-                          _GameTypeButton(
-                            label: 'Differenzler',
-                            subtitle: '4 Runden',
-                            description: 'Vorhersage · Strafe · 4 Runden',
-                            emoji: '🎯',
-                            selected: _selectedGameType == GameType.differenzler,
-                            onTap: () => setState(() => _selectedGameType = GameType.differenzler),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _GameTypeButton(
-                            label: 'Friseur',
-                            subtitle: 'Team',
-                            description: '2 Teams · 20 Runden · Schieben',
-                            emoji: '✂️',
-                            selected: _selectedGameType == GameType.friseurTeam,
-                            onTap: () => setState(() => _selectedGameType = GameType.friseurTeam),
-                          ),
-                          const SizedBox(width: 10),
-                          _GameTypeButton(
-                            label: 'Wunschkarte',
-                            subtitle: 'Champions League',
-                            description: 'Wunschkarte · Jeder für sich',
-                            emoji: '🎴',
-                            selected: _selectedGameType == GameType.friseur,
-                            onTap: () => setState(() => _selectedGameType = GameType.friseur),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // ── Schieber: Spielmodi + Multiplikatoren ────────────
-                    if (_selectedGameType == GameType.schieber) ...[
-                      const SizedBox(height: 8),
-                      const Divider(color: Colors.white12, height: 1),
-                      const SizedBox(height: 6),
-                      SizedBox(
-                        width: 306,
-                        child: Column(
-                          children: [
-                            for (final entry in [
-                              ['♠♣', 'Oben Trumpf', '1×'],
-                              ['♥♦', 'Oben Trumpf', '2×'],
-                              ['⬇️', 'Obenabe', '3×'],
-                              ['⬆️', 'Undenufe', '3×'],
-                              ['〰️', 'Slalom', '4×'],
-                            ])
-                              Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 1.5),
-                                child: Row(
-                                  children: [
-                                    Text(
-                                      '${entry[0]}  ${entry[1]}',
-                                      style: const TextStyle(color: Colors.white70, fontSize: 11),
-                                    ),
-                                    const Spacer(),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.gold.withValues(alpha: 0.15),
-                                        borderRadius: BorderRadius.circular(4),
-                                        border: Border.all(color: AppColors.gold, width: 1),
-                                      ),
-                                      child: Text(
-                                        entry[2],
-                                        style: const TextStyle(
-                                          color: AppColors.gold,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                              const SizedBox(width: 10),
+                              _CardTypeButton(
+                                label: 'Deutsch',
+                                suits: const [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten],
+                                cardType: CardType.german,
+                                subtitle: 'Schellen · Rosen\nEichel · Schilten',
+                                selected: _selectedCardType == CardType.german,
+                                onTap: () => setState(() => _selectedCardType = CardType.german),
                               ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 6),
-                      const Divider(color: Colors.white12, height: 1),
-                      const SizedBox(height: 6),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text('Ziel:',
-                              style: TextStyle(color: Colors.white54, fontSize: 12)),
-                          const SizedBox(width: 8),
-                          for (final target in [1500, 2500, 3500]) ...[
-                            if (target != 1500) const SizedBox(width: 6),
-                            _TargetButton(
-                              label: '$target',
-                              selected: _schieberWinTarget == target,
-                              onTap: () => setState(() => _schieberWinTarget = target),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  // ── Spielmodus ─────────────────────────────────────────────
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.black26,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('Spielmodus wählen',
+                            style: TextStyle(color: Colors.white70, fontSize: 13)),
+                        const SizedBox(height: 8),
+                        IntrinsicHeight(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _GameTypeButton(
+                                label: 'Schieber',
+                                subtitle: 'Der Klassiker',
+                                iconWidget: SizedBox(
+                                  width: 38,
+                                  height: 52,
+                                  child: CardWidget(
+                                    card: JassCard(
+                                      suit: _selectedCardType == CardType.french
+                                          ? Suit.hearts
+                                          : Suit.herzGerman,
+                                      value: CardValue.ace,
+                                      cardType: _selectedCardType,
+                                    ),
+                                    width: 38,
+                                  ),
+                                ),
+                                selected: _selectedGameType == GameType.schieber,
+                                onTap: () => setState(() => _selectedGameType = GameType.schieber),
+                              ),
+                              const SizedBox(width: 10),
+                              _GameTypeButton(
+                                label: 'Differenzler',
+                                subtitle: '4 Runden',
+                                description: 'Vorhersage · Strafe · 4 Runden',
+                                emoji: '🎯',
+                                selected: _selectedGameType == GameType.differenzler,
+                                onTap: () => setState(() => _selectedGameType = GameType.differenzler),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        IntrinsicHeight(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _GameTypeButton(
+                                label: 'Friseur',
+                                subtitle: 'Team',
+                                description: '2 Teams · 20 Runden · Schieben',
+                                emoji: '✂️',
+                                selected: _selectedGameType == GameType.friseurTeam,
+                                onTap: () => setState(() => _selectedGameType = GameType.friseurTeam),
+                              ),
+                              const SizedBox(width: 10),
+                              _GameTypeButton(
+                                label: 'Wunschkarte',
+                                subtitle: 'Champions League',
+                                description: 'Wunschkarte · Jeder für sich',
+                                emoji: '🎴',
+                                selected: _selectedGameType == GameType.friseur,
+                                onTap: () => setState(() => _selectedGameType = GameType.friseur),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // ── Schieber: Spielmodi + Multiplikatoren ────────────
+                        if (_selectedGameType == GameType.schieber) ...[
+                          const SizedBox(height: 8),
+                          const Divider(color: Colors.white12, height: 1),
+                          const SizedBox(height: 6),
+                          SizedBox(
+                            width: 306,
+                            child: Column(
+                              children: [
+                                for (int i = 0; i < _modeKeys.length; i++)
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 1.5),
+                                    child: Row(
+                                      children: [
+                                        Text(
+                                          '${_modeIcons[i]}  ${_modeNames[i]}',
+                                          style: const TextStyle(color: Colors.white70, fontSize: 11),
+                                        ),
+                                        const Spacer(),
+                                        GestureDetector(
+                                          onTap: () => _editMultiplier(_modeKeys[i], _modeNames[i]),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.gold.withValues(alpha: 0.15),
+                                              borderRadius: BorderRadius.circular(4),
+                                              border: Border.all(color: AppColors.gold, width: 1),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Text(
+                                                  '${_schieberMultipliers[_modeKeys[i]]}×',
+                                                  style: const TextStyle(
+                                                    color: AppColors.gold,
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 3),
+                                                const Icon(Icons.edit, color: AppColors.gold, size: 10),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                              ],
                             ),
-                          ],
+                          ),
+                          const SizedBox(height: 6),
+                          const Divider(color: Colors.white12, height: 1),
+                          const SizedBox(height: 6),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text('Ziel:',
+                                  style: TextStyle(color: Colors.white54, fontSize: 12)),
+                              const SizedBox(width: 8),
+                              for (final target in [1500, 2500, 3500]) ...[
+                                if (target != 1500) const SizedBox(width: 6),
+                                _TargetButton(
+                                  label: '$target',
+                                  selected: _schieberWinTarget == target,
+                                  onTap: () => setState(() => _schieberWinTarget = target),
+                                ),
+                              ],
+                            ],
+                          ),
                         ],
-                      ),
-                    ],
-                  ],
-                ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // ── Spielen ────────────────────────────────────────────────
+                  ElevatedButton(
+                    onPressed: _startGame,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.gold,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30)),
+                      textStyle: const TextStyle(
+                          fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    child: const Text('SPIELEN'),
+                  ),
+
+                  const SizedBox(height: 4),
+
+                  TextButton(
+                    onPressed: () => _showRules(context),
+                    child: const Text('Regeln',
+                        style: TextStyle(color: Colors.white38)),
+                  ),
+
+                  SizedBox(height: bottom + 4),
+                ],
               ),
-
-              const SizedBox(height: 12),
-
-              // ── Spielen ────────────────────────────────────────────────
-              ElevatedButton(
-                onPressed: _startGame,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.gold,
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30)),
-                  textStyle: const TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                child: const Text('SPIELEN'),
-              ),
-
-              const SizedBox(height: 4),
-
-              TextButton(
-                onPressed: () => _showRules(context),
-                child: const Text('Regeln',
-                    style: TextStyle(color: Colors.white38)),
-              ),
-
-              SizedBox(height: bottom + 4),
-            ],
+            ),
           ),
         ),
       ),
@@ -273,6 +307,7 @@ class _HomeScreenState extends State<HomeScreen> {
       cardType: _selectedCardType,
       gameType: _selectedGameType,
       schieberWinTarget: _schieberWinTarget,
+      schieberMultipliers: Map.from(_schieberMultipliers),
     );
     Navigator.push(
       context,
@@ -286,6 +321,71 @@ class _HomeScreenState extends State<HomeScreen> {
       MaterialPageRoute(
         builder: (_) => RulesScreen(initialGameType: _selectedGameType),
       ),
+    );
+  }
+}
+
+// ── Multiplikator-Editor Dialog ────────────────────────────────────────────────
+
+class _MultiplierDialog extends StatefulWidget {
+  final String label;
+  final int initial;
+  const _MultiplierDialog({required this.label, required this.initial});
+
+  @override
+  State<_MultiplierDialog> createState() => _MultiplierDialogState();
+}
+
+class _MultiplierDialogState extends State<_MultiplierDialog> {
+  late int _value;
+
+  @override
+  void initState() {
+    super.initState();
+    _value = widget.initial;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: const Color(0xFF1B4D2E),
+      title: Text(
+        widget.label,
+        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+      ),
+      content: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.remove_circle_outline, color: Colors.white70, size: 32),
+            onPressed: _value > 1 ? () => setState(() => _value--) : null,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '$_value×',
+            style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline, color: Colors.white70, size: 32),
+            onPressed: _value < 8 ? () => setState(() => _value++) : null,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Abbrechen', style: TextStyle(color: Colors.white54)),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, _value),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.gold,
+            foregroundColor: Colors.black,
+          ),
+          child: const Text('OK', style: TextStyle(fontWeight: FontWeight.bold)),
+        ),
+      ],
     );
   }
 }
