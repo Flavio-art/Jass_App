@@ -259,6 +259,7 @@ class GameProvider extends ChangeNotifier {
       soloSchiebungRounds: 0,
       soloSchiebungComment: null,
       stockeComment: null,
+      stockeRoundPoints: const {'team1': 0, 'team2': 0},
       playerScores: {for (final p in updatedPlayers) p.id: 0},
     );
     notifyListeners();
@@ -344,6 +345,7 @@ class GameProvider extends ChangeNotifier {
       soloSchiebungRounds: 0,
       soloSchiebungComment: null,
       stockeComment: null,
+      stockeRoundPoints: const {'team1': 0, 'team2': 0},
       playerScores: {for (final p in updatedPlayers) p.id: 0},
     );
     notifyListeners();
@@ -398,6 +400,7 @@ class GameProvider extends ChangeNotifier {
       molotofSubMode: null,
       slalomStartsOben: true,
       stockeComment: null,
+      stockeRoundPoints: const {'team1': 0, 'team2': 0},
       playerScores: {for (final p in updatedPlayers) p.id: 0},
     );
     notifyListeners();
@@ -1140,13 +1143,18 @@ class GameProvider extends ChangeNotifier {
       if (_state.gameType == GameType.schieber) {
         // Schieber: Rohpunkte × Multiplikator (Match = 257)
         final mult = _schieberMultiplier(_state.gameMode, _state.trumpSuit);
-        // Weisen-Punkte werden VOR Multiplikation addiert
+        // Weisen-Punkte + Stöcke werden VOR Multiplikation addiert
         final wyssBonus1 = _state.wyssWinnerTeam == 'team1' ? _totalWyssPoints() : 0;
         final wyssBonus2 = _state.wyssWinnerTeam == 'team2' ? _totalWyssPoints() : 0;
-        finalTeam1 = ((rawTeam1 == 157 ? 257 : rawTeam1) + wyssBonus1) * mult;
-        finalTeam2 = ((rawTeam2 == 157 ? 257 : rawTeam2) + wyssBonus2) * mult;
-        roundWyssPoints1 = wyssBonus1 * mult;
-        roundWyssPoints2 = wyssBonus2 * mult;
+        final stocke1 = _state.stockeRoundPoints['team1'] ?? 0;
+        final stocke2 = _state.stockeRoundPoints['team2'] ?? 0;
+        // Stöcke aus Rohpunkten herausrechnen (werden als Wysspunkte gezeigt)
+        final pureRaw1 = rawTeam1 - stocke1;
+        final pureRaw2 = rawTeam2 - stocke2;
+        finalTeam1 = ((pureRaw1 == 157 ? 257 : pureRaw1) + wyssBonus1 + stocke1) * mult;
+        finalTeam2 = ((pureRaw2 == 157 ? 257 : pureRaw2) + wyssBonus2 + stocke2) * mult;
+        roundWyssPoints1 = (wyssBonus1 + stocke1) * mult;
+        roundWyssPoints2 = (wyssBonus2 + stocke2) * mult;
       } else if (_state.gameType == GameType.differenzler) {
         // Differenzler: individuelle Punkte, Strafen berechnen
         finalTeam1 = rawTeam1;
@@ -1415,13 +1423,17 @@ class GameProvider extends ChangeNotifier {
         final stockeName = stocker.name;
         final isTeam1 = _isAnnouncingTeam(stocker);
         final stockeScores = Map<String, int>.from(_state.teamScores);
+        final newStockeRound = Map<String, int>.from(_state.stockeRoundPoints);
         if (isTeam1) {
           stockeScores['team1'] = (stockeScores['team1'] ?? 0) + 20;
+          newStockeRound['team1'] = (newStockeRound['team1'] ?? 0) + 20;
         } else {
           stockeScores['team2'] = (stockeScores['team2'] ?? 0) + 20;
+          newStockeRound['team2'] = (newStockeRound['team2'] ?? 0) + 20;
         }
         _state = _state.copyWith(
           teamScores: stockeScores,
+          stockeRoundPoints: newStockeRound,
           stockeComment: '$stockeName: Stöcke! +20',
         );
         notifyListeners();

@@ -202,6 +202,10 @@ class GameState {
   /// Multiplikatoren pro Variante: {'trump_ss':1, 'trump_re':2, 'oben':3, 'unten':3, 'slalom':4}
   final Map<String, int> schieberMultipliers;
 
+  // ─── Stöcke ────────────────────────────────────────────────────────────────
+  /// Stöcke-Punkte pro Team für die aktuelle Runde (für Wysspunkte-Anzeige).
+  final Map<String, int> stockeRoundPoints;
+
   // ─── Differenzler ──────────────────────────────────────────────────────────
   /// {playerId: vorhergesagte Punkte} – Vorhersagen für aktuelle Runde (-1 = noch nicht vorhergesagt).
   final Map<String, int> differenzlerPredictions;
@@ -272,6 +276,7 @@ class GameState {
     this.playerScores = const {},
     this.schieberWinTarget = 1500,
     this.schieberMultipliers = const {'trump_ss': 1, 'trump_re': 2, 'oben': 3, 'unten': 3, 'slalom': 4},
+    this.stockeRoundPoints = const {'team1': 0, 'team2': 0},
     this.differenzlerPredictions = const {},
     this.differenzlerPenalties = const {},
   });
@@ -438,6 +443,7 @@ class GameState {
     Map<String, int>? playerScores,
     int? schieberWinTarget,
     Map<String, int>? schieberMultipliers,
+    Map<String, int>? stockeRoundPoints,
     Map<String, int>? differenzlerPredictions,
     Map<String, int>? differenzlerPenalties,
   }) {
@@ -497,6 +503,7 @@ class GameState {
       playerScores: playerScores ?? this.playerScores,
       schieberWinTarget: schieberWinTarget ?? this.schieberWinTarget,
       schieberMultipliers: schieberMultipliers ?? this.schieberMultipliers,
+      stockeRoundPoints: stockeRoundPoints ?? this.stockeRoundPoints,
       differenzlerPredictions: differenzlerPredictions ?? this.differenzlerPredictions,
       differenzlerPenalties: differenzlerPenalties ?? this.differenzlerPenalties,
     );
