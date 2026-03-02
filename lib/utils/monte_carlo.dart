@@ -5,12 +5,11 @@ import '../models/game_state.dart';
 import '../models/player.dart';
 import 'game_logic.dart';
 
-/// Flat Monte Carlo AI (Perfect-Information):
-/// Für jede spielbare Karte werden [simulations] Simulationen bis zum
-/// Spielende durchgeführt. Die Karte mit dem besten Durchschnittsscore gewinnt.
-///
-/// Da wir alle Hände kennen (Spielengine-Perspektive), brauchen wir kein
-/// World-Sampling – die Qualität kommt durch den Lookahead.
+/// Monte Carlo AI mit World Sampling (PIMC):
+/// Die KI kennt nur ihre eigene Hand. Für jede Simulation werden den anderen
+/// Spielern zufällige Karten aus dem unbekannten Pool zugeteilt, aber nur
+/// Karten die mit den beobachteten Fehlfarben kompatibel sind (Void-Tracking).
+/// Pro Kandidatenkarte werden [simulations] Welten gezogen und simuliert.
 class MonteCarloAI {
   /// Anzahl äusserer Simulationen pro Kandidatenkarte.
   static const int simulations = 50;
@@ -99,11 +98,15 @@ class MonteCarloAI {
     double bestScore = double.negativeInfinity;
     JassCard bestCard = playable.first;
 
+    // Einmalig Fehlfarben aus Stichhistorie berechnen
+    final voidSuits = _inferVoidSuits(state);
+
     for (final card in playable) {
       double total = 0.0;
       for (int i = 0; i < simulations; i++) {
-        final clone = _cloneState(state); // frischer Klon pro Simulation
-        final finalScores = _simulate(clone, aiPlayer.id, card);
+        // Neue Welt: eigene Hand bleibt, andere Spieler kriegen zufällige Karten
+        final world = _sampleWorld(state, aiPlayer.id, voidSuits);
+        final finalScores = _simulate(world, aiPlayer.id, card);
         total += _scoreFor(finalScores, aiIsTeam1, state);
       }
       final avg = total / simulations;
@@ -791,6 +794,110 @@ class MonteCarloAI {
       }
     }
     return best!;
+  }
+
+  // ─── World Sampling ───────────────────────────────────────────────────────
+
+  /// Leitet Fehlfarben aus der Stichhistorie ab:
+  /// Wenn ein Spieler eine andere Farbe als die Anspielfarbe gespielt hat,
+  /// ist er definitiv in der Anspielfarbe blank.
+  static Map<String, Set<Suit>> _inferVoidSuits(GameState state) {
+    final voids = <String, Set<Suit>>{
+      for (final p in state.players) p.id: <Suit>{},
+    };
+
+    // Abgeschlossene Stiche
+    for (final trick in state.completedTricks) {
+      if (trick.cards.length < 2) continue;
+      final ledSuit = trick.cards.values.first.suit;
+      bool first = true;
+      for (final entry in trick.cards.entries) {
+        if (first) { first = false; continue; }
+        if (entry.value.suit != ledSuit) {
+          voids[entry.key]?.add(ledSuit);
+        }
+      }
+    }
+
+    // Aktueller laufender Stich
+    if (state.currentTrickCards.isNotEmpty) {
+      final ledSuit = state.currentTrickCards.first.suit;
+      for (int i = 1; i < state.currentTrickCards.length; i++) {
+        if (state.currentTrickCards[i].suit != ledSuit) {
+          voids[state.currentTrickPlayerIds[i]]?.add(ledSuit);
+        }
+      }
+    }
+
+    return voids;
+  }
+
+  /// Erstellt eine zufällige Welt: eigene Hand bleibt, unbekannte Karten
+  /// werden unter den anderen Spielern neu verteilt (Fehlfarben respektiert).
+  static GameState _sampleWorld(
+    GameState state,
+    String aiPlayerId,
+    Map<String, Set<Suit>> voidSuits,
+  ) {
+    final others = state.players.where((p) => p.id != aiPlayerId).toList();
+
+    // Pool = alle Karten in fremden Händen (unbekannt für die KI)
+    final pool = others.expand((p) => p.hand).toList()..shuffle(_rng);
+
+    // Karten unter anderen Spielern verteilen (Fehlfarben beachten)
+    final assignments = _dealCards(pool, others, voidSuits);
+
+    final newPlayers = state.players.map((p) {
+      if (p.id == aiPlayerId) return p.copyWith(hand: List<JassCard>.from(p.hand));
+      return p.copyWith(hand: assignments[p.id] ?? List<JassCard>.from(p.hand));
+    }).toList();
+
+    return state.copyWith(players: newPlayers);
+  }
+
+  /// Verteilt [pool] auf [players] unter Berücksichtigung von Fehlfarben.
+  /// Jeder Spieler bekommt genau so viele Karten wie er aktuell hat.
+  /// Falls Fehlfarben-Constraints nicht vollständig erfüllbar: Fallback ohne Constraints.
+  static Map<String, List<JassCard>> _dealCards(
+    List<JassCard> pool,
+    List<Player> players,
+    Map<String, Set<Suit>> voidSuits,
+  ) {
+    final result = <String, List<JassCard>>{
+      for (final p in players) p.id: [],
+    };
+    final unassigned = [...pool];
+
+    // Pass 1: Karten die nur einem Spieler gegeben werden können → fix zuweisen
+    bool changed = true;
+    while (changed) {
+      changed = false;
+      for (int i = unassigned.length - 1; i >= 0; i--) {
+        final card = unassigned[i];
+        final eligible = players.where((p) =>
+            result[p.id]!.length < p.hand.length &&
+            !(voidSuits[p.id]?.contains(card.suit) ?? false)).toList();
+        if (eligible.length == 1) {
+          result[eligible.first.id]!.add(card);
+          unassigned.removeAt(i);
+          changed = true;
+        }
+      }
+    }
+
+    // Pass 2: restliche Karten zufällig an erlaubte Spieler
+    for (final card in [...unassigned]) {
+      final eligible = players.where((p) =>
+          result[p.id]!.length < p.hand.length &&
+          !(voidSuits[p.id]?.contains(card.suit) ?? false)).toList();
+      final target = eligible.isNotEmpty
+          ? eligible[_rng.nextInt(eligible.length)]
+          : players.firstWhere((p) => result[p.id]!.length < p.hand.length,
+              orElse: () => players.first);
+      result[target.id]!.add(card);
+    }
+
+    return result;
   }
 
   /// Klont den State mit tief kopierten Spielerhänden (Player.hand ist mutable).
