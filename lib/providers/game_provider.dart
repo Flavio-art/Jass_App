@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/card_model.dart';
 import '../models/deck.dart';
 import '../models/game_state.dart';
@@ -16,8 +17,18 @@ class GameProvider extends ChangeNotifier {
   Timer? _clearTrickTimer;
   // Molotof: Spieler-ID der Person die Oben/Unten bestimmt hat (gewinnt den Stich)
   String? _molotofDeterminerForTrick;
+  static String _cachedPlayerName = 'Du';
 
   GameState get state => _state;
+
+  /// Einmalig beim App-Start den gespeicherten Namen laden (statisch, vor Provider-Erstellung).
+  static Future<void> loadPlayerName() async {
+    final prefs = await SharedPreferences.getInstance();
+    final name = prefs.getString('player_name');
+    if (name != null && name.trim().isNotEmpty) {
+      _cachedPlayerName = name.trim();
+    }
+  }
 
   // ─── Hilfsmethode: Team-Zuweisung ────────────────────────────────────────
 
@@ -48,7 +59,7 @@ class GameProvider extends ChangeNotifier {
     // Teamspiele (Schieber, Friseur Team): Partner/Gegner; Einzelspiele: Freund 1/2/3
     final hasTeams = gameType == GameType.schieber || gameType == GameType.friseurTeam;
     final players = [
-      Player(id: 'p1', name: 'Du',                        position: PlayerPosition.south, hand: hands[0]),
+      Player(id: 'p1', name: _cachedPlayerName,             position: PlayerPosition.south, hand: hands[0]),
       Player(id: 'p2', name: hasTeams ? 'Gegner 1' : 'Freund 1', position: PlayerPosition.east,  hand: hands[1]),
       Player(id: 'p3', name: hasTeams ? 'Partner'  : 'Freund 2', position: PlayerPosition.north, hand: hands[2]),
       Player(id: 'p4', name: hasTeams ? 'Gegner 2' : 'Freund 3', position: PlayerPosition.west,  hand: hands[3]),
@@ -647,6 +658,7 @@ class GameProvider extends ChangeNotifier {
           isFourOfAKind: true,
           points: pts,
           topValue: v,
+          bottomValue: v,
         ));
       }
     }
@@ -676,6 +688,7 @@ class GameProvider extends ChangeNotifier {
             isFourOfAKind: false,
             points: pts,
             topValue: suitVals[j],
+            bottomValue: suitVals[i],
             suit: suit,
             isTrumpSuit: suit == trumpSuit,
           ));
@@ -1348,7 +1361,7 @@ class GameProvider extends ChangeNotifier {
               (c) => c.suit == _state.trumpSuit && c.value == otherValue);
       if (otherAlreadyPlayed) {
         final stocker = updatedPlayers.firstWhere((p) => p.id == playerId);
-        final stockeName = stocker.isHuman ? 'Du' : stocker.name;
+        final stockeName = stocker.name;
         final isTeam1 = _isAnnouncingTeam(stocker);
         final stockeScores = Map<String, int>.from(_state.teamScores);
         if (isTeam1) {

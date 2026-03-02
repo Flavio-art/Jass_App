@@ -2208,7 +2208,7 @@ class _IndividualScoreBar extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  p.isHuman ? 'Du' : p.name,
+                  p.name,
                   style: const TextStyle(
                       color: Colors.white54, fontSize: 9),
                 ),
@@ -2274,7 +2274,7 @@ class _FriseurSoloScoreTable extends StatelessWidget {
           decoration: const BoxDecoration(color: Colors.black26),
           children: [
             _hCell(''),
-            for (final p in players) _hCell(p.isHuman ? 'Du' : p.name, center: true),
+            for (final p in players) _hCell(p.name, center: true),
           ],
         ),
         for (final variant in _variants)
@@ -3131,7 +3131,7 @@ class _DifferenzlerRoundEndOverlay extends StatelessWidget {
           SizedBox(
             width: 70,
             child: Text(
-              p.isHuman ? 'Du' : p.name,
+              p.name,
               style: TextStyle(
                 color: p.isHuman ? AppColors.gold : Colors.white70,
                 fontSize: 13,
@@ -3301,7 +3301,7 @@ class _DifferenzlerGameEndOverlay extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                '${winner.isHuman ? 'Du gewinnst' : '${winner.name} gewinnt'}!',
+                '${winner.name} gewinnt!',
                 style: const TextStyle(
                   color: AppColors.gold,
                   fontSize: 24,
@@ -3331,7 +3331,7 @@ class _DifferenzlerGameEndOverlay extends StatelessWidget {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          sorted[i].isHuman ? 'Du' : sorted[i].name,
+                          sorted[i].name,
                           style: const TextStyle(
                               color: Colors.white70, fontSize: 14),
                         ),
@@ -3505,7 +3505,11 @@ class _WyssOverlayState extends State<_WyssOverlay> {
   String _wyssShort(WyssEntry w, CardType cardType) {
     if (w.isFourOfAKind) return '${w.typeName} (${w.topValueName})';
     final suitLabel = w.suit?.label(cardType) ?? '';
-    return '${w.typeName} – ${w.topValueName} hoch'
+    final isUnten = widget.state.gameMode == GameMode.unten ||
+        widget.state.gameMode == GameMode.slalom ||
+        widget.state.gameMode == GameMode.trumpUnten;
+    final cardName = isUnten ? '${w.bottomValueName} tief' : '${w.topValueName} hoch';
+    return '${w.typeName} – $cardName'
         '${suitLabel.isNotEmpty ? ", $suitLabel" : ""}'
         '${w.isTrumpSuit ? " (Trumpf)" : ""}';
   }
@@ -3639,7 +3643,7 @@ class _WyssOverlayState extends State<_WyssOverlay> {
     return Row(
       children: [
         Text(
-          player.isHuman ? 'Du' : player.name,
+          player.name,
           style: TextStyle(
               color: isWinner ? AppColors.gold : Colors.white,
               fontWeight: FontWeight.bold,
