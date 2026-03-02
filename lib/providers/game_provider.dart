@@ -36,6 +36,7 @@ class GameProvider extends ChangeNotifier {
   void startNewGame({
     required CardType cardType,
     GameType gameType = GameType.friseurTeam,
+    int schieberWinTarget = 1500,
   }) {
     _aiRunning = false;
     final deck = Deck(cardType: cardType);
@@ -44,9 +45,9 @@ class GameProvider extends ChangeNotifier {
     // Play order: South(0) → East(1) → North(2) → West(3)
     final players = [
       Player(id: 'p1', name: 'Du',       position: PlayerPosition.south, hand: hands[0]),
-      Player(id: 'p2', name: 'Gegner 1', position: PlayerPosition.east,  hand: hands[1]),
-      Player(id: 'p3', name: 'Partner',  position: PlayerPosition.north, hand: hands[2]),
-      Player(id: 'p4', name: 'Gegner 2', position: PlayerPosition.west,  hand: hands[3]),
+      Player(id: 'p2', name: 'Freund 1', position: PlayerPosition.east,  hand: hands[1]),
+      Player(id: 'p3', name: 'Freund 2', position: PlayerPosition.north, hand: hands[2]),
+      Player(id: 'p4', name: 'Freund 3', position: PlayerPosition.west,  hand: hands[3]),
     ];
     for (final p in players) { p.sortHand(); }
 
@@ -58,6 +59,35 @@ class GameProvider extends ChangeNotifier {
         friseurSoloScores[p.id] = {};
         friseurAnnouncedVariants[p.id] = {};
       }
+    }
+
+    // Differenzler: Strafen-Tracking initialisieren
+    final differenzlerPenalties = <String, int>{};
+    if (gameType == GameType.differenzler) {
+      for (final p in players) {
+        differenzlerPenalties[p.id] = 0;
+      }
+    }
+
+    // Differenzler: zufälligen Trumpf wählen und Vorhersage-Phase starten
+    if (gameType == GameType.differenzler) {
+      final trumpSuit = _pickRandomTrumpSuit(cardType);
+      _state = GameState(
+        cardType: cardType,
+        gameType: gameType,
+        players: players,
+        phase: GamePhase.prediction,
+        gameMode: GameMode.trump,
+        trumpSuit: trumpSuit,
+        teamScores: const {'team1': 0, 'team2': 0},
+        ansagerIndex: 0,
+        totalTeamScores: const {'team1': 0, 'team2': 0},
+        playerScores: {for (final p in players) p.id: 0},
+        differenzlerPredictions: {for (final p in players) p.id: -1},
+        differenzlerPenalties: differenzlerPenalties,
+      );
+      notifyListeners();
+      return;
     }
 
     _state = GameState(
@@ -72,6 +102,8 @@ class GameProvider extends ChangeNotifier {
       totalTeamScores: const {'team1': 0, 'team2': 0},
       friseurSoloScores: friseurSoloScores,
       friseurAnnouncedVariants: friseurAnnouncedVariants,
+      playerScores: {for (final p in players) p.id: 0},
+      schieberWinTarget: schieberWinTarget,
     );
     notifyListeners();
 
@@ -79,6 +111,30 @@ class GameProvider extends ChangeNotifier {
     if (!_state.currentAnsager.isHuman) {
       _autoSelectMode();
     }
+  }
+
+  /// Schieber: Punktemultiplikator für den gewählten Spielmodus.
+  /// Schwarz-Trumpf (♠/♣) = 1×, Rot-Trumpf (♥/♦) = 2×, Oben/Unten = 3×, Slalom = 4×.
+  int _schieberMultiplier(GameMode mode, Suit? trumpSuit) {
+    if (mode == GameMode.slalom) return 4;
+    if (mode == GameMode.oben || mode == GameMode.unten) return 3;
+    if (mode == GameMode.trump && trumpSuit != null) {
+      final isSchwarz = trumpSuit == Suit.spades || trumpSuit == Suit.clubs ||
+          trumpSuit == Suit.schellen || trumpSuit == Suit.schilten;
+      return isSchwarz ? 1 : 2;
+    }
+    return 1;
+  }
+
+  /// Wählt einen zufälligen Trumpf basierend auf dem Kartentyp.
+  Suit _pickRandomTrumpSuit(CardType cardType) {
+    final random = DateTime.now().microsecondsSinceEpoch;
+    if (cardType == CardType.german) {
+      final suits = [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
+      return suits[random % 4];
+    }
+    final suits = [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs];
+    return suits[random % 4];
   }
 
   // ─── Neue Runde (innerhalb eines Gesamtspiels) ───────────────────────────
@@ -89,6 +145,10 @@ class GameProvider extends ChangeNotifier {
 
     if (currentState.gameType == GameType.friseur) {
       _startNewRoundFriseurSolo(currentState);
+    } else if (currentState.gameType == GameType.schieber) {
+      _startNewRoundSchieber(currentState);
+    } else if (currentState.gameType == GameType.differenzler) {
+      _startNewRoundDifferenzler(currentState);
     } else {
       _startNewRoundFriseurTeam(currentState);
     }
@@ -178,6 +238,7 @@ class GameProvider extends ChangeNotifier {
       friseurPartnerJustRevealed: false,
       soloSchiebungRounds: 0,
       soloSchiebungComment: null,
+      playerScores: {for (final p in updatedPlayers) p.id: 0},
     );
     notifyListeners();
 
@@ -261,6 +322,7 @@ class GameProvider extends ChangeNotifier {
       friseurAnnouncedVariants: newAnnounced,
       soloSchiebungRounds: 0,
       soloSchiebungComment: null,
+      playerScores: {for (final p in updatedPlayers) p.id: 0},
     );
     notifyListeners();
 
@@ -269,13 +331,117 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
+  void _startNewRoundSchieber(GameState currentState) {
+    // Kumulierte Punkte aus letztem RoundResult (Rohpunkte für Schieber)
+    final newTotal = Map<String, int>.from(currentState.totalTeamScores);
+    if (currentState.roundHistory.isNotEmpty) {
+      final last = currentState.roundHistory.last;
+      newTotal['team1'] = (newTotal['team1'] ?? 0) + last.team1Score;
+      newTotal['team2'] = (newTotal['team2'] ?? 0) + last.team2Score;
+    }
+
+    // Spielende: eines der Teams hat das Ziel erreicht
+    if ((newTotal['team1'] ?? 0) >= currentState.schieberWinTarget ||
+        (newTotal['team2'] ?? 0) >= currentState.schieberWinTarget) {
+      _state = _state.copyWith(
+        totalTeamScores: newTotal,
+        phase: GamePhase.gameEnd,
+      );
+      notifyListeners();
+      return;
+    }
+
+    // Ansager rotiert
+    final newAnsagerIndex = (currentState.ansagerIndex + 1) % 4;
+
+    // Neue Karten austeilen
+    final deck = Deck(cardType: currentState.cardType);
+    final hands = deck.deal(4);
+    final updatedPlayers = List<Player>.from(currentState.players);
+    for (int i = 0; i < updatedPlayers.length; i++) {
+      updatedPlayers[i] = updatedPlayers[i].copyWith(hand: hands[i]);
+      updatedPlayers[i].sortHand();
+    }
+
+    _state = _state.copyWith(
+      players: updatedPlayers,
+      phase: GamePhase.trumpSelection,
+      gameMode: GameMode.trump,
+      trumpSuit: null,
+      currentTrickCards: [],
+      currentTrickPlayerIds: [],
+      completedTricks: [],
+      teamScores: {'team1': 0, 'team2': 0},
+      roundNumber: currentState.roundNumber + 1,
+      ansagerIndex: newAnsagerIndex,
+      trumpSelectorIndex: null,
+      totalTeamScores: newTotal,
+      pendingNextPlayerIndex: null,
+      currentPlayerIndex: newAnsagerIndex,
+      molotofSubMode: null,
+      slalomStartsOben: true,
+      playerScores: {for (final p in updatedPlayers) p.id: 0},
+    );
+    notifyListeners();
+
+    if (!_state.currentAnsager.isHuman) {
+      _autoSelectMode();
+    }
+  }
+
+  void _startNewRoundDifferenzler(GameState currentState) {
+    // Spielende nach 4 Runden
+    if (currentState.roundNumber >= 4) {
+      _state = _state.copyWith(phase: GamePhase.gameEnd);
+      notifyListeners();
+      return;
+    }
+
+    // Ansager rotiert
+    final newAnsagerIndex = (currentState.ansagerIndex + 1) % 4;
+
+    // Neue Karten austeilen
+    final deck = Deck(cardType: currentState.cardType);
+    final hands = deck.deal(4);
+    final updatedPlayers = List<Player>.from(currentState.players);
+    for (int i = 0; i < updatedPlayers.length; i++) {
+      updatedPlayers[i] = updatedPlayers[i].copyWith(hand: hands[i]);
+      updatedPlayers[i].sortHand();
+    }
+
+    // Zufälliger Trumpf für neue Runde
+    final newTrump = _pickRandomTrumpSuit(currentState.cardType);
+
+    _state = _state.copyWith(
+      players: updatedPlayers,
+      phase: GamePhase.prediction,
+      gameMode: GameMode.trump,
+      trumpSuit: newTrump,
+      currentTrickCards: [],
+      currentTrickPlayerIds: [],
+      completedTricks: [],
+      teamScores: {'team1': 0, 'team2': 0},
+      roundNumber: currentState.roundNumber + 1,
+      ansagerIndex: newAnsagerIndex,
+      trumpSelectorIndex: null,
+      pendingNextPlayerIndex: null,
+      currentPlayerIndex: newAnsagerIndex,
+      molotofSubMode: null,
+      slalomStartsOben: true,
+      playerScores: {for (final p in updatedPlayers) p.id: 0},
+      differenzlerPredictions: {for (final p in updatedPlayers) p.id: -1},
+    );
+    notifyListeners();
+  }
+
   // ─── Schieben ─────────────────────────────────────────────────────────────
 
   void schieben() {
     if (_state.phase != GamePhase.trumpSelection) return;
 
-    if (_state.gameType == GameType.friseurTeam) {
-      // Friseur Team: nur Ansager kann schieben (genau einmal, zum Partner)
+    if (_state.gameType == GameType.friseurTeam ||
+        _state.gameType == GameType.schieber) {
+      // Friseur Team / Schieber: nur Ansager kann schieben (genau einmal, zum Partner)
       if (_state.trumpSelectorIndex != null) return;
       final partnerIndex = (_state.ansagerIndex + 2) % 4;
       _state = _state.copyWith(trumpSelectorIndex: partnerIndex);
@@ -402,6 +568,9 @@ class GameProvider extends ChangeNotifier {
       } else {
         available = allAvail;
       }
+    } else if (_state.gameType == GameType.schieber) {
+      // Schieber: nur Trumpf Oben (4 Farben), Obenabe, Undenufe, Slalom
+      available = const ['trump_ss', 'trump_re', 'oben', 'unten', 'slalom'];
     } else {
       available = _state.availableVariants(_state.isTeam1Ansager);
     }
@@ -533,6 +702,54 @@ class GameProvider extends ChangeNotifier {
     _triggerAiIfNeeded();
   }
 
+  // ─── Differenzler: Vorhersage setzen ────────────────────────────────────
+
+  /// Wird aufgerufen wenn der menschliche Spieler seine Vorhersage bestätigt.
+  /// KI-Vorhersagen werden automatisch berechnet.
+  void setPredictions(int humanPrediction) {
+    if (_state.phase != GamePhase.prediction) return;
+
+    final predictions = <String, int>{};
+    for (final player in _state.players) {
+      if (player.isHuman) {
+        predictions[player.id] = humanPrediction;
+      } else {
+        predictions[player.id] = _computeAiPrediction(player, _state.trumpSuit!);
+      }
+    }
+
+    _state = _state.copyWith(
+      phase: GamePhase.playing,
+      differenzlerPredictions: predictions,
+      currentPlayerIndex: _state.ansagerIndex,
+    );
+    notifyListeners();
+    _triggerAiIfNeeded();
+  }
+
+  /// Schätzt die Punkte die ein KI-Spieler gewinnen wird (für Differenzler-Vorhersage).
+  int _computeAiPrediction(Player player, Suit trumpSuit) {
+    int estimate = 0;
+    for (final card in player.hand) {
+      final isTrump = card.suit == trumpSuit;
+      if (isTrump && card.value == CardValue.jack) {
+        estimate += 14;
+      } else if (isTrump && card.value == CardValue.nine) {
+        estimate += 10;
+      } else if (card.value == CardValue.ace) {
+        estimate += 8;
+      } else if (card.value == CardValue.ten) {
+        estimate += 7;
+      } else if (isTrump) {
+        estimate += 4;
+      } else if (card.value == CardValue.king) {
+        estimate += 3;
+      }
+    }
+    // Auf nächste 5 runden, Bereich 0-152
+    return ((estimate / 5).round() * 5).clamp(0, 152);
+  }
+
   // ─── Partner-Aufdeckung bestätigt (UI) ───────────────────────────────────
 
   void acknowledgePartnerReveal() {
@@ -553,28 +770,50 @@ class GameProvider extends ChangeNotifier {
     List<RoundResult>? newHistory;
     Map<String, Map<String, List<int>>>? newFriseurSoloScores;
 
+    Map<String, int>? newDifferenzlerPenalties;
+
     if (roundOver) {
       final rawTeam1 = _state.teamScores['team1'] ?? 0;
       final rawTeam2 = _state.teamScores['team2'] ?? 0;
 
-      final bool isMisereMolotof = _state.gameMode == GameMode.molotof ||
-          _state.gameMode == GameMode.misere;
       final int finalTeam1;
       final int finalTeam2;
-      if (isMisereMolotof) {
-        final bool team1Match = rawTeam1 == 0 &&
-            (_state.gameType == GameType.friseur
-                ? true  // in Friseur Solo 'team1' = ansager team
-                : _state.isTeam1Ansager);
-        final bool team2Match = rawTeam2 == 0 &&
-            (_state.gameType == GameType.friseur
-                ? false
-                : !_state.isTeam1Ansager);
-        finalTeam1 = team1Match ? 170 : (157 - rawTeam1);
-        finalTeam2 = team2Match ? 170 : (157 - rawTeam2);
+
+      if (_state.gameType == GameType.schieber) {
+        // Schieber: Rohpunkte × Multiplikator (Match = 257)
+        final mult = _schieberMultiplier(_state.gameMode, _state.trumpSuit);
+        finalTeam1 = (rawTeam1 == 157 ? 257 : rawTeam1) * mult;
+        finalTeam2 = (rawTeam2 == 157 ? 257 : rawTeam2) * mult;
+      } else if (_state.gameType == GameType.differenzler) {
+        // Differenzler: individuelle Punkte, Strafen berechnen
+        finalTeam1 = rawTeam1;
+        finalTeam2 = rawTeam2;
+        newDifferenzlerPenalties = Map<String, int>.from(_state.differenzlerPenalties);
+        for (final player in _state.players) {
+          final predicted = _state.differenzlerPredictions[player.id] ?? 0;
+          final actual = _state.playerScores[player.id] ?? 0;
+          final penalty = (predicted - actual).abs();
+          newDifferenzlerPenalties[player.id] =
+              (newDifferenzlerPenalties[player.id] ?? 0) + penalty;
+        }
       } else {
-        finalTeam1 = rawTeam1 == 157 ? 170 : rawTeam1;
-        finalTeam2 = rawTeam2 == 157 ? 170 : rawTeam2;
+        final bool isMisereMolotof = _state.gameMode == GameMode.molotof ||
+            _state.gameMode == GameMode.misere;
+        if (isMisereMolotof) {
+          final bool team1Match = rawTeam1 == 0 &&
+              (_state.gameType == GameType.friseur
+                  ? true  // in Friseur Solo 'team1' = ansager team
+                  : _state.isTeam1Ansager);
+          final bool team2Match = rawTeam2 == 0 &&
+              (_state.gameType == GameType.friseur
+                  ? false
+                  : !_state.isTeam1Ansager);
+          finalTeam1 = team1Match ? 170 : (157 - rawTeam1);
+          finalTeam2 = team2Match ? 170 : (157 - rawTeam2);
+        } else {
+          finalTeam1 = rawTeam1 == 157 ? 170 : rawTeam1;
+          finalTeam2 = rawTeam2 == 157 ? 170 : rawTeam2;
+        }
       }
 
       final varKey = _state.variantKey(_state.gameMode, trumpSuit: _state.trumpSuit);
@@ -598,6 +837,19 @@ class GameProvider extends ChangeNotifier {
         }
       }
 
+      // Partner-Name bestimmen
+      final String? partnerName;
+      if (_state.gameType == GameType.friseur) {
+        // Friseur Solo: Partner nur wenn aufgedeckt
+        partnerName = _state.friseurPartnerIndex != null
+            ? _state.players[_state.friseurPartnerIndex!].name
+            : null;
+      } else {
+        // Friseur Team: Partner = gegenüberliegender Spieler (Pos +2)
+        final partnerIdx = (_state.ansagerIndex + 2) % 4;
+        partnerName = _state.players[partnerIdx].name;
+      }
+
       final result = RoundResult(
         roundNumber: _state.roundNumber,
         variantKey: varKey,
@@ -609,6 +861,8 @@ class GameProvider extends ChangeNotifier {
         team2Score: finalTeam2,
         rawTeam1Score: rawTeam1,
         rawTeam2Score: rawTeam2,
+        announcerName: _state.players[_state.ansagerIndex].name,
+        partnerName: partnerName,
       );
       newHistory = [..._state.roundHistory, result];
     }
@@ -621,6 +875,7 @@ class GameProvider extends ChangeNotifier {
       phase: roundOver ? GamePhase.roundEnd : GamePhase.playing,
       roundHistory: newHistory,
       friseurSoloScores: newFriseurSoloScores,
+      differenzlerPenalties: newDifferenzlerPenalties,
     );
     notifyListeners();
 
@@ -692,7 +947,11 @@ class GameProvider extends ChangeNotifier {
           retroScores['team2'] = (retroScores['team2'] ?? 0) + pts;
         }
       }
-      _state = _state.copyWith(trumpSuit: trumpSuit, teamScores: retroScores);
+      _state = _state.copyWith(
+        trumpSuit: trumpSuit,
+        teamScores: retroScores,
+        playerScores: _computeIndividualScores(GameMode.trump, trumpSuit),
+      );
     }
 
     // Molotof: erster Spieler der nicht Farbe angeben kann, bestimmt den Modus
@@ -727,7 +986,11 @@ class GameProvider extends ChangeNotifier {
         _molotofDeterminerForTrick = playerId;
       }
       _state = _state.copyWith(
-          molotofSubMode: subMode, trumpSuit: newTrump, teamScores: retroScores);
+        molotofSubMode: subMode,
+        trumpSuit: newTrump,
+        teamScores: retroScores,
+        playerScores: _computeIndividualScores(subMode, newTrump),
+      );
     }
 
     final newTrickCards = [..._state.currentTrickCards, card];
@@ -807,6 +1070,15 @@ class GameProvider extends ChangeNotifier {
       }
     }
 
+    // Individuelle Punkte pro Spieler nachführen
+    final newPlayerScores = Map<String, int>.from(_state.playerScores);
+    if (!elefantPreTrump && !molotofPreTrump) {
+      newPlayerScores[winnerId] = (newPlayerScores[winnerId] ?? 0) + points;
+      if (isLastTrick) {
+        newPlayerScores[winnerId] = (newPlayerScores[winnerId] ?? 0) + 5;
+      }
+    }
+
     _state = _state.copyWith(
       players: updatedPlayers,
       completedTricks: newTricks,
@@ -815,6 +1087,7 @@ class GameProvider extends ChangeNotifier {
       pendingNextPlayerIndex: winnerIdx,
       teamScores: newScores,
       phase: GamePhase.trickClearPending,
+      playerScores: newPlayerScores,
     );
     notifyListeners();
 
@@ -881,6 +1154,17 @@ class GameProvider extends ChangeNotifier {
     }
 
     return {'team1': team1, 'team2': team2};
+  }
+
+  /// Berechnet individuelle Stichpunkte für jeden Spieler neu (für Retro-Korrekturen).
+  Map<String, int> _computeIndividualScores(GameMode mode, Suit? trumpSuit) {
+    final scores = {for (final p in _state.players) p.id: 0};
+    for (final trick in _state.completedTricks) {
+      if (trick.winnerId == null) continue;
+      final pts = GameLogic.trickPoints(trick.cards.values.toList(), mode, trumpSuit);
+      scores[trick.winnerId!] = (scores[trick.winnerId!] ?? 0) + pts;
+    }
+    return scores;
   }
 
   // ─── KI-Zug ─────────────────────────────────────────────────────────────

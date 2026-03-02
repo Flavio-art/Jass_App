@@ -44,18 +44,13 @@ class JassApp extends StatelessWidget {
           ),
           useMaterial3: true,
         ),
-        // Android 15+ edge-to-edge: Scaffold setzt padding.bottom = 0 im Body.
-        // SafeArea(maintainBottomViewPadding: true) in jedem Screen löst das
-        // direkt. Dieser Builder dient als zusätzliche Sicherheit für Widgets
-        // die kein SafeArea verwenden.
+        // Android edge-to-edge: padding.bottom = viewPadding.bottom erzwingen,
+        // damit SafeArea und useSafeArea in Sheets korrekt funktionieren.
         builder: (context, child) {
           final mq = MediaQuery.of(context);
-          final bottomPad = mq.viewPadding.bottom > mq.padding.bottom
-              ? mq.viewPadding.bottom
-              : mq.padding.bottom;
           return MediaQuery(
             data: mq.copyWith(
-              padding: mq.padding.copyWith(bottom: bottomPad),
+              padding: mq.padding.copyWith(bottom: mq.viewPadding.bottom),
             ),
             child: child!,
           );

@@ -17,150 +17,191 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   CardType _selectedCardType = CardType.french;
   GameType _selectedGameType = GameType.friseurTeam;
+  int _schieberWinTarget = 1500;
 
   @override
   Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).viewPadding.bottom;
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        maintainBottomViewPadding: true,
+        bottom: false,
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Logo / Title
+              // ── Titel ──────────────────────────────────────────────────
               const Text(
                 'JASS',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 64,
+                  fontSize: 52,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 12,
                 ),
               ),
-              const SizedBox(height: 4),
-              const Text(
-                'Kartenspiel',
-                style: TextStyle(color: Colors.white54, fontSize: 16),
-              ),
-              const SizedBox(height: 48),
+              const SizedBox(height: 14),
 
-              // Card type selection
+              // ── Kartenart ──────────────────────────────────────────────
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
                   color: Colors.black26,
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
-                      'Kartenart wählen',
-                      style: TextStyle(color: Colors.white70, fontSize: 14),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _CardTypeButton(
-                          label: 'Französisch',
-                          suits: const [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs],
-                          cardType: CardType.french,
-                          subtitle: 'Schaufeln · Herz · Ecken · Kreuz',
-                          selected: _selectedCardType == CardType.french,
-                          onTap: () =>
-                              setState(() => _selectedCardType = CardType.french),
-                        ),
-                        const SizedBox(width: 12),
-                        _CardTypeButton(
-                          label: 'Deutsch',
-                          suits: const [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten],
-                          cardType: CardType.german,
-                          subtitle: 'Schellen · Rosen · Eichel · Schilten',
-                          selected: _selectedCardType == CardType.german,
-                          onTap: () =>
-                              setState(() => _selectedCardType = CardType.german),
-                        ),
-                      ],
+                    const Text('Kartenart wählen',
+                        style: TextStyle(color: Colors.white70, fontSize: 13)),
+                    const SizedBox(height: 8),
+                    IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _CardTypeButton(
+                            label: 'Französisch',
+                            suits: const [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs],
+                            cardType: CardType.french,
+                            subtitle: 'Schaufeln · Herz\nEcken · Kreuz',
+                            selected: _selectedCardType == CardType.french,
+                            onTap: () => setState(() => _selectedCardType = CardType.french),
+                          ),
+                          const SizedBox(width: 10),
+                          _CardTypeButton(
+                            label: 'Deutsch',
+                            suits: const [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten],
+                            cardType: CardType.german,
+                            subtitle: 'Schellen · Rosen\nEichel · Schilten',
+                            selected: _selectedCardType == CardType.german,
+                            onTap: () => setState(() => _selectedCardType = CardType.german),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 8),
 
-              // Game type selection
+              // ── Spielmodus ─────────────────────────────────────────────
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
                   color: Colors.black26,
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
-                      'Spielmodus wählen',
-                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                    const Text('Spielmodus wählen',
+                        style: TextStyle(color: Colors.white70, fontSize: 13)),
+                    const SizedBox(height: 8),
+                    IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _GameTypeButton(
+                            label: 'Schieber',
+                            subtitle: 'bis $_schieberWinTarget',
+                            description: '♠♣ 1× · ♥♦ 2× · ⬆️⬇️ 3× · 〰️ 4×',
+                            emoji: '🃏',
+                            selected: _selectedGameType == GameType.schieber,
+                            onTap: () => setState(() => _selectedGameType = GameType.schieber),
+                          ),
+                          const SizedBox(width: 10),
+                          _GameTypeButton(
+                            label: 'Differenzler',
+                            subtitle: '4 Runden',
+                            description: 'Vorhersage · Strafe · 4 Runden',
+                            emoji: '🎯',
+                            selected: _selectedGameType == GameType.differenzler,
+                            onTap: () => setState(() => _selectedGameType = GameType.differenzler),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _GameTypeButton(
-                          label: 'Friseur',
-                          subtitle: 'Team',
-                          description: '2 Teams · Schieben erlaubt',
-                          emoji: '✂️',
-                          selected: _selectedGameType == GameType.friseurTeam,
-                          onTap: () => setState(
-                              () => _selectedGameType = GameType.friseurTeam),
-                        ),
-                        const SizedBox(width: 12),
-                        _GameTypeButton(
-                          label: 'Friseur',
-                          subtitle: 'Solo',
-                          description: 'Wunschkarte · 4× alle Varianten',
-                          emoji: '✂️',
-                          selected: _selectedGameType == GameType.friseur,
-                          onTap: () => setState(
-                              () => _selectedGameType = GameType.friseur),
-                        ),
-                      ],
+                    const SizedBox(height: 8),
+                    IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _GameTypeButton(
+                            label: 'Friseur',
+                            subtitle: 'Team',
+                            description: '2 Teams · 20 Runden · Schieben',
+                            emoji: '✂️',
+                            selected: _selectedGameType == GameType.friseurTeam,
+                            onTap: () => setState(() => _selectedGameType = GameType.friseurTeam),
+                          ),
+                          const SizedBox(width: 10),
+                          _GameTypeButton(
+                            label: 'Friseur',
+                            subtitle: 'Solo',
+                            description: 'Wunschkarte · 40 Runden',
+                            emoji: '✂️',
+                            selected: _selectedGameType == GameType.friseur,
+                            onTap: () => setState(() => _selectedGameType = GameType.friseur),
+                          ),
+                        ],
+                      ),
                     ),
+                    // ── Schieber: Zielpunkte ─────────────────────────────
+                    if (_selectedGameType == GameType.schieber) ...[
+                      const SizedBox(height: 8),
+                      const Divider(color: Colors.white12, height: 1),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('Ziel:',
+                              style: TextStyle(color: Colors.white54, fontSize: 12)),
+                          const SizedBox(width: 8),
+                          for (final target in [1500, 2500, 3500]) ...[
+                            if (target != 1500) const SizedBox(width: 6),
+                            _TargetButton(
+                              label: '$target',
+                              selected: _schieberWinTarget == target,
+                              onTap: () => setState(() => _schieberWinTarget = target),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
 
-              const SizedBox(height: 32),
+              const SizedBox(height: 12),
 
-              // Play button
+              // ── Spielen ────────────────────────────────────────────────
               ElevatedButton(
                 onPressed: _startGame,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.gold,
                   foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 48, vertical: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 14),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
-                  ),
+                      borderRadius: BorderRadius.circular(30)),
                   textStyle: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
+                      fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 child: const Text('SPIELEN'),
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 4),
 
               TextButton(
                 onPressed: () => _showRules(context),
-                child: const Text(
-                  'Regeln',
-                  style: TextStyle(color: Colors.white38),
-                ),
+                child: const Text('Regeln',
+                    style: TextStyle(color: Colors.white38)),
               ),
+
+              SizedBox(height: bottom + 4),
             ],
           ),
         ),
@@ -173,6 +214,7 @@ class _HomeScreenState extends State<HomeScreen> {
     provider.startNewGame(
       cardType: _selectedCardType,
       gameType: _selectedGameType,
+      schieberWinTarget: _schieberWinTarget,
     );
     Navigator.push(
       context,
@@ -183,7 +225,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void _showRules(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const RulesScreen()),
+      MaterialPageRoute(
+        builder: (_) => RulesScreen(initialGameType: _selectedGameType),
+      ),
     );
   }
 }
@@ -211,8 +255,8 @@ class _GameTypeButton extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        width: 150,
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+        width: 148,
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
         decoration: BoxDecoration(
           color: selected
               ? AppColors.gold.withValues(alpha: 0.15)
@@ -224,35 +268,35 @@ class _GameTypeButton extends StatelessWidget {
           ),
         ),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 28)),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 15,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 22)),
+              const SizedBox(height: 3),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
               ),
-            ),
-            Text(
-              subtitle,
-              style: TextStyle(
-                color: selected ? AppColors.gold : Colors.white54,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
+              Text(
+                subtitle,
+                style: TextStyle(
+                  color: selected ? AppColors.gold : Colors.white54,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              description,
-              style: const TextStyle(color: Colors.white38, fontSize: 10),
-              textAlign: TextAlign.center,
-            ),
-          ],
+              const SizedBox(height: 3),
+              Text(
+                description,
+                style: const TextStyle(color: Colors.white38, fontSize: 9),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
-      ),
     );
   }
 }
@@ -280,8 +324,8 @@ class _CardTypeButton extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        width: 150,
-        padding: const EdgeInsets.all(12),
+        width: 148,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         decoration: BoxDecoration(
           color: selected ? AppColors.gold.withValues(alpha: 0.15) : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
@@ -291,23 +335,24 @@ class _CardTypeButton extends StatelessWidget {
           ),
         ),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Vier Suit-Pips — leicht verstreut, wie auf dem Spieltisch
+            // Vier Suit-Pips kompakt
             SizedBox(
-              width: 116,
-              height: 100,
+              width: 100,
+              height: 66,
               child: Stack(
                 children: [
                   Positioned(left: 2, top: 2,
                     child: Transform.rotate(angle: -0.18,
                       child: _SuitPip(suit: suits[0], cardType: cardType))),
-                  Positioned(right: 2, top: 6,
+                  Positioned(right: 2, top: 4,
                     child: Transform.rotate(angle: 0.14,
                       child: _SuitPip(suit: suits[1], cardType: cardType))),
-                  Positioned(left: 6, bottom: 2,
+                  Positioned(left: 4, bottom: 2,
                     child: Transform.rotate(angle: 0.16,
                       child: _SuitPip(suit: suits[2], cardType: cardType))),
-                  Positioned(right: 2, bottom: 4,
+                  Positioned(right: 2, bottom: 2,
                     child: Transform.rotate(angle: -0.12,
                       child: _SuitPip(suit: suits[3], cardType: cardType))),
                 ],
@@ -319,12 +364,13 @@ class _CardTypeButton extends StatelessWidget {
               style: TextStyle(
                 color: selected ? AppColors.gold : Colors.white,
                 fontWeight: FontWeight.bold,
+                fontSize: 13,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Text(
               subtitle,
-              style: const TextStyle(color: Colors.white38, fontSize: 10),
+              style: const TextStyle(color: Colors.white38, fontSize: 9),
               textAlign: TextAlign.center,
             ),
           ],
@@ -350,19 +396,60 @@ class _SuitPip extends StatelessWidget {
   Widget build(BuildContext context) {
     if (cardType == CardType.german) {
       return SizedBox(
-        width: 48,
-        height: 48,
+        width: 36,
+        height: 36,
         child: Image.asset(_imagePath, fit: BoxFit.contain),
       );
     }
-    // French: crop center of ace card (48/114 ≈ 42% visible width)
+    // French: crop center of ace card
     return SizedBox(
-      width: 48,
-      height: 48,
+      width: 36,
+      height: 36,
       child: ClipRect(
         child: Align(
           alignment: Alignment.center,
-          child: Image.asset(_imagePath, width: 114, fit: BoxFit.fitWidth),
+          child: Image.asset(_imagePath, width: 86, fit: BoxFit.fitWidth),
+        ),
+      ),
+    );
+  }
+}
+
+class _TargetButton extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _TargetButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 82,
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.gold.withValues(alpha: 0.15) : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected ? AppColors.gold : Colors.white24,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: selected ? AppColors.gold : Colors.white70,
+            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+            fontSize: 14,
+          ),
         ),
       ),
     );

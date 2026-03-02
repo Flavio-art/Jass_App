@@ -21,8 +21,8 @@ class GameScreen extends StatefulWidget {
 }
 
 class _GameScreenState extends State<GameScreen> {
-  bool _partnerRevealShowing = false;
   String? _displayedSchiebungComment;
+  bool _overviewShowing = false;
 
   void _showTrumpSelection() {
     Navigator.push(
@@ -72,8 +72,9 @@ class _GameScreenState extends State<GameScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(
+            16, 16, 16, 24 + MediaQuery.viewPaddingOf(ctx).bottom),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -123,12 +124,49 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
+  /// Berechnet Team-Farben pro Spieler (wenn Partnerschaft bekannt).
+  /// Gibt null zurück wenn noch kein Team bekannt.
+  static const _teamColorPairs = [
+    [Color(0xFF64B5F6), Color(0xFFEF9A9A)], // blau, rot
+    [Color(0xFF81C784), Color(0xFFFFB74D)], // grün, orange
+    [Color(0xFFCE93D8), Color(0xFF80DEEA)], // lila, cyan
+    [Color(0xFFF48FB1), Color(0xFFA5D6A7)], // pink, hellgrün
+  ];
+
+  static Map<String, Color?> _computeTeamColors(GameState state) {
+    final pairIdx = state.roundNumber % _teamColorPairs.length;
+    final color1 = _teamColorPairs[pairIdx][0];
+    final color2 = _teamColorPairs[pairIdx][1];
+
+    if (state.gameType == GameType.friseur) {
+      if (!state.friseurPartnerRevealed) {
+        return {for (final p in state.players) p.id: null};
+      }
+      return {
+        for (final p in state.players)
+          p.id: state.isFriseurAnnouncingTeam(p) ? color1 : color2,
+      };
+    } else if (state.gameType == GameType.differenzler) {
+      // Differenzler: individuelles Spiel, keine Team-Farben
+      return {for (final p in state.players) p.id: null};
+    } else {
+      // Friseur Team / Schieber: Süd+Nord vs. West+Ost
+      return {
+        for (final p in state.players)
+          p.id: (p.position == PlayerPosition.south ||
+                  p.position == PlayerPosition.north)
+              ? color1
+              : color2,
+      };
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.feltGreen,
       body: SafeArea(
-        maintainBottomViewPadding: true,
+        bottom: false,
         child: Consumer<GameProvider>(
           builder: (context, provider, _) {
             final state = provider.state;
@@ -148,6 +186,15 @@ class _GameScreenState extends State<GameScreen> {
                 : state.currentTrickNumber;
 
             final wonByPlayer = _computeWonTricks(state);
+            final teamColors = _computeTeamColors(state);
+
+            // Im-Loch-Indikator: Spieler der nach 2× Schieben spielen muss
+            final inLochId = (state.gameType == GameType.friseur &&
+                    state.phase == GamePhase.trumpSelection &&
+                    state.soloSchiebungRounds >= 2 &&
+                    state.trumpSelectorIndex == null)
+                ? state.currentAnsager.id
+                : null;
 
             return Stack(
               children: [
@@ -178,10 +225,43 @@ class _GameScreenState extends State<GameScreen> {
                                 color: Colors.white70),
                             onPressed: () => Navigator.pop(context),
                           ),
-                          ScoreBoardWidget(
-                            teamScores: state.teamScores,
-                            roundNumber: state.roundNumber,
-                            isFriseurSolo: state.gameType == GameType.friseur,
+                          // Score-Anzeige je nach Spielmodus
+                          Expanded(
+                            child: (state.gameType == GameType.friseur &&
+                                    (state.phase == GamePhase.playing ||
+                                        state.phase == GamePhase.trickClearPending) &&
+                                    !state.friseurPartnerRevealed)
+                                ? _IndividualScoreBar(
+                                    players: state.players,
+                                    playerScores: state.playerScores,
+                                    roundNumber: state.roundNumber,
+                                  )
+                                : state.gameType == GameType.differenzler &&
+                                        (state.phase == GamePhase.playing ||
+                                            state.phase == GamePhase.trickClearPending)
+                                    ? _DifferenzlerScoreBar(
+                                        players: state.players,
+                                        playerScores: state.playerScores,
+                                        predictions: state.differenzlerPredictions,
+                                        roundNumber: state.roundNumber,
+                                      )
+                                    : state.gameType == GameType.schieber
+                                        ? Center(
+                                            child: _SchieberScoreBar(
+                                              totalTeamScores: state.totalTeamScores,
+                                              teamScores: state.teamScores,
+                                              roundNumber: state.roundNumber,
+                                              winTarget: state.schieberWinTarget,
+                                            ),
+                                          )
+                                        : Center(
+                                            child: ScoreBoardWidget(
+                                              teamScores: state.teamScores,
+                                              roundNumber: state.roundNumber,
+                                              isFriseurSolo:
+                                                  state.gameType == GameType.friseur,
+                                            ),
+                                          ),
                           ),
                           Row(
                             mainAxisSize: MainAxisSize.min,
@@ -195,6 +275,14 @@ class _GameScreenState extends State<GameScreen> {
                                   onPressed: () =>
                                       _showTrickHistory(context, state),
                                 ),
+                              // Spielübersicht Button
+                              IconButton(
+                                icon: const Icon(Icons.bar_chart_rounded,
+                                    color: Colors.white70),
+                                tooltip: 'Spielübersicht',
+                                onPressed: () =>
+                                    setState(() => _overviewShowing = true),
+                              ),
                               IconButton(
                                 icon: const Icon(Icons.menu,
                                     color: Colors.white70),
@@ -218,12 +306,19 @@ class _GameScreenState extends State<GameScreen> {
                             isActive:
                                 state.currentPlayer.id == north.id &&
                                     state.phase == GamePhase.playing,
+                            teamColor: teamColors[north.id],
                           ),
                           if ((wonByPlayer[PlayerPosition.north] ?? 0) > 0)
                             Padding(
                               padding: const EdgeInsets.only(top: 4),
                               child: _WonPile(
                                   wonByPlayer[PlayerPosition.north]!),
+                            ),
+                          if (inLochId == north.id)
+                            const Padding(
+                              padding: EdgeInsets.only(top: 2),
+                              child: Text('🕳️',
+                                  style: TextStyle(fontSize: 14)),
                             ),
                         ],
                       ),
@@ -258,7 +353,14 @@ class _GameScreenState extends State<GameScreen> {
                                     isActive:
                                         state.currentPlayer.id == west.id &&
                                             state.phase == GamePhase.playing,
+                                    teamColor: teamColors[west.id],
                                   ),
+                                  if (inLochId == west.id)
+                                    const Padding(
+                                      padding: EdgeInsets.only(top: 2),
+                                      child: Text('🕳️',
+                                          style: TextStyle(fontSize: 14)),
+                                    ),
                                 ],
                               ),
                             ),
@@ -280,6 +382,9 @@ class _GameScreenState extends State<GameScreen> {
                                 isClearPending: isClearPending,
                                 slalomStartsOben: state.slalomStartsOben,
                                 onTap: () => provider.clearTrick(),
+                                wishCard: state.gameType == GameType.friseur
+                                    ? state.wishCard
+                                    : null,
                               ),
                             ),
                           ),
@@ -308,7 +413,14 @@ class _GameScreenState extends State<GameScreen> {
                                     isActive:
                                         state.currentPlayer.id == east.id &&
                                             state.phase == GamePhase.playing,
+                                    teamColor: teamColors[east.id],
                                   ),
+                                  if (inLochId == east.id)
+                                    const Padding(
+                                      padding: EdgeInsets.only(top: 2),
+                                      child: Text('🕳️',
+                                          style: TextStyle(fontSize: 14)),
+                                    ),
                                 ],
                               ),
                             ),
@@ -324,10 +436,30 @@ class _GameScreenState extends State<GameScreen> {
                         child: _WonPile(wonByPlayer[PlayerPosition.south]!),
                       ),
 
+                    // ── Im-Loch Indikator (South/Human) ─────────────
+                    if (inLochId == human.id)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: const [
+                            Text('🕳️', style: TextStyle(fontSize: 16)),
+                            SizedBox(width: 4),
+                            Text('Im Loch',
+                                style: TextStyle(
+                                    color: Colors.red,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13)),
+                          ],
+                        ),
+                      ),
+
                     // ── Human player hand (South) ────────────────────
                     Padding(
-                      padding:
-                          const EdgeInsets.only(bottom: 16, top: 6),
+                      padding: EdgeInsets.only(
+                        bottom: 16 + MediaQuery.of(context).viewPadding.bottom,
+                        top: 6,
+                      ),
                       child: PlayerHandWidget(
                         player: human,
                         isActive:
@@ -340,6 +472,7 @@ class _GameScreenState extends State<GameScreen> {
                             provider.playCard(human.id, card);
                           }
                         },
+                        teamColor: teamColors[human.id],
                       ),
                     ),
                   ],
@@ -379,24 +512,12 @@ class _GameScreenState extends State<GameScreen> {
                   ),
 
                 // ── Partner aufgedeckt (Friseur Solo) ─────────────────
-                if (state.friseurPartnerJustRevealed && !_partnerRevealShowing) ...[
+                // Kein Dialog – Partner wird durch Einfärbung sichtbar.
+                if (state.friseurPartnerJustRevealed) ...[
                   Builder(builder: (ctx) {
                     WidgetsBinding.instance.addPostFrameCallback((_) {
                       if (!mounted) return;
-                      if (_partnerRevealShowing) return;
-                      setState(() => _partnerRevealShowing = true);
-                      final provider = context.read<GameProvider>();
-                      showDialog(
-                        context: ctx,
-                        barrierDismissible: false,
-                        builder: (_) => _PartnerRevealDialog(
-                          state: state,
-                          onDismiss: () {
-                            provider.acknowledgePartnerReveal();
-                            if (mounted) setState(() => _partnerRevealShowing = false);
-                          },
-                        ),
-                      );
+                      context.read<GameProvider>().acknowledgePartnerReveal();
                     });
                     return const SizedBox.shrink();
                   }),
@@ -410,7 +531,7 @@ class _GameScreenState extends State<GameScreen> {
                   Positioned(
                     left: 0,
                     right: 0,
-                    bottom: 170,
+                    bottom: 230,
                     child: Center(
                       child: GestureDetector(
                         onTap: _showTrumpSelection,
@@ -460,13 +581,51 @@ class _GameScreenState extends State<GameScreen> {
                   ),
                 ],
 
+                // ── Im-Loch Banner (Friseur Solo, Mitte) ──────────────
+                if (inLochId != null)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    top: 0,
+                    bottom: 0,
+                    child: IgnorePointer(
+                      child: Center(
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 80),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 18, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade900.withValues(alpha: 0.85),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.red.shade300, width: 1.5),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text('🕳️', style: TextStyle(fontSize: 18)),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${state.players.firstWhere((p) => p.id == inLochId).name} ist im Loch',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
                 // ── KI entscheidet (Schieben Solo) ────────────────────
                 if (state.phase == GamePhase.trumpSelection &&
                     !state.currentTrumpSelector.isHuman)
                   Positioned(
                     left: 0,
                     right: 0,
-                    bottom: 170,
+                    bottom: 230,
                     child: Center(
                       child: Container(
                         padding: const EdgeInsets.symmetric(
@@ -486,16 +645,49 @@ class _GameScreenState extends State<GameScreen> {
                     ),
                   ),
 
+                // ── Differenzler Vorhersage-Phase ──────────────────────
+                if (state.phase == GamePhase.prediction)
+                  _DifferenzlerPredictionOverlay(
+                    state: state,
+                    onConfirm: (prediction) =>
+                        context.read<GameProvider>().setPredictions(prediction),
+                  ),
+
                 // ── Round end overlay ──────────────────────────────────
                 if (state.phase == GamePhase.roundEnd)
-                  _RoundEndOverlay(
-                    roundHistory: state.roundHistory,
-                    cardType: state.cardType,
-                    isFriseurSolo: state.gameType == GameType.friseur,
-                    players: state.players,
-                    friseurPartnerIndex: state.friseurPartnerIndex,
-                    onNextRound: () => provider.startNewRound(),
-                    onHome: () => Navigator.pop(context),
+                  state.gameType == GameType.differenzler
+                      ? _DifferenzlerRoundEndOverlay(
+                          players: state.players,
+                          roundNumber: state.roundHistory.isNotEmpty
+                              ? state.roundHistory.last.roundNumber
+                              : state.roundNumber,
+                          predictions: state.differenzlerPredictions,
+                          playerScores: state.playerScores,
+                          penalties: state.differenzlerPenalties,
+                          onNextRound: () => provider.startNewRound(),
+                          onHome: () => Navigator.pop(context),
+                        )
+                      : _RoundEndOverlay(
+                          roundHistory: state.roundHistory,
+                          cardType: state.cardType,
+                          isFriseurSolo: state.gameType == GameType.friseur,
+                          isSchieber: state.gameType == GameType.schieber,
+                          players: state.players,
+                          friseurPartnerIndex: state.friseurPartnerIndex,
+                          friseurSoloScores: state.gameType == GameType.friseur
+                              ? state.friseurSoloScores
+                              : null,
+                          totalTeamScores: state.totalTeamScores,
+                          schieberWinTarget: state.schieberWinTarget,
+                          onNextRound: () => provider.startNewRound(),
+                          onHome: () => Navigator.pop(context),
+                        ),
+
+                // ── Spielübersicht Overlay (📊) ────────────────────────
+                if (_overviewShowing)
+                  _GameOverviewOverlay(
+                    state: state,
+                    onClose: () => setState(() => _overviewShowing = false),
                   ),
 
                 // ── Game end overlay ───────────────────────────────────
@@ -510,13 +702,34 @@ class _GameScreenState extends State<GameScreen> {
                           ),
                           onHome: () => Navigator.pop(context),
                         )
-                      : _GameEndOverlay(
-                          totalTeamScores: state.totalTeamScores,
-                          onNewGame: () {
-                            provider.startNewGame(cardType: state.cardType);
-                          },
-                          onHome: () => Navigator.pop(context),
-                        ),
+                      : state.gameType == GameType.schieber
+                          ? _SchieberGameEndOverlay(
+                              totalTeamScores: state.totalTeamScores,
+                              winTarget: state.schieberWinTarget,
+                              onNewGame: () => provider.startNewGame(
+                                cardType: state.cardType,
+                                gameType: GameType.schieber,
+                                schieberWinTarget: state.schieberWinTarget,
+                              ),
+                              onHome: () => Navigator.pop(context),
+                            )
+                          : state.gameType == GameType.differenzler
+                              ? _DifferenzlerGameEndOverlay(
+                                  players: state.players,
+                                  penalties: state.differenzlerPenalties,
+                                  onNewGame: () => provider.startNewGame(
+                                    cardType: state.cardType,
+                                    gameType: GameType.differenzler,
+                                  ),
+                                  onHome: () => Navigator.pop(context),
+                                )
+                              : _GameEndOverlay(
+                                  totalTeamScores: state.totalTeamScores,
+                                  onNewGame: () {
+                                    provider.startNewGame(cardType: state.cardType);
+                                  },
+                                  onHome: () => Navigator.pop(context),
+                                ),
               ],
             );
           },
@@ -533,8 +746,9 @@ class _GameScreenState extends State<GameScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(24),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(
+            24, 24, 24, 24 + MediaQuery.viewPaddingOf(ctx).bottom),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -554,7 +768,9 @@ class _GameScreenState extends State<GameScreen> {
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const RulesScreen()));
+                    MaterialPageRoute(builder: (_) => RulesScreen(
+                      initialGameType: provider.state.gameType,
+                    )));
               },
             ),
             ListTile(
@@ -672,8 +888,12 @@ class _RoundEndOverlay extends StatelessWidget {
   final List<RoundResult> roundHistory;
   final CardType cardType;
   final bool isFriseurSolo;
+  final bool isSchieber;
   final List<Player> players;
   final int? friseurPartnerIndex;
+  final Map<String, Map<String, List<int>>>? friseurSoloScores;
+  final Map<String, int> totalTeamScores;
+  final int schieberWinTarget;
   final VoidCallback onNextRound;
   final VoidCallback onHome;
 
@@ -708,8 +928,12 @@ class _RoundEndOverlay extends StatelessWidget {
     required this.roundHistory,
     required this.cardType,
     this.isFriseurSolo = false,
+    this.isSchieber = false,
     this.players = const [],
     this.friseurPartnerIndex,
+    this.friseurSoloScores,
+    this.totalTeamScores = const {},
+    this.schieberWinTarget = 1500,
     required this.onNextRound,
     required this.onHome,
   });
@@ -735,17 +959,17 @@ class _RoundEndOverlay extends StatelessWidget {
     final roundNum = roundHistory.isNotEmpty ? roundHistory.last.roundNumber : null;
     final lastResult = roundHistory.isNotEmpty ? roundHistory.last : null;
 
-    // Friseur Solo: einfache Rundenübersicht
+    // Friseur Solo: Rundenübersicht + Score-Tabelle
     if (isFriseurSolo && lastResult != null) {
       final partnerName = friseurPartnerIndex != null && players.isNotEmpty
           ? players[friseurPartnerIndex!].name
           : '—';
+      final soloScores = friseurSoloScores;
       return Container(
         color: Colors.black54,
         child: Center(
           child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-            padding: const EdgeInsets.all(24),
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
             decoration: BoxDecoration(
               color: const Color(0xFF1B4D2E),
               borderRadius: BorderRadius.circular(20),
@@ -754,47 +978,170 @@ class _RoundEndOverlay extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  roundNum != null ? 'Runde $roundNum beendet' : 'Runde beendet',
-                  style: const TextStyle(
-                      color: AppColors.gold,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+                  child: Column(
+                    children: [
+                      Text(
+                        roundNum != null ? 'Runde $roundNum beendet' : 'Runde beendet',
+                        style: const TextStyle(
+                            color: AppColors.gold,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(lastResult.displayName,
+                          style: const TextStyle(color: Colors.white70, fontSize: 14)),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _resultBadge('Ansager-Team', lastResult.team1Score),
+                          const SizedBox(width: 16),
+                          _resultBadge('Gegner', lastResult.team2Score),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text('Partner: $partnerName',
+                          style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                    ],
+                  ),
+                ),
+                if (soloScores != null && players.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  const Divider(color: Colors.white24, height: 1),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.of(context).size.height * 0.35,
+                    ),
+                    child: SingleChildScrollView(
+                      child: _FriseurSoloScoreTable(
+                        players: players,
+                        friseurSoloScores: soloScores,
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                const Divider(color: Colors.white24, height: 1),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      TextButton(
+                        onPressed: onHome,
+                        child: const Text('Menü',
+                            style: TextStyle(color: Colors.white54)),
+                      ),
+                      ElevatedButton(
+                        onPressed: onNextRound,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.gold,
+                          foregroundColor: Colors.black,
+                        ),
+                        child: const Text('Nächste Runde',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Schieber: kompakte Rundenübersicht mit kumulierten Punkten
+    if (isSchieber && lastResult != null) {
+      final total1 = totalTeamScores['team1'] ?? 0;
+      final total2 = totalTeamScores['team2'] ?? 0;
+      return Container(
+        color: Colors.black54,
+        child: Center(
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1B4D2E),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.gold, width: 2),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+                  child: Column(
+                    children: [
+                      Text(
+                        'Runde ${lastResult.roundNumber} beendet',
+                        style: const TextStyle(
+                            color: AppColors.gold,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(lastResult.displayName,
+                          style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _resultBadge('Ihr (diese Runde)', lastResult.team1Score),
+                          _resultBadge('Gegner (diese Runde)', lastResult.team2Score),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      const Divider(color: Colors.white24),
+                      const SizedBox(height: 8),
+                      Text('Gesamtstand (Ziel: $schieberWinTarget)',
+                          style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _resultBadge('Ihr gesamt', total1),
+                          _resultBadge('Gegner gesamt', total2),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      // Fortschrittsbalken
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: (total1 / schieberWinTarget).clamp(0.0, 1.0),
+                          backgroundColor: Colors.red.shade900,
+                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.gold),
+                          minHeight: 8,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 12),
-                Text(lastResult.displayName,
-                    style: const TextStyle(color: Colors.white70, fontSize: 14)),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _resultBadge('Ansager-Team', lastResult.team1Score),
-                    const SizedBox(width: 16),
-                    _resultBadge('Gegner', lastResult.team2Score),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text('Partner: $partnerName',
-                    style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    TextButton(
-                      onPressed: onHome,
-                      child: const Text('Menü',
-                          style: TextStyle(color: Colors.white54)),
-                    ),
-                    ElevatedButton(
-                      onPressed: onNextRound,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.gold,
-                        foregroundColor: Colors.black,
+                const Divider(color: Colors.white24, height: 1),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      TextButton(
+                        onPressed: onHome,
+                        child: const Text('Menü',
+                            style: TextStyle(color: Colors.white54)),
                       ),
-                      child: const Text('Nächste Runde',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
-                    ),
-                  ],
+                      ElevatedButton(
+                        onPressed: onNextRound,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.gold,
+                          foregroundColor: Colors.black,
+                        ),
+                        child: const Text('Nächste Runde',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -1405,88 +1752,6 @@ class _WishCardTile extends StatelessWidget {
   }
 }
 
-// ── Partner aufgedeckt Dialog ─────────────────────────────────────────────────
-
-class _PartnerRevealDialog extends StatelessWidget {
-  final GameState state;
-  final VoidCallback onDismiss;
-
-  const _PartnerRevealDialog({required this.state, required this.onDismiss});
-
-  @override
-  Widget build(BuildContext context) {
-    final partnerIdx = state.friseurPartnerIndex;
-    final partnerName = partnerIdx != null ? state.players[partnerIdx].name : '?';
-    final wishCard = state.wishCard;
-
-    return Dialog(
-      backgroundColor: const Color(0xFF1B4D2E),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('🤝', style: TextStyle(fontSize: 48)),
-            const SizedBox(height: 12),
-            const Text(
-              'Partner aufgedeckt!',
-              style: TextStyle(
-                color: AppColors.gold,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            if (wishCard != null)
-              Text(
-                '$wishCard wurde gespielt',
-                style: const TextStyle(color: Colors.white54, fontSize: 13),
-              ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.white12,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.gold.withValues(alpha: 0.5)),
-              ),
-              child: Text(
-                partnerName,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'ist dein Partner!',
-              style: TextStyle(color: Colors.white70, fontSize: 14),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                onDismiss();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.gold,
-                foregroundColor: Colors.black,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-              ),
-              child: const Text('Weiter spielen',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 // ── Friseur Solo Spielende-Overlay ────────────────────────────────────────────
 
 class _FriseurSoloGameEndOverlay extends StatelessWidget {
@@ -1500,8 +1765,8 @@ class _FriseurSoloGameEndOverlay extends StatelessWidget {
     'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof',
   ];
   static const _shortLabels = {
-    'trump_ss': '♦♠',
-    'trump_re': '♥♣',
+    'trump_ss': '♠♣',
+    'trump_re': '♥♦',
     'oben':       '⬇️',
     'unten':      '⬆️',
     'slalom':     '〰️',
@@ -1720,4 +1985,1071 @@ class _FriseurSoloGameEndOverlay extends StatelessWidget {
                 fontSize: 9,
                 fontWeight: FontWeight.bold)),
       );
+}
+
+// ── Individuelle Punkte-Anzeige (Friseur Solo, vor Partner-Reveal) ─────────────
+
+class _IndividualScoreBar extends StatelessWidget {
+  final List<Player> players;
+  final Map<String, int> playerScores;
+  final int roundNumber;
+
+  const _IndividualScoreBar({
+    required this.players,
+    required this.playerScores,
+    required this.roundNumber,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          for (final p in players) ...[
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  p.isHuman ? 'Du' : p.name,
+                  style: const TextStyle(
+                      color: Colors.white54, fontSize: 9),
+                ),
+                Text(
+                  '${playerScores[p.id] ?? 0}',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            if (p != players.last) const SizedBox(width: 10),
+          ],
+          const SizedBox(width: 10),
+          Text(
+            'R$roundNumber',
+            style: const TextStyle(color: Colors.white38, fontSize: 10),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Friseur Solo Score-Tabelle (wiederverwendbar) ─────────────────────────────
+
+class _FriseurSoloScoreTable extends StatelessWidget {
+  final List<Player> players;
+  final Map<String, Map<String, List<int>>> friseurSoloScores;
+
+  static const _variants = [
+    'trump_ss', 'trump_re', 'oben', 'unten', 'slalom',
+    'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof',
+  ];
+  static const _shortLabels = {
+    'trump_ss': '♠♣',
+    'trump_re': '♥♦',
+    'oben':       '⬇️',
+    'unten':      '⬆️',
+    'slalom':     '〰️',
+    'elefant':    '🐘',
+    'misere':     '😶',
+    'allesTrumpf':'👑',
+    'schafkopf':  '🐑',
+    'molotof':    '💣',
+  };
+
+  const _FriseurSoloScoreTable({
+    required this.players,
+    required this.friseurSoloScores,
+  });
+
+  int _avgScore(String playerId, String variant) {
+    final scores = friseurSoloScores[playerId]?[variant] ?? [];
+    if (scores.isEmpty) return 0;
+    return (scores.reduce((a, b) => a + b) / scores.length).round();
+  }
+
+  int _total(String playerId) =>
+      _variants.fold(0, (sum, v) => sum + _avgScore(playerId, v));
+
+  @override
+  Widget build(BuildContext context) {
+    return Table(
+      columnWidths: {
+        0: const FlexColumnWidth(1.4),
+        for (int i = 0; i < players.length; i++)
+          i + 1: const FlexColumnWidth(1.0),
+      },
+      children: [
+        TableRow(
+          decoration: const BoxDecoration(color: Colors.black26),
+          children: [
+            _hCell(''),
+            for (final p in players) _hCell(p.isHuman ? 'Du' : p.name, center: true),
+          ],
+        ),
+        for (final variant in _variants)
+          TableRow(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+                child: Text(
+                  _shortLabels[variant] ?? variant,
+                  style: const TextStyle(color: Colors.white70, fontSize: 11),
+                ),
+              ),
+              for (final p in players) _scoreCell(p.id, variant),
+            ],
+          ),
+        TableRow(
+          decoration: const BoxDecoration(
+              border: Border(top: BorderSide(color: Colors.white38))),
+          children: List.filled(players.length + 1, const SizedBox(height: 1)),
+        ),
+        TableRow(
+          decoration: const BoxDecoration(color: Colors.black12),
+          children: [
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 5, horizontal: 6),
+              child: Text('Ges.',
+                  style: TextStyle(
+                      color: AppColors.gold,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold)),
+            ),
+            for (final p in players)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 4),
+                child: Text(
+                  '${_total(p.id)}',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _scoreCell(String playerId, String variant) {
+    final scores = friseurSoloScores[playerId]?[variant] ?? [];
+    if (scores.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+        child: Text('—',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white24, fontSize: 11)),
+      );
+    }
+    final avg = (scores.reduce((a, b) => a + b) / scores.length).round();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+      child: Text(
+        '$avg${scores.length > 1 ? '*' : ''}',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: avg >= 100 ? Colors.amber.shade300 : Colors.greenAccent.shade200,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  static Widget _hCell(String text, {bool center = false}) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+        child: Text(text,
+            textAlign: center ? TextAlign.center : TextAlign.left,
+            style: const TextStyle(
+                color: Colors.white38, fontSize: 9, fontWeight: FontWeight.bold)),
+      );
+}
+
+// ── Spielübersicht Overlay (📊) ────────────────────────────────────────────────
+
+class _GameOverviewOverlay extends StatelessWidget {
+  final GameState state;
+  final VoidCallback onClose;
+
+  const _GameOverviewOverlay({required this.state, required this.onClose});
+
+  static const _shortLabels = {
+    'trump_ss': '♠♣',
+    'trump_re': '♥♦',
+    'oben':       '⬇️',
+    'unten':      '⬆️',
+    'slalom':     '〰️',
+    'elefant':    '🐘',
+    'misere':     '😶',
+    'allesTrumpf':'👑',
+    'schafkopf':  '🐑',
+    'molotof':    '💣',
+  };
+
+  static const _variants = [
+    'trump_ss', 'trump_re', 'oben', 'unten', 'slalom',
+    'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: Material(
+        color: Colors.black87,
+        child: SafeArea(
+          child: DefaultTabController(
+            length: 2,
+            child: Column(
+              children: [
+                // Header
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  child: Row(
+                    children: [
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Spielübersicht',
+                        style: TextStyle(
+                            color: AppColors.gold,
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.white70),
+                        onPressed: onClose,
+                      ),
+                    ],
+                  ),
+                ),
+                const TabBar(
+                  indicatorColor: AppColors.gold,
+                  labelColor: AppColors.gold,
+                  unselectedLabelColor: Colors.white54,
+                  tabs: [
+                    Tab(text: 'Runden'),
+                    Tab(text: 'Punkte'),
+                  ],
+                ),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      _buildRoundsTab(context),
+                      _buildScoresTab(context),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRoundsTab(BuildContext context) {
+    if (state.roundHistory.isEmpty) {
+      return const Center(
+        child: Text('Noch keine Runden gespielt.',
+            style: TextStyle(color: Colors.white54)),
+      );
+    }
+    final history = [...state.roundHistory].reversed.toList();
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      itemCount: history.length,
+      itemBuilder: (ctx, i) {
+        final r = history[i];
+        final varLabel = _shortLabels[r.variantKey] ?? r.variantKey;
+        return Container(
+          margin: const EdgeInsets.only(bottom: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white10,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 28,
+                child: Text(
+                  'R${r.roundNumber}',
+                  style: const TextStyle(color: Colors.white38, fontSize: 11),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(varLabel, style: const TextStyle(fontSize: 16)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  r.partnerName != null
+                      ? '${r.announcerName} & ${r.partnerName}'
+                      : r.announcerName,
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Text(
+                '${r.team1Score} : ${r.team2Score}',
+                style: const TextStyle(
+                    color: AppColors.gold,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildScoresTab(BuildContext context) {
+    if (state.gameType == GameType.friseur) {
+      if (state.friseurSoloScores.isEmpty) {
+        return const Center(
+          child: Text('Noch keine Punkte.',
+              style: TextStyle(color: Colors.white54)),
+        );
+      }
+      return SingleChildScrollView(
+        padding: const EdgeInsets.all(12),
+        child: _FriseurSoloScoreTable(
+          players: state.players,
+          friseurSoloScores: state.friseurSoloScores,
+        ),
+      );
+    }
+
+    // Friseur Team: Varianten × 2 Teams
+    final roundHistory = state.roundHistory;
+
+    RoundResult? byTeam1(String v) {
+      for (final r in roundHistory) {
+        if (r.variantKey == v && r.isTeam1Ansager) return r;
+      }
+      return null;
+    }
+
+    RoundResult? byTeam2(String v) {
+      for (final r in roundHistory) {
+        if (r.variantKey == v && !r.isTeam1Ansager) return r;
+      }
+      return null;
+    }
+
+    final tot1 = _variants.fold(0, (s, v) => s + (byTeam1(v)?.team1Score ?? 0));
+    final tot2 = _variants.fold(0, (s, v) => s + (byTeam2(v)?.team2Score ?? 0));
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(12),
+      child: Table(
+        columnWidths: const {
+          0: FlexColumnWidth(2.2),
+          1: FlexColumnWidth(1.0),
+          2: FlexColumnWidth(1.0),
+        },
+        children: [
+          TableRow(
+            decoration: const BoxDecoration(color: Colors.black26),
+            children: [
+              _hCell('Spiel'),
+              _hCell('Ihr', right: true),
+              _hCell('Gegner', right: true),
+            ],
+          ),
+          for (final v in _variants)
+            TableRow(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 6),
+                  child: Text(
+                    _shortLabels[v] ?? v,
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ),
+                _teamScoreCell(byTeam1(v)?.team1Score),
+                _teamScoreCell(byTeam2(v)?.team2Score),
+              ],
+            ),
+          TableRow(
+            decoration: const BoxDecoration(
+                border: Border(top: BorderSide(color: Colors.white38))),
+            children: List.filled(3, const SizedBox(height: 1)),
+          ),
+          TableRow(
+            decoration: const BoxDecoration(color: Colors.black12),
+            children: [
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 5, horizontal: 6),
+                child: Text('Gesamt',
+                    style: TextStyle(
+                        color: AppColors.gold,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold)),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 4),
+                child: Text('$tot1',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                        color: tot1 >= tot2 ? AppColors.gold : Colors.white70,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold)),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 4),
+                child: Text('$tot2',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                        color: tot2 > tot1 ? AppColors.gold : Colors.white70,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static Widget _teamScoreCell(int? score) {
+    if (score == null) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 5, horizontal: 4),
+        child: Text('—',
+            textAlign: TextAlign.right,
+            style: TextStyle(color: Colors.white24, fontSize: 12)),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 4),
+      child: Text('$score',
+          textAlign: TextAlign.right,
+          style: TextStyle(
+              color: score >= 100 ? Colors.amber.shade300 : Colors.greenAccent.shade200,
+              fontSize: 12,
+              fontWeight: FontWeight.bold)),
+    );
+  }
+
+  static Widget _hCell(String text, {bool right = false}) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 4),
+        child: Text(text,
+            textAlign: right ? TextAlign.right : TextAlign.left,
+            style: const TextStyle(
+                color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold)),
+      );
+}
+
+// ── Schieber Score-Anzeige (Gesamtstand → Zielpunkte) ────────────────────────
+
+class _SchieberScoreBar extends StatelessWidget {
+  final Map<String, int> totalTeamScores;
+  final Map<String, int> teamScores;
+  final int roundNumber;
+  final int winTarget;
+
+  const _SchieberScoreBar({
+    required this.totalTeamScores,
+    required this.teamScores,
+    required this.roundNumber,
+    required this.winTarget,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final tot1 = totalTeamScores['team1'] ?? 0;
+    final tot2 = totalTeamScores['team2'] ?? 0;
+    final cur1 = teamScores['team1'] ?? 0;
+    final cur2 = teamScores['team2'] ?? 0;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black38,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _col('Ihr', tot1, cur1, AppColors.gold),
+          const SizedBox(width: 10),
+          Text(
+            'R$roundNumber / $winTarget',
+            style: const TextStyle(color: Colors.white38, fontSize: 10),
+          ),
+          const SizedBox(width: 10),
+          _col('Geg.', tot2, cur2, Colors.red.shade300),
+        ],
+      ),
+    );
+  }
+
+  Widget _col(String label, int total, int current, Color color) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label, style: TextStyle(color: color, fontSize: 10)),
+        Text(
+          '$total',
+          style: TextStyle(
+              color: color, fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        if (current > 0)
+          Text(
+            '+$current',
+            style: TextStyle(color: color.withValues(alpha: 0.6), fontSize: 9),
+          ),
+      ],
+    );
+  }
+}
+
+// ── Differenzler Score-Anzeige (nur eigene Punkte + Vorhersage) ───────────────
+
+class _DifferenzlerScoreBar extends StatelessWidget {
+  final List<Player> players;
+  final Map<String, int> playerScores;
+  final Map<String, int> predictions;
+  final int roundNumber;
+
+  const _DifferenzlerScoreBar({
+    required this.players,
+    required this.playerScores,
+    required this.predictions,
+    required this.roundNumber,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final human = players.firstWhere((p) => p.isHuman, orElse: () => players.first);
+    final score = playerScores[human.id] ?? 0;
+    final pred = predictions[human.id] ?? 0;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black38,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Deine Punkte', style: TextStyle(color: Colors.white54, fontSize: 9)),
+              Text(
+                '$score',
+                style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              Text(
+                'Ziel: $pred',
+                style: const TextStyle(color: Colors.white38, fontSize: 9),
+              ),
+            ],
+          ),
+          const SizedBox(width: 12),
+          Text(
+            'R$roundNumber/4',
+            style: const TextStyle(color: Colors.white38, fontSize: 10),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Differenzler Vorhersage-Overlay ───────────────────────────────────────────
+
+class _DifferenzlerPredictionOverlay extends StatefulWidget {
+  final GameState state;
+  final void Function(int prediction) onConfirm;
+
+  const _DifferenzlerPredictionOverlay({
+    required this.state,
+    required this.onConfirm,
+  });
+
+  @override
+  State<_DifferenzlerPredictionOverlay> createState() =>
+      _DifferenzlerPredictionOverlayState();
+}
+
+class _DifferenzlerPredictionOverlayState
+    extends State<_DifferenzlerPredictionOverlay> {
+  int _prediction = 40;
+
+  @override
+  Widget build(BuildContext context) {
+    final trump = widget.state.trumpSuit;
+    final human =
+        widget.state.players.firstWhere((p) => p.isHuman);
+
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black54,
+        child: Center(
+          child: Container(
+            margin: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1B4D2E),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.gold, width: 2),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Differenzler – Runde ${widget.state.roundNumber}',
+                  style: const TextStyle(
+                      color: AppColors.gold,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Trumpf: ${trump?.symbol ?? '?'}',
+                  style: const TextStyle(color: Colors.white70, fontSize: 16),
+                ),
+                const SizedBox(height: 16),
+                const Text('Deine Hand:',
+                    style: TextStyle(color: Colors.white54, fontSize: 12)),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 66,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: human.hand
+                        .map((c) => Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 2),
+                              child: CardWidget(card: c, width: 40),
+                            ))
+                        .toList(),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Wieviele Punkte gewinnst du?',
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '$_prediction',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 36,
+                      fontWeight: FontWeight.bold),
+                ),
+                Slider(
+                  value: _prediction.toDouble(),
+                  min: 0,
+                  max: 157,
+                  divisions: 157,
+                  activeColor: AppColors.gold,
+                  inactiveColor: Colors.white24,
+                  onChanged: (v) =>
+                      setState(() => _prediction = v.round()),
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: const [
+                    Text('0',
+                        style:
+                            TextStyle(color: Colors.white38, fontSize: 11)),
+                    Text('157',
+                        style:
+                            TextStyle(color: Colors.white38, fontSize: 11)),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () => widget.onConfirm(_prediction),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.gold,
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 32, vertical: 12),
+                  ),
+                  child: const Text('Bestätigen',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Differenzler Rundenende-Overlay ───────────────────────────────────────────
+
+class _DifferenzlerRoundEndOverlay extends StatelessWidget {
+  final List<Player> players;
+  final int roundNumber;
+  final Map<String, int> predictions;
+  final Map<String, int> playerScores; // actual scores this round
+  final Map<String, int> penalties;    // cumulative penalties (already includes this round)
+  final VoidCallback onNextRound;
+  final VoidCallback onHome;
+
+  const _DifferenzlerRoundEndOverlay({
+    required this.players,
+    required this.roundNumber,
+    required this.predictions,
+    required this.playerScores,
+    required this.penalties,
+    required this.onNextRound,
+    required this.onHome,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.black54,
+      child: Center(
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1B4D2E),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.gold, width: 2),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                child: Column(
+                  children: [
+                    Text(
+                      'Runde $roundNumber beendet',
+                      style: const TextStyle(
+                          color: AppColors.gold,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 12),
+                    // Header row
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                      child: Row(
+                        children: [
+                          const SizedBox(width: 70),
+                          const Expanded(child: Text('Ziel', style: TextStyle(color: Colors.white38, fontSize: 10), textAlign: TextAlign.center)),
+                          const Expanded(child: Text('Ist', style: TextStyle(color: Colors.white38, fontSize: 10), textAlign: TextAlign.center)),
+                          const Expanded(child: Text('Diff.', style: TextStyle(color: Colors.white38, fontSize: 10), textAlign: TextAlign.center)),
+                          const Expanded(child: Text('Gesamt', style: TextStyle(color: Colors.white38, fontSize: 10), textAlign: TextAlign.center)),
+                        ],
+                      ),
+                    ),
+                    const Divider(color: Colors.white12, height: 1),
+                    // Spieler-Zeilen
+                    for (final p in players) ...[
+                      _playerRow(p),
+                      const Divider(color: Colors.white12, height: 1),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Divider(color: Colors.white24, height: 1),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    TextButton(
+                      onPressed: onHome,
+                      child: const Text('Menü',
+                          style: TextStyle(color: Colors.white54)),
+                    ),
+                    ElevatedButton(
+                      onPressed: onNextRound,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.gold,
+                        foregroundColor: Colors.black,
+                      ),
+                      child: Text(
+                        roundNumber >= 4 ? 'Ergebnis' : 'Nächste Runde',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _playerRow(Player p) {
+    final predicted = predictions[p.id] ?? 0;
+    final actual = playerScores[p.id] ?? 0;
+    final roundPenalty = (predicted - actual).abs();
+    final totalPenalty = penalties[p.id] ?? 0;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 70,
+            child: Text(
+              p.isHuman ? 'Du' : p.name,
+              style: TextStyle(
+                color: p.isHuman ? AppColors.gold : Colors.white70,
+                fontSize: 13,
+                fontWeight: p.isHuman ? FontWeight.bold : FontWeight.normal,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Expanded(child: Text('$predicted', style: const TextStyle(color: Colors.white54, fontSize: 12), textAlign: TextAlign.center)),
+          Expanded(child: Text('$actual', style: const TextStyle(color: Colors.white70, fontSize: 12), textAlign: TextAlign.center)),
+          Expanded(child: Text(
+            roundPenalty == 0 ? '0' : '+$roundPenalty',
+            style: TextStyle(
+              color: roundPenalty == 0 ? Colors.greenAccent : Colors.orange.shade300,
+              fontSize: 12, fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+          )),
+          Expanded(child: Text(
+            '$totalPenalty',
+            style: TextStyle(
+              color: totalPenalty == 0 ? Colors.greenAccent : Colors.red.shade300,
+              fontSize: 13, fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+          )),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Schieber Spielende-Overlay ────────────────────────────────────────────────
+
+class _SchieberGameEndOverlay extends StatelessWidget {
+  final Map<String, int> totalTeamScores;
+  final int winTarget;
+  final VoidCallback onNewGame;
+  final VoidCallback onHome;
+
+  const _SchieberGameEndOverlay({
+    required this.totalTeamScores,
+    required this.winTarget,
+    required this.onNewGame,
+    required this.onHome,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final tot1 = totalTeamScores['team1'] ?? 0;
+    final tot2 = totalTeamScores['team2'] ?? 0;
+    final team1Wins = tot1 >= tot2;
+
+    return Container(
+      color: Colors.black87,
+      child: Center(
+        child: Container(
+          margin: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: AppColors.feltGreen,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.gold, width: 3),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Schieber beendet!',
+                style: TextStyle(color: Colors.white, fontSize: 18),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                team1Wins ? 'Ihr gewinnt!' : 'Gegner gewinnen!',
+                style: const TextStyle(
+                  color: AppColors.gold,
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Ihr Team: $tot1 Punkte',
+                style: const TextStyle(color: Colors.white, fontSize: 18),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Gegner: $tot2 Punkte',
+                style: const TextStyle(color: Colors.white, fontSize: 18),
+              ),
+              const SizedBox(height: 28),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  TextButton(
+                    onPressed: onHome,
+                    child: const Text('Menü',
+                        style: TextStyle(color: Colors.white54)),
+                  ),
+                  ElevatedButton(
+                    onPressed: onNewGame,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.gold,
+                      foregroundColor: Colors.black,
+                    ),
+                    child: const Text('Neues Spiel'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Differenzler Spielende-Overlay ────────────────────────────────────────────
+
+class _DifferenzlerGameEndOverlay extends StatelessWidget {
+  final List<Player> players;
+  final Map<String, int> penalties;
+  final VoidCallback onNewGame;
+  final VoidCallback onHome;
+
+  const _DifferenzlerGameEndOverlay({
+    required this.players,
+    required this.penalties,
+    required this.onNewGame,
+    required this.onHome,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final sorted = [...players]
+      ..sort((a, b) =>
+          (penalties[a.id] ?? 0).compareTo(penalties[b.id] ?? 0));
+    final winner = sorted.first;
+    final medals = ['Gold', 'Silber', 'Bronze', '4.'];
+    final medalColors = [
+      Colors.amber,
+      Colors.grey.shade300,
+      Colors.brown.shade300,
+      Colors.white38,
+    ];
+
+    return Container(
+      color: Colors.black87,
+      child: Center(
+        child: Container(
+          margin: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1B4D2E),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.gold, width: 3),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Differenzler beendet!',
+                style: TextStyle(color: Colors.white, fontSize: 17),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '${winner.isHuman ? 'Du gewinnst' : '${winner.name} gewinnt'}!',
+                style: const TextStyle(
+                  color: AppColors.gold,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                '(niedrigste Strafsumme)',
+                style: TextStyle(color: Colors.white38, fontSize: 11),
+              ),
+              const SizedBox(height: 16),
+              const Divider(color: Colors.white24),
+              for (int i = 0; i < sorted.length; i++) ...[
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Row(
+                    children: [
+                      Text(
+                        medals[i],
+                        style: TextStyle(
+                            color: medalColors[i],
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          sorted[i].isHuman ? 'Du' : sorted[i].name,
+                          style: const TextStyle(
+                              color: Colors.white70, fontSize: 14),
+                        ),
+                      ),
+                      Text(
+                        '${penalties[sorted[i].id] ?? 0} Str.',
+                        style: TextStyle(
+                          color: i == 0
+                              ? Colors.greenAccent
+                              : Colors.red.shade300,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (i < sorted.length - 1)
+                  const Divider(color: Colors.white12, height: 1),
+              ],
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  TextButton(
+                    onPressed: onHome,
+                    child: const Text('Menü',
+                        style: TextStyle(color: Colors.white54)),
+                  ),
+                  ElevatedButton(
+                    onPressed: onNewGame,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.gold,
+                      foregroundColor: Colors.black,
+                    ),
+                    child: const Text('Neues Spiel'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
