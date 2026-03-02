@@ -12,12 +12,27 @@ import 'game_logic.dart';
 /// Da wir alle Hände kennen (Spielengine-Perspektive), brauchen wir kein
 /// World-Sampling – die Qualität kommt durch den Lookahead.
 class MonteCarloAI {
-  /// Anzahl äusserer Simulationen pro Kandidatenkarte.
-  static const int simulations = 80;
+  /// Anzahl äusserer Simulationen pro Kandidatenkarte (Basiswert, adaptiv angepasst).
+  static const int simulations = 60;
 
-  /// Anzahl innerer Rollouts pro Option im Rollout-Schritt.
-  /// Höher = bessere Rollout-Qualität, aber langsamer.
-  static const int innerSimulations = 5;
+  /// Anzahl innerer Rollouts pro Option im Rollout-Schritt (Basiswert, adaptiv angepasst).
+  static const int innerSimulations = 4;
+
+  /// Adaptive Simulationsanzahl: am Anfang weniger (mehr Karten = längere Simulation),
+  /// in der Mitte mehr, am Ende deterministisch.
+  static int _outerSims(GameState state) {
+    final done = state.completedTricks.length;
+    if (done <= 2) return 30;  // Stich 1–3: viele Karten, teuer
+    if (done <= 5) return 50;  // Stich 4–6: mittel
+    return 70;                 // Stich 7–9: deterministisch oder fast deterministisch
+  }
+
+  static int _innerSims(GameState state) {
+    final done = state.completedTricks.length;
+    if (done <= 2) return 2;
+    if (done <= 5) return 3;
+    return 4;
+  }
 
   static final math.Random _rng = math.Random();
 
@@ -97,17 +112,19 @@ class MonteCarloAI {
       return _exactBestCard(aiPlayer, state, aiIsTeam1);
     }
 
+    final outerN = _outerSims(state);
+
     double bestScore = double.negativeInfinity;
     JassCard bestCard = playable.first;
 
     for (final card in playable) {
       double total = 0.0;
-      for (int i = 0; i < simulations; i++) {
+      for (int i = 0; i < outerN; i++) {
         final clone = _cloneState(state); // frischer Klon pro Simulation
         final finalScores = _simulate(clone, aiPlayer.id, card);
         total += _scoreFor(finalScores, aiIsTeam1, state);
       }
-      final avg = total / simulations;
+      final avg = total / outerN;
       if (avg > bestScore) {
         bestScore = avg;
         bestCard = card;
@@ -208,9 +225,10 @@ class MonteCarloAI {
     double best = double.negativeInfinity;
     JassCard bestCard = playable.first;
 
+    final innerN = _innerSims(state);
     for (final card in playable) {
       double total = 0;
-      for (int i = 0; i < innerSimulations; i++) {
+      for (int i = 0; i < innerN; i++) {
         // _playCard ist immutable (copyWith), kein Clone nötig
         var s = _playCard(state, player.id, card);
         // Guided rollout bis Spielende (kein weiteres Nesting)
