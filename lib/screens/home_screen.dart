@@ -106,9 +106,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         children: [
                           _GameTypeButton(
                             label: 'Schieber',
-                            subtitle: 'bis $_schieberWinTarget',
+                            subtitle: 'Der Klassiker',
                             description: '♠♣ 1× · ♥♦ 2× · ⬆️⬇️ 3× · 〰️ 4×',
-                            emoji: '🃏',
+                            emoji: _selectedCardType == CardType.french ? '♥️' : '🌹',
                             selected: _selectedGameType == GameType.schieber,
                             onTap: () => setState(() => _selectedGameType = GameType.schieber),
                           ),
@@ -140,10 +140,10 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                           const SizedBox(width: 10),
                           _GameTypeButton(
-                            label: 'Friseur',
-                            subtitle: 'Solo',
-                            description: 'Wunschkarte · 40 Runden',
-                            emoji: '✂️',
+                            label: 'Wunschkarte',
+                            subtitle: 'Champions League',
+                            description: 'Wunschkarte · Jeder für sich',
+                            emoji: '🎴',
                             selected: _selectedGameType == GameType.friseur,
                             onTap: () => setState(() => _selectedGameType = GameType.friseur),
                           ),

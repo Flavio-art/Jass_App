@@ -19,10 +19,10 @@ class _RulesScreenState extends State<RulesScreen>
   late final TabController _tabController;
 
   static int _tabIndex(GameType t) => switch (t) {
-        GameType.friseurTeam => 0,
-        GameType.friseur => 1,
-        GameType.schieber => 2,
-        GameType.differenzler => 3,
+        GameType.schieber => 0,
+        GameType.differenzler => 1,
+        GameType.friseurTeam => 2,
+        GameType.friseur => 3,
       };
 
   @override
@@ -60,20 +60,20 @@ class _RulesScreenState extends State<RulesScreen>
           unselectedLabelColor: Colors.white54,
           dividerColor: Colors.white12,
           tabs: const [
-            Tab(text: 'Friseur Team'),
-            Tab(text: 'Friseur Solo'),
             Tab(text: 'Schieber'),
             Tab(text: 'Differenzler'),
+            Tab(text: 'Friseur Team'),
+            Tab(text: 'Wunschkarte'),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildScrollable(_buildFriseurTeamContent()),
-          _buildScrollable(_buildFriseurSoloContent()),
           _buildScrollable(_buildSchieberContent()),
           _buildScrollable(_buildDifferenzlerContent()),
+          _buildScrollable(_buildFriseurTeamContent()),
+          _buildScrollable(_buildFriseurSoloContent()),
         ],
       ),
     );
