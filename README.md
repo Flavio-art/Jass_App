@@ -2,49 +2,60 @@
 
 Eine Flutter-App für das Schweizer Kartenspiel **Jass** – spielbar auf Android.
 
+<p align="center">
+  <a href="https://github.com/Flavio-art/Jass_App/releases/latest/download/app-release.apk">
+    <img src="https://img.shields.io/badge/⬇️%20APK%20herunterladen-latest-brightgreen?style=for-the-badge" alt="APK herunterladen"/>
+  </a>
+  &nbsp;
+  <a href="https://github.com/Flavio-art/Jass_App/releases/latest">
+    <img src="https://img.shields.io/github/v/release/Flavio-art/Jass_App?style=for-the-badge&label=Release" alt="Neueste Version"/>
+  </a>
+</p>
+
+> **Android 8.0+** · APK öffnen, einmalig „Unbekannte Quelle" erlauben, fertig.
+
+---
+
 ## Download
 
-**[⬇️ Neueste APK herunterladen](https://github.com/Flavio-art/Jass_App/releases/tag/latest)**
-
-> Android 8.0+  ·  Einfach APK öffnen und installieren (einmalig „Unbekannte Quelle" erlauben)
+| Link | Beschreibung |
+|------|-------------|
+| [⬇️ **app-release.apk** (neueste Version)](https://github.com/Flavio-art/Jass_App/releases/latest/download/app-release.apk) | Direkt-Download der aktuellen APK |
+| [📋 Alle Releases](https://github.com/Flavio-art/Jass_App/releases) | Versionshistorie & Release-Notes |
 
 ---
 
 ## Spieltypen
 
 ### 🃏 Schieber
-Klassischer Schweizer Schieber für 2 Teams.
+Klassischer Schweizer Schieber für 2 Teams (Süd+Nord vs. West+Ost).
 
-- **5 Spielvarianten** pro Runde wählbar: ♠♣ Oben, ♥♦ Oben, ⬇️ Obenabe, ⬆️ Undenufe, 〰️ Slalom
-- **Punktemultiplikatoren**: ♠♣-Trumpf = 1×, ♥♦-Trumpf = 2×, Obenabe/Undenufe = 3×, Slalom = 4×
-- **Match = 257 Punkte** (× Multiplikator) wenn ein Team alle 9 Stiche gewinnt
-- **Zielpunkte** wählbar: 1500 / 2500 / 3500 – erstes Team das das Ziel erreicht gewinnt
-- Schieben zum Partner möglich (einmalig pro Runde)
+- 5 Varianten wählbar: Trumpf Schwarz (×1), Trumpf Rot (×2), Obenabe (×3), Undenufe (×3), Slalom (×4)
+- Multiplikatoren konfigurierbar im Hauptmenü
+- Zielpunkte wählbar: 1500 / 2500 / 3500
+- Schieben zum Partner einmalig möglich
 
 ### 🎯 Differenzler
-Individuelles Spiel über **4 Runden** mit Vorhersage.
+Individuelles Spiel über 4 Runden.
 
-- Zufälliger Trumpf jede Runde
 - Jeder Spieler sagt vor der Runde seine erwarteten Stichpunkte vorher
-- Strafe = |Vorhersage – tatsächliche Punkte|
-- Spieler mit der **geringsten Gesamtstrafe** gewinnt
-- Übersicht nach jeder Runde: Ziel / Ist / Rundendifferenz / Gesamtstrafe pro Spieler
+- Strafe = |Vorhersage − tatsächliche Punkte|
+- Spieler mit der geringsten Gesamtstrafe gewinnt
 
 ### ✂️ Friseur Team
 Strategie-Modus für 2 Teams über 20 Runden.
 
-- Jedes Team muss alle **10 Varianten** je einmal ansagen
-- Trumpf Oben/Unten: Beide Trumpfgruppen (♠♣ und ♥♦) müssen je einmal als Oben und einmal als Unten gespielt werden – Richtung der zweiten Gruppe wird automatisch erzwungen
-- Schieben zum Partner erlaubt
-- Das Team mit den meisten Gesamtpunkten nach 20 Runden gewinnt
+- Jedes Team muss alle 10 Varianten je einmal ansagen
+- Trumpfgruppen (Schwarz/Rot) müssen je einmal als Oben und einmal als Unten gespielt werden
+- Das Team mit den meisten Punkten nach 20 Runden gewinnt
 
-### ✂️ Friseur Solo
-Solo-Variante mit Wunschkarte über **20–40 Runden**.
+### ✂️ Friseur Solo (Wunschkarte)
+Solo-Variante über 20–40 Runden.
 
-- Jeder Spieler sagt alle 10 Varianten einmal an
-- Wunschkarte: Ansager wünscht sich eine Karte – wer sie hat, ist geheimer Partner
-- Partner wird aufgedeckt, sobald die Wunschkarte gespielt wird
-- Bis zu 2× Schieben möglich; nach 2× Schieben muss der Ansager Trumpf wählen (Im Loch 🕳️)
+- Jeder Spieler sagt seine 10 Varianten einzeln an
+- Wunschkarte: Ansager wünscht eine Karte – wer sie hat, ist geheimer Partner
+- Partner wird aufgedeckt sobald die Wunschkarte gespielt wird
+- Bis zu 2× Schieben möglich; nach 2× ist der Ansager **Im Loch** 🕳️
 
 ---
 
@@ -52,60 +63,64 @@ Solo-Variante mit Wunschkarte über **20–40 Runden**.
 
 | Variante | Beschreibung | Besonderheit |
 |----------|-------------|--------------|
-| ♠♣ Trumpf Oben | Schaufeln/Kreuz-Trumpf (schwarz) | Buur > Näll > Ass > … |
-| ♥♦ Trumpf Oben | Herz/Ecken-Trumpf (rot) | Buur > Näll > Ass > … |
+| ♠♣ / 🔔🛡 Trumpf Oben | Schwarze Farbe / Metall als Trumpf | Buur › Näll › Ass › … |
+| ♥♦ / 🌹🌰 Trumpf Oben | Rote Farbe / Gemüse als Trumpf | ×2 Punkte |
+| ⬆️ Trumpf Unten | Trumpf mit umgekehrter Reihenfolge | Sechs = 11 Pkt |
 | ⬇️ Obenabe | Kein Trumpf, Ass gewinnt | Achter = 8 Pkt |
 | ⬆️ Undenufe | Kein Trumpf, Sechs gewinnt | Sechs = 11 Pkt, Achter = 8 Pkt |
 | 〰️ Slalom | Abwechselnd Obenabe / Undenufe | – |
-| 🐘 Elefant | 3× Oben, 3× Unten, 3× Trumpf | Trumpf ab Stich 7 |
-| 😶 Misere | Ziel: möglichst wenig Punkte | Beide Teams: 157 − Pkt |
-| 👑 Alles Trumpf | Angespielte Farbe als Trumpf | Nur B/Näll/K zählen |
-| 🐑 Schafkopf | Damen + Achter + Trumpffarbe immer Trumpf | Obenabe-Punktewerte |
-| 💣 Molotof | Modus durch Abwurf bestimmt | Ziel: wenig Punkte |
+| 🐘 Elefant | 3× Oben · 3× Unten · 3× Trumpf | Trumpffarbe ab Stich 7 |
+| 😶 Misere | Ziel: möglichst wenig Punkte | Wertung: 157 − Punkte |
+| 👑 Alles Trumpf | Angespielte Farbe als Trumpf | Nur Buur / Näll / König zählen |
+| 🐑 Schafkopf | Damen + Achter + Trumpffarbe = Trumpf | Zehner schlägt Ass |
+| 💣 Molotof | Modus durch ersten Abwurf bestimmt | Ziel: wenig Punkte |
 
-> Schieber nutzt nur: ♠♣ Oben, ♥♦ Oben, Obenabe, Undenufe, Slalom
-
----
-
-## Weitere Features
-
-- **Zwei Kartensets**: Französische Karten (♠♥♦♣) und Deutsche Karten (Schellen/Herz/Eichel/Schilten)
-- **KI-Gegner** für alle 3 Mitspieler (Ost, Nord, West) – Monte-Carlo + Heuristik
-- **Spielübersicht** (📊): Rundenhistorie und Punktetabelle jederzeit abrufbar
-- **Stich-Timing**: Stich bleibt sichtbar bis zum Antippen (Auto-Wegräumen nach 2 s)
-- **Jass-Zurückhalten**: Buur darf zurückgehalten werden wenn er die einzige Trumpfkarte ist
-- **Farbenpflicht** korrekt umgesetzt (inkl. Schafkopf-Sonderregel)
-- **Spielregeln** direkt in der App (Tabs pro Spielmodus)
+> Schieber nutzt nur: Trumpf Schwarz/Rot, Obenabe, Undenufe, Slalom
 
 ---
 
-## Spielregeln (Kurzfassung)
+## Features
 
-- 4 Spieler, 36 Karten (6 bis Ass), 9 Karten pro Spieler
-- Spielrichtung: Uhrzeigersinn (Süd → Ost → Nord → West)
-- Gesamtpunkte pro Runde: 157 (inkl. 5 Bonus für letzten Stich)
+- **Zwei Kartensets**: Französisch (♠♥♦♣) und Deutsch (Schellen · Rosen · Eichel · Schilten)
+- **KI-Gegner** mit Monte-Carlo-Simulation + neuronales Netz für Modus-Wahl
+- **Weisen (Wys)**: Kombinationen werden angesagt und automatisch ausgewertet
+- **Spielübersicht** 📊: Rundenhistorie und Punktetabelle jederzeit über Topbar abrufbar
+- **Schieben-Kommentare**: 50+ verschiedene Sprüche wenn KI in der 2. Schieben-Runde passt
+- **Im-Loch-Indikator** 🕳️: Zeigt welcher Spieler nach 2× Schieben spielen muss
+- **Vollständiges Regelwerk** direkt in der App (eigener Tab pro Spielmodus)
+- **Farbenpflicht** korrekt umgesetzt (inkl. Schafkopf-Sonderregeln)
+- **Stich-Timing**: Stich bleibt liegen bis zum Antippen
 
-### Kartenwerte
+---
 
-| Karte | Trumpf | Trumpf Unten | Obenabe/Undenufe |
-|-------|--------|-------------|-----------------|
-| Buur (Bube im Trumpf) | 20 | 20 | 2 |
-| Näll (Neun im Trumpf) | 14 | 14 | 0 |
+## Kartenwerte
+
+### Trumpfspiel
+
+| Karte | Trumpf | Trumpf Unten | Obenabe / Undenufe |
+|-------|:------:|:------------:|:-----------------:|
+| Buur (Trumpf-Bauer/Under) | **20** | **20** | 2 |
+| Näll (Trumpf-Neun) | **14** | **14** | 0 |
 | Ass | 11 | 0 | 11 / 0 |
 | Zehner | 10 | 10 | 10 |
 | König | 4 | 4 | 4 |
-| Dame | 3 | 3 | 3 |
-| Sechs | 0 | 11 | 0 / 11 |
-| Achter | 0 (Trumpf) | 0 | 8 |
+| Dame / Ober | 3 | 3 | 3 |
+| Bauer / Under (kein Trumpf) | 2 | 2 | 2 |
+| Sechs (Trumpf Unten) | – | **11** | 0 / **11** |
+| Achter | 0 | 0 | **8** |
+
+Letzter Stich: **+5 Bonus**. Gesamtpunkte pro Runde: **157**.
 
 ---
 
 ## Technologie
 
-- **Flutter** (Dart) – Android
+- **Flutter / Dart** – plattformübergreifend (aktuell Android)
 - **Provider** – State Management
-- **Karten-Assets**: Jass-Kartenbilder (PNG)
-- KI: Monte-Carlo Simulation + Modus-Heuristik
+- **KI**: Monte-Carlo-Simulation mit Perfect-Information-Rollouts + trainiertes neuronales Netz (Modus-Wahl)
+- Karten vollständig in Flutter gezeichnet (keine externen Bild-Assets nötig)
+
+---
 
 ## Projektstruktur
 
@@ -113,37 +128,38 @@ Solo-Variante mit Wunschkarte über **20–40 Runden**.
 lib/
 ├── main.dart
 ├── models/
-│   ├── card_model.dart      # JassCard, Suit, CardValue, CardType
-│   ├── deck.dart            # 36-Karten-Deck, Mischen, Austeilen
-│   ├── player.dart          # Player, PlayerPosition
-│   └── game_state.dart      # GameState, GamePhase, GameMode, GameType, RoundResult
+│   ├── card_model.dart          # JassCard, Suit, CardValue, CardType
+│   ├── deck.dart                # 36-Karten-Deck, Mischen, Austeilen
+│   ├── player.dart              # Player, PlayerPosition, sortHand
+│   └── game_state.dart          # GameState, GamePhase, GameMode, GameType
 ├── providers/
-│   └── game_provider.dart   # ChangeNotifier, Spiellogik, KI-Steuerung
+│   └── game_provider.dart       # ChangeNotifier, Spiellogik, KI-Steuerung
 ├── screens/
-│   ├── home_screen.dart     # Hauptmenü, Kartenset- und Spieltyp-Auswahl
-│   ├── game_screen.dart     # Spielfeld, Overlays (Rundenende, Spielende, Übersicht)
-│   ├── trump_selection_screen.dart  # Spielmodus-Auswahl (5 oder 10 Varianten)
-│   └── rules_screen.dart    # Vollständiges Regelwerk (4 Tabs)
+│   ├── home_screen.dart         # Hauptmenü, Kartenset- & Spieltyp-Auswahl
+│   ├── game_screen.dart         # Spielfeld, Overlays, Übersicht
+│   ├── splash_screen.dart       # Ladescreen mit Kartenfächer
+│   ├── trump_selection_screen.dart  # Spielmodus-Auswahl
+│   └── rules_screen.dart        # Vollständiges Regelwerk (4 Tabs)
 ├── widgets/
-│   ├── card_widget.dart     # Einzelne Karte (gezeichnet)
+│   ├── card_widget.dart         # Karte (gezeichnet in Flutter)
 │   ├── player_hand_widget.dart  # Fächer-Layout
-│   ├── trick_area_widget.dart
-│   └── score_board_widget.dart
-├── utils/
-│   ├── game_logic.dart      # Stichgewinner, Farbenpflicht, Punkte
-│   ├── monte_carlo.dart     # KI Monte-Carlo
-│   └── mode_selector.dart   # KI Modus-Wahl
-└── constants/
-    └── app_colors.dart
-assets/
-├── cards/french/            # 36 PNG-Kartenbilder (Französisch)
-├── cards/german/            # 36 PNG-Kartenbilder (Deutsch)
-└── suit_icons/              # Farb-Symbole
+│   ├── trick_area_widget.dart   # Stich-Mitte
+│   └── score_board_widget.dart  # Punkteanzeige
+└── utils/
+    ├── game_logic.dart          # Stichgewinner, Farbenpflicht, Punkte
+    ├── monte_carlo.dart         # KI Monte-Carlo
+    ├── mode_selector.dart       # KI Modus-Wahl (NN + Heuristik)
+    └── nn_model.dart            # Neuronales Netz
 ```
 
-## Setup
+## Setup & Build
 
 ```bash
 flutter pub get
-flutter run
+flutter run                          # Debug auf verbundenem Gerät
+flutter build apk --release          # Release-APK erstellen
 ```
+
+---
+
+*Built von Flavio mit ♥*
