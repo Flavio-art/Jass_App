@@ -44,6 +44,7 @@ jobs:
           tag_name: latest
           name: "Jass App – neueste Version"
           prerelease: true
+          overwrite: true
           files: build/app/outputs/flutter-apk/app-release.apk
           body: |
             ## Installation auf Android
