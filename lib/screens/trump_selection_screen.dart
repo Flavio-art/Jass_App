@@ -317,8 +317,8 @@ class TrumpSelectionScreen extends StatelessWidget {
   /// Tippen wählt sofort (immer Trumpf Oben im Schieber).
   Widget _buildSchieberSuitGrid(
       BuildContext context, List<Suit> suits, CardType cardType, GameState state) {
-    // Suits in 2 Reihen à 2
-    final rows = [[suits[0], suits[1]], [suits[2], suits[3]]];
+    // Reihe 1: ×1 (trump_ss: ♠+♣ / 🔔+🛡), Reihe 2: ×2 (trump_re: ♥+♦ / 🌹+🌰)
+    final rows = [[suits[0], suits[3]], [suits[1], suits[2]]];
     final mults = state.schieberMultipliers;
 
     String variantOf(Suit s) {
