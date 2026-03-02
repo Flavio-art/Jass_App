@@ -446,7 +446,7 @@ class _GameScreenState extends State<GameScreen> {
                                 onWishCardTap: state.wishCard != null
                                     ? () => setState(() => _showWishCardDetail = true)
                                     : null,
-                                isSchieber: state.gameType == GameType.schieber,
+                                gameType: state.gameType,
                               ),
                             ),
                           ),
