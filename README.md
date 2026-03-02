@@ -63,8 +63,8 @@ Solo-Variante über 20–40 Runden.
 
 | Variante | Beschreibung | Besonderheit |
 |----------|-------------|--------------|
-| ♠♣ / 🔔🛡 Trumpf Oben | Schwarze Farbe / Metall als Trumpf | Buur › Näll › Ass › … |
-| ♥♦ / 🌹🌰 Trumpf Oben | Rote Farbe / Gemüse als Trumpf | ×2 Punkte |
+| ♠️♣️ / 🔔🛡 Trumpf Oben | Schwarze Farbe / Metall als Trumpf | Buur › Näll › Ass › … |
+| ♥️♦️ / 🌹🌰 Trumpf Oben | Rote Farbe / Gemüse als Trumpf | ×2 Punkte |
 | ⬆️ Trumpf Unten | Trumpf mit umgekehrter Reihenfolge | Sechs = 11 Pkt |
 | ⬇️ Obenabe | Kein Trumpf, Ass gewinnt | Achter = 8 Pkt |
 | ⬆️ Undenufe | Kein Trumpf, Sechs gewinnt | Sechs = 11 Pkt, Achter = 8 Pkt |
@@ -81,7 +81,7 @@ Solo-Variante über 20–40 Runden.
 
 ## Features
 
-- **Zwei Kartensets**: Französisch (♠♥♦♣) und Deutsch (Schellen · Rosen · Eichel · Schilten)
+- **Zwei Kartensets**: Französisch (♠️♣️♥️♦️) und Deutsch (Schellen · Rosen · Eichel · Schilten)
 - **KI-Gegner** mit Monte-Carlo-Simulation + neuronales Netz für Modus-Wahl
 - **Weisen (Wys)**: Kombinationen werden angesagt und automatisch ausgewertet
 - **Spielübersicht** 📊: Rundenhistorie und Punktetabelle jederzeit über Topbar abrufbar
