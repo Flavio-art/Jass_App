@@ -109,11 +109,7 @@ class WyssEntry {
   }) : bottomValue = bottomValue ?? topValue;
 
   String get typeName {
-    if (isFourOfAKind) {
-      if (points == 200) return 'Vierling Under';
-      if (points == 150) return 'Vierling Neun';
-      return 'Vierling';
-    }
+    if (isFourOfAKind) return 'Vier gleiche';
     if (points == 20) return 'Dreiblatt';
     if (points == 50) return 'Vierblatt';
     return 'Fünfblatt';
@@ -122,15 +118,19 @@ class WyssEntry {
   String get topValueName => _valueName(topValue);
   String get bottomValueName => _valueName(bottomValue);
 
-  static String _valueName(CardValue v) {
+  /// Kartenwert-Name mit Kartentyp (Bauer/Under, Dame/Ober).
+  String topValueLabel(CardType ct) => _valueName(topValue, ct);
+  String bottomValueLabel(CardType ct) => _valueName(bottomValue, ct);
+
+  static String _valueName(CardValue v, [CardType cardType = CardType.french]) {
     switch (v) {
       case CardValue.six:   return '6';
       case CardValue.seven: return '7';
       case CardValue.eight: return '8';
       case CardValue.nine:  return '9';
       case CardValue.ten:   return '10';
-      case CardValue.jack:  return 'U';
-      case CardValue.queen: return 'O';
+      case CardValue.jack:  return cardType == CardType.german ? 'Under' : 'Bauer';
+      case CardValue.queen: return cardType == CardType.german ? 'Ober' : 'Dame';
       case CardValue.king:  return 'K';
       case CardValue.ace:   return 'A';
     }

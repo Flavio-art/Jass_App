@@ -44,12 +44,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).viewPadding.bottom;
-
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        bottom: false,
+        maintainBottomViewPadding: true,
         child: LayoutBuilder(
           builder: (context, constraints) => SingleChildScrollView(
             child: ConstrainedBox(
@@ -294,7 +292,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: TextStyle(color: Colors.white38)),
                   ),
 
-                  SizedBox(height: bottom + 4),
+                  const SizedBox(height: 4),
                 ],
               ),
             ),
@@ -322,7 +320,10 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => RulesScreen(initialGameType: _selectedGameType),
+        builder: (_) => RulesScreen(
+          initialGameType: _selectedGameType,
+          cardType: _selectedCardType,
+        ),
       ),
     );
   }

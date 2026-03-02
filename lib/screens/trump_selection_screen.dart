@@ -99,7 +99,7 @@ class TrumpSelectionScreen extends StatelessWidget {
                     onPressed: () {
                       final gt = context.read<GameProvider>().state.gameType;
                       Navigator.push(context,
-                          MaterialPageRoute(builder: (_) => RulesScreen(initialGameType: gt)));
+                          MaterialPageRoute(builder: (_) => RulesScreen(initialGameType: gt, cardType: context.read<GameProvider>().state.cardType)));
                     },
                   ),
                 ],
@@ -370,8 +370,8 @@ class TrumpSelectionScreen extends StatelessWidget {
 
     Suit? selectedSuit;
 
+    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
     showModalBottomSheet(
-      useSafeArea: true,
       context: context,
       isScrollControlled: true,
       backgroundColor: const Color(0xFF1B3A2A),
@@ -380,7 +380,7 @@ class TrumpSelectionScreen extends StatelessWidget {
       ),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) => Padding(
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+          padding: EdgeInsets.fromLTRB(24, 20, 24, 32 + bottomInset),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -530,8 +530,8 @@ class TrumpSelectionScreen extends StatelessWidget {
 
   void _pickSlalomDirection(BuildContext context) {
     final human = context.read<GameProvider>().state.players.firstWhere((p) => p.isHuman);
+    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
     showModalBottomSheet(
-      useSafeArea: true,
       context: context,
       isScrollControlled: true,
       backgroundColor: const Color(0xFF1B3A2A),
@@ -539,7 +539,7 @@ class TrumpSelectionScreen extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+        padding: EdgeInsets.fromLTRB(24, 20, 24, 32 + bottomInset),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -622,8 +622,8 @@ class TrumpSelectionScreen extends StatelessWidget {
   void _pickSchafkopfTrump(
       BuildContext context, List<Suit> suits, CardType cardType) {
     final human = context.read<GameProvider>().state.players.firstWhere((p) => p.isHuman);
+    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
     showModalBottomSheet(
-      useSafeArea: true,
       context: context,
       isScrollControlled: true,
       backgroundColor: const Color(0xFF1B3A2A),
@@ -631,7 +631,7 @@ class TrumpSelectionScreen extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => Padding(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+        padding: EdgeInsets.fromLTRB(24, 20, 24, 32 + bottomInset),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -794,6 +794,13 @@ class _TrumpGroupButton extends StatelessWidget {
   List<Suit> get _displaySuits =>
       cardType == CardType.french ? frenchSuits : suits;
 
+  String get _groupLabel {
+    if (cardType == CardType.german) {
+      return variantKey == 'trump_ss' ? 'Metall' : 'Gemüse';
+    }
+    return variantKey == 'trump_ss' ? 'Schwarz' : 'Rot';
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = _displaySuits;
@@ -812,6 +819,14 @@ class _TrumpGroupButton extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              Text(
+                _groupLabel,
+                style: const TextStyle(
+                    color: Colors.black87,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -825,8 +840,8 @@ class _TrumpGroupButton extends StatelessWidget {
                 '${s[0].label(cardType)} / ${s[1].label(cardType)}',
                 style: const TextStyle(
                     color: Colors.black54,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500),
               ),
             ],
           ),
