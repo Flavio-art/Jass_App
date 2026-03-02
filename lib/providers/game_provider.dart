@@ -930,16 +930,44 @@ class GameProvider extends ChangeNotifier {
     final available = allCards.where((c) => !handSet.contains(c)).toList();
     if (available.isEmpty) return allCards.first;
 
-    // Bei Trumpf-Modi: Buur der Trumpffarbe wünschen (wenn nicht auf der Hand)
+    // Bei Trumpf-Modi: Buur wünschen – ausser man hat Buur+Näll bereits
     if ((mode == GameMode.trump || mode == GameMode.trumpUnten) && trumpSuit != null) {
-      final jack = available.firstWhere(
+      final hasBuur = selector.hand
+          .any((c) => c.suit == trumpSuit && c.value == CardValue.jack);
+      final hasNaell = selector.hand
+          .any((c) => c.suit == trumpSuit && c.value == CardValue.nine);
+
+      if (hasBuur && hasNaell) {
+        // Buur+Näll schon auf der Hand → starke Nebenkarte wünschen
+        if (mode == GameMode.trump) {
+          // Trumpf Oben: Ass einer anderen Farbe
+          return available.firstWhere(
+            (c) => c.value == CardValue.ace && c.suit != trumpSuit,
+            orElse: () => available.firstWhere(
+              (c) => c.value == CardValue.ace,
+              orElse: () => available.first,
+            ),
+          );
+        } else {
+          // Trumpf Unten: Sechs einer anderen Farbe
+          return available.firstWhere(
+            (c) => c.value == CardValue.six && c.suit != trumpSuit,
+            orElse: () => available.firstWhere(
+              (c) => c.value == CardValue.six,
+              orElse: () => available.first,
+            ),
+          );
+        }
+      }
+
+      // Normal: Buur wünschen, Näll als Fallback
+      return available.firstWhere(
         (c) => c.suit == trumpSuit && c.value == CardValue.jack,
         orElse: () => available.firstWhere(
           (c) => c.suit == trumpSuit && c.value == CardValue.nine,
           orElse: () => available.first,
         ),
       );
-      return jack;
     }
 
     // Bei Obenabe: Ass wünschen

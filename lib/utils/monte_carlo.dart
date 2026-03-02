@@ -61,6 +61,12 @@ class MonteCarloAI {
         final jassGone = _jassPlayed(state);
         final nellGone = _nellPlayed(state);
 
+        // Garantierte Nicht-Trumpf-Gewinner: falls vorhanden, MC entscheiden lassen
+        // (Trumpf ziehen vs. sicheren Farbstich abwägen)
+        final safeNonTrump = playable
+            .where((c) => c.suit != trump && _isHighestRemaining(c, state))
+            .toList();
+
         if (hasJass) {
           // Jass ist unschlagbar → immer als Erster spielen
           return trumpCards.firstWhere((c) => c.value == CardValue.jack);
@@ -78,11 +84,17 @@ class MonteCarloAI {
           }
           // Nur Nell vorhanden → MC entscheidet (führen riskant)
         } else if (jassGone && nellGone) {
-          // Jass + Nell weg → höchsten verbleibenden Trumpf spielen
-          return _strongest(trumpCards, state.gameMode, trump);
+          // Jass + Nell weg → hat garantierten Nicht-Trumpf? MC entscheiden lassen
+          if (safeNonTrump.isEmpty) {
+            return _strongest(trumpCards, state.gameMode, trump);
+          }
+          // sonst: MC wägt Trumpf vs. sicherer Farbkarte ab → fall-through
         } else {
-          // Trumpfkarten aber kein Jass/Nell → niedrigsten Trumpf spielen
-          return _weakest(trumpCards, state.gameMode, trump);
+          // Niedrige Trumpfkarten (kein Jass/Nell) → hat garantierten Nicht-Trumpf?
+          if (safeNonTrump.isEmpty) {
+            return _weakest(trumpCards, state.gameMode, trump);
+          }
+          // sonst: MC entscheidet ob Trumpf ziehen besser ist → fall-through
         }
       }
     }
@@ -196,10 +208,14 @@ class MonteCarloAI {
         return safeLeads.first;
       }
 
-      // Keine sichere Karte → zufällig aus Top-3 für Diversität
+      // Keine sichere Karte → Ansager in Slalom spielt immer stärkste Karte
       final sorted = List.of(playable)
         ..sort((a, b) => GameLogic.cardPlayStrength(b, effectMode, trump)
             .compareTo(GameLogic.cardPlayStrength(a, effectMode, trump)));
+      if (state.gameMode == GameMode.slalom &&
+          player.id == state.players[state.ansagerIndex].id) {
+        return sorted.first;
+      }
       final topN = math.min(3, sorted.length);
       return sorted[_rng.nextInt(topN)];
     }
@@ -304,9 +320,12 @@ class MonteCarloAI {
         state.gameMode == GameMode.elefant && trickNumber <= 6;
     final molotofPreTrump =
         state.gameMode == GameMode.molotof && state.molotofSubMode == null;
+    final pointMode = state.gameMode == GameMode.slalom
+        ? (state.slalomStartsOben ? GameMode.oben : GameMode.unten)
+        : effectMode;
     final points = (elefantPreTrump || molotofPreTrump)
         ? 0
-        : GameLogic.trickPoints(trickCards, effectMode, newTrump);
+        : GameLogic.trickPoints(trickCards, pointMode, newTrump);
 
     final winnerPlayer = newPlayers.firstWhere((p) => p.id == winnerId);
     final isTeam1 = winnerPlayer.position == PlayerPosition.south ||
@@ -488,17 +507,29 @@ class MonteCarloAI {
 
     // Stich leer → strategisch anspielen.
     // Misere/Molotof: schwächste Karte (Stich vermeiden / wenig Punkte).
-    // Alle anderen Modi: stärkste Karte (Stich gewinnen).
-    // In Undenufe bedeutet "stärkste" = die 6, da cardPlayStrength korrekt
-    // die Modus-Stärkereihenfolge abbildet.
+    // Alle anderen Modi: garantierten Gewinner führen falls vorhanden, sonst stärkste.
+    // _isHighestRemaining nutzt effectiveMode → korrekt für Oben, Unten,
+    // Slalom-Phasen und Trumpf (inkl. Fehlfarbenstechen-Prüfung).
+    // In Undenufe bedeutet "höchste Spielstärke" = die 6, da cardPlayStrength
+    // die Modus-Stärkereihenfolge korrekt abbildet.
     if (state.currentTrickCards.isEmpty) {
       final wantToLose = effectMode == GameMode.misere ||
           effectMode == GameMode.molotof ||
           state.gameMode == GameMode.misere ||
           state.gameMode == GameMode.molotof;
-      return wantToLose
-          ? _weakest(playable, effectMode, trump)
-          : _strongest(playable, effectMode, trump);
+      if (wantToLose) return _weakest(playable, effectMode, trump);
+
+      // Garantierter Gewinner: höchste/niedrigste verbliebene Karte der Farbe.
+      // Für Oben: höchste verbleibende → sicherer Stich.
+      // Für Unten: niedrigste verbleibende (höchste Spielstärke im Unten-Modus).
+      // Für Trumpf: nicht-Trumpf-Karten nur wenn kein Gegner blank ist + Trumpf hat.
+      final guaranteed =
+          playable.where((c) => _isHighestRemaining(c, state)).toList();
+      if (guaranteed.isNotEmpty) {
+        return _strongest(guaranteed, effectMode, trump);
+      }
+
+      return _strongest(playable, effectMode, trump);
     }
 
     // Wer gewinnt gerade?
@@ -900,11 +931,4 @@ class MonteCarloAI {
     return result;
   }
 
-  /// Klont den State mit tief kopierten Spielerhänden (Player.hand ist mutable).
-  static GameState _cloneState(GameState state) {
-    final players = state.players
-        .map((p) => p.copyWith(hand: List<JassCard>.from(p.hand)))
-        .toList();
-    return state.copyWith(players: players);
-  }
 }
