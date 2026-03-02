@@ -92,8 +92,9 @@ class RoundResult {
 class WyssEntry {
   final String playerId;
   final bool isFourOfAKind;
-  final int points;        // 20=Dreierfolge, 50=Quart, 100=Quinte/Vierling, 150=Vierling 9, 200=Vierling Bube
+  final int points;         // 20=Dreiblatt, 50=Vierblatt, 100=Fünfblatt/Vierling, 150=Vierling 9, 200=Vierling Under
   final CardValue topValue; // Höchste Karte der Folge / Wert des Vierlings
+  final CardValue bottomValue; // Tiefste Karte der Folge (= topValue bei Vierling)
   final Suit? suit;         // Nur für Folgen (nicht Vierling)
   final bool isTrumpSuit;   // Folge in der Trumpffarbe
 
@@ -102,9 +103,10 @@ class WyssEntry {
     required this.isFourOfAKind,
     required this.points,
     required this.topValue,
+    CardValue? bottomValue,
     this.suit,
     this.isTrumpSuit = false,
-  });
+  }) : bottomValue = bottomValue ?? topValue;
 
   String get typeName {
     if (isFourOfAKind) {
@@ -112,13 +114,16 @@ class WyssEntry {
       if (points == 150) return 'Vierling Neun';
       return 'Vierling';
     }
-    if (points == 20) return 'Dreierfolge';
-    if (points == 50) return 'Quart';
-    return 'Quinte';
+    if (points == 20) return 'Dreiblatt';
+    if (points == 50) return 'Vierblatt';
+    return 'Fünfblatt';
   }
 
-  String get topValueName {
-    switch (topValue) {
+  String get topValueName => _valueName(topValue);
+  String get bottomValueName => _valueName(bottomValue);
+
+  static String _valueName(CardValue v) {
+    switch (v) {
       case CardValue.six:   return '6';
       case CardValue.seven: return '7';
       case CardValue.eight: return '8';
