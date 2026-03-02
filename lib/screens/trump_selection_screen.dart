@@ -113,31 +113,33 @@ class TrumpSelectionScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Trumpf-Gruppen
-                    Expanded(child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(child: _TrumpGroupButton(
-                          suits: [Suit.schellen, Suit.schilten],
-                          frenchSuits: [Suit.spades, Suit.clubs],
-                          cardType: cardType,
-                          variantKey: 'trump_ss',
-                          isAvailable: available.contains('trump_ss'),
-                          onTap: () => _pickTrumpSuit(context,
-                            cardType == CardType.french ? [Suit.spades, Suit.clubs] : [Suit.schellen, Suit.schilten], cardType, 'trump_ss'),
+                    // Trumpf: Schieber → 4 einzelne Farb-Kacheln; andere Modi → 2 Gruppen
+                    Expanded(child: isSchieber
+                      ? _buildSchieberSuitGrid(context, suits, cardType, state)
+                      : Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(child: _TrumpGroupButton(
+                              suits: [Suit.schellen, Suit.schilten],
+                              frenchSuits: [Suit.spades, Suit.clubs],
+                              cardType: cardType,
+                              variantKey: 'trump_ss',
+                              isAvailable: available.contains('trump_ss'),
+                              onTap: () => _pickTrumpSuit(context,
+                                cardType == CardType.french ? [Suit.spades, Suit.clubs] : [Suit.schellen, Suit.schilten], cardType, 'trump_ss'),
+                            )),
+                            const SizedBox(width: 8),
+                            Expanded(child: _TrumpGroupButton(
+                              suits: [Suit.herzGerman, Suit.eichel],
+                              frenchSuits: [Suit.hearts, Suit.diamonds],
+                              cardType: cardType,
+                              variantKey: 'trump_re',
+                              isAvailable: available.contains('trump_re'),
+                              onTap: () => _pickTrumpSuit(context,
+                                cardType == CardType.french ? [Suit.hearts, Suit.diamonds] : [Suit.herzGerman, Suit.eichel], cardType, 'trump_re'),
+                            )),
+                          ],
                         )),
-                        const SizedBox(width: 8),
-                        Expanded(child: _TrumpGroupButton(
-                          suits: [Suit.herzGerman, Suit.eichel],
-                          frenchSuits: [Suit.hearts, Suit.diamonds],
-                          cardType: cardType,
-                          variantKey: 'trump_re',
-                          isAvailable: available.contains('trump_re'),
-                          onTap: () => _pickTrumpSuit(context,
-                            cardType == CardType.french ? [Suit.hearts, Suit.diamonds] : [Suit.herzGerman, Suit.eichel], cardType, 'trump_re'),
-                        )),
-                      ],
-                    )),
                     const SizedBox(height: 8),
                     Expanded(child: Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -309,6 +311,48 @@ class TrumpSelectionScreen extends StatelessWidget {
     return selector.isHuman
         ? 'Du sagst an – wähle Modus & Wunschkarte'
         : '${ansager.name} sagt an';
+  }
+
+  /// Schieber: 2×2 Gitter mit den 4 einzelnen Trumpffarben.
+  /// Tippen wählt sofort (immer Trumpf Oben im Schieber).
+  Widget _buildSchieberSuitGrid(
+      BuildContext context, List<Suit> suits, CardType cardType, GameState state) {
+    // Suits in 2 Reihen à 2
+    final rows = [[suits[0], suits[1]], [suits[2], suits[3]]];
+    final mults = state.schieberMultipliers;
+
+    String variantOf(Suit s) {
+      if (cardType == CardType.french) {
+        return (s == Suit.spades || s == Suit.clubs) ? 'trump_ss' : 'trump_re';
+      }
+      return (s == Suit.schellen || s == Suit.schilten) ? 'trump_ss' : 'trump_re';
+    }
+
+    return Column(
+      children: [
+        for (int r = 0; r < rows.length; r++) ...[
+          if (r > 0) const SizedBox(height: 8),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (int c = 0; c < rows[r].length; c++) ...[
+                  if (c > 0) const SizedBox(width: 8),
+                  Expanded(
+                    child: _SchieberSuitTile(
+                      suit: rows[r][c],
+                      cardType: cardType,
+                      multiplier: mults[variantOf(rows[r][c])] ?? 1,
+                      onTap: () => _selectMode(context, GameMode.trump, suit: rows[r][c]),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
   }
 
   void _pickTrumpSuit(
@@ -648,6 +692,78 @@ class TrumpSelectionScreen extends StatelessWidget {
                         overrideMode: GameMode.schafkopf,
                       ))
                   .toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Einzelne Farb-Kachel (Schieber) ──────────────────────────────────────────
+
+class _SchieberSuitTile extends StatelessWidget {
+  final Suit suit;
+  final CardType cardType;
+  final int multiplier;
+  final VoidCallback onTap;
+
+  const _SchieberSuitTile({
+    required this.suit,
+    required this.cardType,
+    required this.multiplier,
+    required this.onTap,
+  });
+
+  bool get _isRed =>
+      suit == Suit.hearts || suit == Suit.diamonds ||
+      suit == Suit.herzGerman || suit == Suit.schellen;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.cardWhite,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: const [
+            BoxShadow(color: Colors.black45, blurRadius: 4, offset: Offset(2, 3)),
+          ],
+        ),
+        child: Stack(
+          children: [
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _SuitPip(suit: suit, cardType: cardType),
+                  const SizedBox(height: 4),
+                  Text(
+                    suit.label(cardType),
+                    style: TextStyle(
+                      color: _isRed ? AppColors.cardRed : AppColors.cardBlack,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Multiplikator-Badge oben rechts
+            Positioned(
+              top: 6,
+              right: 8,
+              child: Text(
+                '×$multiplier',
+                style: TextStyle(
+                  color: multiplier > 1
+                      ? Colors.deepOrange.shade700
+                      : Colors.black38,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ],
         ),

@@ -34,11 +34,18 @@ class ModeSelectorAI {
     Suit? bestTrump;
     bool bestSlalomStartsOben = true;
 
+    // Multiplikator für Schieber: höhere Varianten sind mehr wert
+    final isSchieber = state.gameType == GameType.schieber;
+    double mult(String vk) => isSchieber
+        ? (state.schieberMultipliers[vk] ?? 1).toDouble()
+        : 1.0;
+
     for (final variant in available) {
       if (variant == 'trump_ss' || variant == 'trump_re') {
         final forced = state.gameType == GameType.friseur
             ? null  // Friseur Solo: keine Richtungspflicht
             : state.forcedTrumpDirection(isTeam1, variant);
+        final m = mult(variant);
 
         final suits = variant == 'trump_ss'
             ? (state.cardType == CardType.french
@@ -51,7 +58,7 @@ class ModeSelectorAI {
         for (final suit in suits) {
           // Trumpf Oben
           if (forced == null || forced == true) {
-            final s = _scoreTrump(hand, suit, oben: true);
+            final s = _scoreTrump(hand, suit, oben: true) * m;
             if (s > bestScore) {
               bestScore = s;
               bestMode = GameMode.trump;
@@ -60,7 +67,7 @@ class ModeSelectorAI {
           }
           // Trumpf Unten
           if (forced == null || forced == false) {
-            final s = _scoreTrump(hand, suit, oben: false);
+            final s = _scoreTrump(hand, suit, oben: false) * m;
             if (s > bestScore) {
               bestScore = s;
               bestMode = GameMode.trumpUnten;
@@ -73,7 +80,7 @@ class ModeSelectorAI {
             ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
             : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
         for (final suit in suits) {
-          final s = _scoreSchafkopf(hand, suit);
+          final s = _scoreSchafkopf(hand, suit) * mult(variant);
           if (s > bestScore) {
             bestScore = s;
             bestMode = GameMode.schafkopf;
@@ -84,7 +91,7 @@ class ModeSelectorAI {
         // KI wählt Slalom-Richtung basierend auf der Hand
         final sOben = _scoreOben(hand);
         final sUnten = _scoreUnten(hand);
-        final s = (sOben + sUnten) / 2;
+        final s = (sOben + sUnten) / 2 * mult(variant);
         if (s > bestScore) {
           bestScore = s;
           bestMode = GameMode.slalom;
@@ -92,7 +99,7 @@ class ModeSelectorAI {
           bestSlalomStartsOben = sOben >= sUnten; // Beginne mit der stärkeren Seite
         }
       } else {
-        final s = _scoreFlatMode(hand, variant);
+        final s = _scoreFlatMode(hand, variant) * mult(variant);
         if (s > bestScore) {
           bestScore = s;
           bestMode = GameMode.values.firstWhere((m) => m.name == variant);
@@ -132,20 +139,27 @@ class ModeSelectorAI {
     final nnMax = scores.fold(double.negativeInfinity, (a, b) => a > b ? a : b);
     final nnRange = nnMax > nnMin ? nnMax - nnMin : 1.0;
 
+    // Multiplikator für Schieber einrechnen (×1/×2/×3/×4 je nach Variante)
+    final isSchieber = state.gameType == GameType.schieber;
+    double mult(String vk) => isSchieber
+        ? (state.schieberMultipliers[vk] ?? 1).toDouble()
+        : 1.0;
+
     for (final variant in available) {
       if (variant == 'trump_ss' || variant == 'trump_re') {
         final forced = (forcedTrumpFn ?? (vk) => state.forcedTrumpDirection(isTeam1, vk))(variant);
         // Farb-Indizes 0+3 = SS-Gruppe, 1+2 = RE-Gruppe
         final suitIdxs = variant == 'trump_ss' ? [0, 3] : [1, 2];
+        final m = mult(variant);
 
         for (final si in suitIdxs) {
           final suit = _suitForIndex(si, state.cardType);
           if (forced == null || forced == true) {
-            final s = scores[si]; // trump oben
+            final s = scores[si] * m; // trump oben
             if (s > bestScore) { bestScore = s; bestMode = GameMode.trump; bestTrump = suit; }
           }
           if (forced == null || forced == false) {
-            final s = scores[si + 4]; // trump unten
+            final s = scores[si + 4] * m; // trump unten
             if (s > bestScore) { bestScore = s; bestMode = GameMode.trumpUnten; bestTrump = suit; }
           }
         }
@@ -157,19 +171,19 @@ class ModeSelectorAI {
             : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
         for (final suit in suits) {
           final hNorm = (_scoreSchafkopf(hand, suit) / 150.0).clamp(0.0, 1.0);
-          final s = nnMin + hNorm * nnRange;
+          final s = (nnMin + hNorm * nnRange) * mult(variant);
           if (s > bestScore) { bestScore = s; bestMode = GameMode.schafkopf; bestTrump = suit; }
         }
       } else if (variant == 'molotof') {
         // NN kennt Molotof nicht → Heuristik auf NN-Skala normalisieren.
         // Max-Heuristik-Score ≈ 110 (Hand ohne Asse/Zehner).
         final hNorm = (_scoreMolotof(hand) / 110.0).clamp(0.0, 1.0);
-        final s = nnMin + hNorm * nnRange;
+        final s = (nnMin + hNorm * nnRange) * mult(variant);
         if (s > bestScore) { bestScore = s; bestMode = GameMode.molotof; bestTrump = null; }
       } else {
         final nnIdx = _variantToNNIdx(variant);
         if (nnIdx >= 0 && nnIdx < scores.length) {
-          final s = scores[nnIdx];
+          final s = scores[nnIdx] * mult(variant);
           if (s > bestScore) {
             bestScore = s;
             bestMode  = GameMode.values.firstWhere((m) => m.name == variant,
