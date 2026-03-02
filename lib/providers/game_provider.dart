@@ -906,27 +906,27 @@ class GameProvider extends ChangeNotifier {
       return available.first;
     }
 
-    // Bei Schafkopf: höchste Trumpfkarte wünschen die man nicht hat
+    // Bei Schafkopf: höchste Dame oder 8 wünschen die man nicht hat
+    // (im Schafkopf sind alle 4 Damen und alle 4 Achter Trumpf)
     if (mode == GameMode.schafkopf && trumpSuit != null) {
-      // Reihenfolge: Under → Ass → König → Ober → 10 → 9 → 8 → 7 → 6
-      const order = [
-        CardValue.jack, CardValue.ace, CardValue.king,
-        CardValue.queen, CardValue.ten, CardValue.nine,
-        CardValue.eight, CardValue.seven, CardValue.six,
+      // Suit-Priorität: Trumpffarbe zuerst, dann andere
+      final suitOrder = [
+        trumpSuit,
+        ...Suit.values.where((s) => s != trumpSuit),
       ];
-      for (final val in order) {
-        final card = available.firstWhere(
-          (c) => c.suit == trumpSuit && c.value == val,
-          orElse: () => available[0],
-        );
-        if (card.suit == trumpSuit && card.value == val) return card;
+      // Erst Damen (höchste Schafkopf-Trumpfkarten), dann Achter
+      for (final val in [CardValue.queen, CardValue.eight]) {
+        for (final suit in suitOrder) {
+          final card = available.firstWhere(
+            (c) => c.suit == suit && c.value == val,
+            orElse: () => available[0],
+          );
+          if (card.suit == suit && card.value == val) return card;
+        }
       }
-      // Fallback: irgendeine Trumpfkarte
-      final anyTrump = available.firstWhere(
-        (c) => c.suit == trumpSuit,
-        orElse: () => available.first,
-      );
-      return anyTrump;
+      // Fallback: höchste Trumpfkarte
+      available.shuffle();
+      return available.first;
     }
 
     // Sonstige Modi: zufällige verfügbare Karte
