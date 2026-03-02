@@ -106,8 +106,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         children: [
                           _GameTypeButton(
                             label: 'Schieber',
-                            subtitle: 'Der Klassiker',
-                            description: '♠♣ 1× · ♥♦ 2× · ⬆️⬇️ 3× · 〰️ 4×',
                             emoji: _selectedCardType == CardType.french ? '♥️' : '🌹',
                             selected: _selectedGameType == GameType.schieber,
                             onTap: () => setState(() => _selectedGameType = GameType.schieber),
@@ -234,16 +232,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
 class _GameTypeButton extends StatelessWidget {
   final String label;
-  final String subtitle;
-  final String description;
+  final String? subtitle;
+  final String? description;
   final String emoji;
   final bool selected;
   final VoidCallback onTap;
 
   const _GameTypeButton({
     required this.label,
-    required this.subtitle,
-    required this.description,
+    this.subtitle,
+    this.description,
     required this.emoji,
     required this.selected,
     required this.onTap,
@@ -280,20 +278,23 @@ class _GameTypeButton extends StatelessWidget {
                   fontSize: 13,
                 ),
               ),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  color: selected ? AppColors.gold : Colors.white54,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
+              if (subtitle != null)
+                Text(
+                  subtitle!,
+                  style: TextStyle(
+                    color: selected ? AppColors.gold : Colors.white54,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                description,
-                style: const TextStyle(color: Colors.white38, fontSize: 9),
-                textAlign: TextAlign.center,
-              ),
+              if (description != null) ...[
+                const SizedBox(height: 3),
+                Text(
+                  description!,
+                  style: const TextStyle(color: Colors.white38, fontSize: 9),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ],
           ),
         ),
