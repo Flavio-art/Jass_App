@@ -431,6 +431,18 @@ class MonteCarloAI {
     return true;
   }
 
+  /// Zweithöchste Stärke einer Farbe in der eigenen Hand (unterhalb von [topStrength]).
+  static int _secondHighestStrength(Suit suit, List<JassCard> hand,
+      GameMode mode, Suit? trump, int topStrength) {
+    final sameSuit = hand
+        .where((c) => c.suit == suit)
+        .map((c) => GameLogic.cardPlayStrength(c, mode, trump))
+        .where((s) => s < topStrength)
+        .toList();
+    if (sameSuit.isEmpty) return -1;
+    return sameSuit.reduce((a, b) => a > b ? a : b);
+  }
+
   // ─── Hilfsmethoden ────────────────────────────────────────────────────────
 
   static List<JassCard> _getPlayable(Player player, GameState state) {
@@ -512,7 +524,19 @@ class MonteCarloAI {
           final pts = GameLogic.cardPoints(c, effectMode, trump);
           if (pts < 8) return false; // zu wenig Punkte (8=Achter, 10=Zehner, 11=Ass)
           // Nicht schmieren wenn diese Karte noch Stiche gewinnen kann
-          return !_isHighestRemaining(c, state);
+          if (_isHighestRemaining(c, state)) return false;
+          // Ass nur schmieren wenn man auch die zweithöchste Karte der Farbe hat
+          // (sonst verliert man die Kontrolle über die Farbe komplett)
+          if (c.value == CardValue.ace || c.value == CardValue.six) {
+            final myStrength = GameLogic.cardPlayStrength(c, effectMode, trump);
+            final hasSecondHighest = player.hand.any((h) =>
+                h != c &&
+                h.suit == c.suit &&
+                GameLogic.cardPlayStrength(h, effectMode, trump) ==
+                    _secondHighestStrength(c.suit, player.hand, effectMode, trump, myStrength));
+            if (!hasSecondHighest) return false;
+          }
+          return true;
         }).toList();
         if (schmierbar.isNotEmpty) {
           return _strongest(schmierbar, effectMode, trump);
