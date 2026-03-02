@@ -17,7 +17,7 @@ class TrickAreaWidget extends StatelessWidget {
   final VoidCallback? onTap;
   final JassCard? wishCard; // Friseur Solo: öffentliche Wunschkarte
   final VoidCallback? onWishCardTap; // Tap auf Wunschkarte → Detail-Overlay
-  final bool isSchieber;
+  final GameType gameType;
 
   const TrickAreaWidget({
     super.key,
@@ -33,7 +33,7 @@ class TrickAreaWidget extends StatelessWidget {
     this.onTap,
     this.wishCard,
     this.onWishCardTap,
-    this.isSchieber = false,
+    this.gameType = GameType.friseurTeam,
   });
 
   @override
@@ -59,7 +59,7 @@ class TrickAreaWidget extends StatelessWidget {
                 trumpSuit: trumpSuit,
                 trickNumber: trickNumber,
                 slalomStartsOben: slalomStartsOben,
-                isSchieber: isSchieber,
+                gameType: gameType,
               ),
             ),
             // Wunschkarte (Friseur Solo) oben links
@@ -134,7 +134,7 @@ class _ModeIndicator extends StatelessWidget {
   final Suit? trumpSuit;
   final int trickNumber;
   final bool slalomStartsOben;
-  final bool isSchieber;
+  final GameType gameType;
 
   const _ModeIndicator({
     required this.gameMode,
@@ -142,58 +142,28 @@ class _ModeIndicator extends StatelessWidget {
     required this.trumpSuit,
     required this.trickNumber,
     this.slalomStartsOben = true,
-    this.isSchieber = false,
+    this.gameType = GameType.friseurTeam,
   });
+
+  bool get _isFriseur =>
+      gameType == GameType.friseur || gameType == GameType.friseurTeam;
 
   @override
   Widget build(BuildContext context) {
     switch (gameMode) {
       case GameMode.trump:
-        if (isSchieber) return const SizedBox.shrink();
         if (trumpSuit == null) return const SizedBox.shrink();
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('⬇️ Trumpf', style: TextStyle(color: Colors.amber, fontSize: 10)),
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Center(
-                child: Text(
-                  trumpSuit!.symbol,
-                  style: const TextStyle(fontSize: 18, color: Colors.black),
-                ),
-              ),
-            ),
-          ],
-        );
+        // Friseur: Richtungspfeil ⬇️ (Obenabe). Schieber/Differenzler: nur "Trumpf"
+        final trumpLabel = _isFriseur ? '⬇️ Trumpf' : 'Trumpf';
+        final trumpColor = _isFriseur ? Colors.amber : Colors.amber.shade300;
+        return _trumpBox(trumpLabel, trumpColor);
+
       case GameMode.trumpUnten:
-        if (isSchieber) return const SizedBox.shrink();
         if (trumpSuit == null) return const SizedBox.shrink();
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('⬆️ Trumpf', style: TextStyle(color: Colors.orange, fontSize: 10)),
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Center(
-                child: Text(
-                  trumpSuit!.symbol,
-                  style: const TextStyle(fontSize: 18, color: Colors.black),
-                ),
-              ),
-            ),
-          ],
-        );
+        // Friseur: Richtungspfeil ⬆️ (Undenufe). Schieber: ohne Pfeil.
+        final uLabel = _isFriseur ? '⬆️ Trumpf' : 'Trumpf ⬆️';
+        return _trumpBox(uLabel, Colors.orange);
+
       case GameMode.oben:
         return _label('Obenabe ⬇️', Colors.blue.shade300);
       case GameMode.unten:
@@ -208,31 +178,41 @@ class _ModeIndicator extends StatelessWidget {
         return _label('Alles Trumpf 👑', Colors.yellow.shade300);
       case GameMode.molotof:
         return _molotofLabel();
-
       case GameMode.schafkopf:
         if (trumpSuit == null) return const SizedBox.shrink();
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Schafkopf 🐑', style: TextStyle(color: Colors.green, fontSize: 10)),
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Center(
-                child: Text(
-                  trumpSuit!.symbol,
-                  style: const TextStyle(fontSize: 18, color: Colors.black),
-                ),
-              ),
-            ),
+            const Text('Schafkopf 🐑',
+                style: TextStyle(color: Colors.green, fontSize: 10)),
+            _suitBox(),
           ],
         );
     }
   }
+
+  Widget _trumpBox(String label, Color labelColor) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: TextStyle(color: labelColor, fontSize: 10)),
+          _suitBox(),
+        ],
+      );
+
+  Widget _suitBox() => Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Center(
+          child: Text(
+            trumpSuit!.symbol,
+            style: const TextStyle(fontSize: 18, color: Colors.black),
+          ),
+        ),
+      );
 
   Widget _label(String text, Color color) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -240,11 +220,14 @@ class _ModeIndicator extends StatelessWidget {
           color: Colors.black38,
           borderRadius: BorderRadius.circular(6),
         ),
-        child: Text(text, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
+        child: Text(text,
+            style: TextStyle(
+                color: color, fontSize: 11, fontWeight: FontWeight.bold)),
       );
 
   Widget _slalomLabel() {
-    final isOben = slalomStartsOben ? trickNumber % 2 == 1 : trickNumber % 2 == 0;
+    final isOben =
+        slalomStartsOben ? trickNumber % 2 == 1 : trickNumber % 2 == 0;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -273,13 +256,20 @@ class _ModeIndicator extends StatelessWidget {
     final Color col;
     switch (molotofSubMode!) {
       case GameMode.oben:
-        sub = 'Obenabe ⬇️'; col = Colors.blue.shade300; break;
+        sub = 'Obenabe ⬇️';
+        col = Colors.blue.shade300;
+        break;
       case GameMode.unten:
-        sub = 'Undenufe ⬆️'; col = Colors.orange.shade300; break;
+        sub = 'Undenufe ⬆️';
+        col = Colors.orange.shade300;
+        break;
       case GameMode.trump:
-        sub = 'Trumpf: ${trumpSuit?.symbol ?? '?'}'; col = Colors.amber.shade300; break;
+        sub = 'Trumpf: ${trumpSuit?.symbol ?? '?'}';
+        col = Colors.amber.shade300;
+        break;
       default:
-        sub = ''; col = Colors.white54;
+        sub = '';
+        col = Colors.white54;
     }
     return Column(
       mainAxisSize: MainAxisSize.min,
