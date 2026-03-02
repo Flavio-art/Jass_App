@@ -13,11 +13,11 @@ import 'game_logic.dart';
 /// World-Sampling – die Qualität kommt durch den Lookahead.
 class MonteCarloAI {
   /// Anzahl äusserer Simulationen pro Kandidatenkarte.
-  static const int simulations = 50;
+  static const int simulations = 80;
 
   /// Anzahl innerer Rollouts pro Option im Rollout-Schritt.
   /// Höher = bessere Rollout-Qualität, aber langsamer.
-  static const int innerSimulations = 3;
+  static const int innerSimulations = 5;
 
   static final math.Random _rng = math.Random();
 
@@ -91,6 +91,11 @@ class MonteCarloAI {
 
     final aiIsTeam1 = aiPlayer.position == PlayerPosition.south ||
         aiPlayer.position == PlayerPosition.north;
+
+    // Deterministische Endphase: letzte 2 Stiche → exakter Minimax statt MC
+    if (state.completedTricks.length >= 7) {
+      return _exactBestCard(aiPlayer, state, aiIsTeam1);
+    }
 
     double bestScore = double.negativeInfinity;
     JassCard bestCard = playable.first;
@@ -418,14 +423,19 @@ class MonteCarloAI {
     if (beatenBySameSuit) return false;
 
     // Wenn Trumpfmodus aktiv und Karte ist kein Trumpf:
-    // prüfe ob Gegner noch Trumpf haben (dann kann Ass/etc. gestochen werden)
+    // Nur unsicher wenn ein Spieler VOID in dieser Farbe ist UND Trumpf hat
+    // (sonst muss er die Farbe bedienen → kann nicht stechen)
     if (trump != null &&
         card.suit != trump &&
         effectMode != GameMode.oben &&
         effectMode != GameMode.unten) {
-      final opponentsTrump = state.players.expand((p) => p.hand).any((c) =>
-          c != card && c.suit == trump);
-      if (opponentsTrump) return false; // kann gestochen werden → kein sicherer Gewinner
+      final canBeTrumped = state.players.any((p) {
+        final others = p.hand.where((c) => c != card).toList();
+        final hasLedSuit = others.any((c) => c.suit == card.suit);
+        final hasTrump = others.any((c) => c.suit == trump);
+        return !hasLedSuit && hasTrump; // void in Farbe + hat Trumpf → kann stechen
+      });
+      if (canBeTrumped) return false;
     }
 
     return true;
@@ -500,7 +510,7 @@ class MonteCarloAI {
     );
     final currentWinner =
         state.players.firstWhere((p) => p.id == currentWinnerId);
-    final partnerWins = _sameTeam(player, currentWinner);
+    final partnerWins = _sameTeamFor(player, currentWinner, state);
 
     // Misere-Ansager: will den Stich NICHT gewinnen
     final isAnnouncer = (player.position == PlayerPosition.south ||
@@ -513,20 +523,37 @@ class MonteCarloAI {
       return _weakest(losing.isNotEmpty ? losing : playable, effectMode, trump);
     }
 
-    // Partner gewinnt → Schmieren wenn letzter Spieler + Stich sicher
+    // Misere-Gegner: Ansager soll den Stich gewinnen
+    if (state.gameMode == GameMode.misere && !isAnnouncer) {
+      final announcerWinningNow = _isAnnouncerWinning(state);
+      if (announcerWinningNow) {
+        // Ansager gewinnt gerade → nicht wegnehmen, schwächste Karte die nicht gewinnt
+        final notWinning = playable.where((c) => !_wouldWin(c, state, trump)).toList();
+        return _weakest(notWinning.isNotEmpty ? notWinning : playable, effectMode, trump);
+      } else {
+        // Ansager gewinnt nicht → stark spielen, Stich nehmen damit Ansager ihn nicht kriegt
+        final winning = playable.where((c) => _wouldWin(c, state, trump)).toList();
+        return _weakest(winning.isNotEmpty ? winning : playable, effectMode, trump);
+      }
+    }
+
+    // Partner gewinnt → Schmieren wenn letzter ODER zweitletzter Spieler + Stich sicher
     if (partnerWins) {
-      final isLastInTrick = state.currentTrickCards.length == 3;
-      if (isLastInTrick) {
-        // Letzter Spieler: hohe Punktkarten auf sicheren Partner-Stich werfen.
-        // NICHT schmieren mit Karten die noch Stiche gewinnen könnten
-        // (höchste verbleibende ihrer Farbe → Ass, 6, etc. aufbehalten)
+      final trickLen = state.currentTrickCards.length;
+      final isLastInTrick = trickLen == 3;
+      final isSecondLastInTrick = trickLen == 2;
+
+      bool canSchmier = isLastInTrick;
+      if (isSecondLastInTrick) {
+        // Zweitletzter: nur schmieren wenn letzter Spieler den Stich nicht wegnehmen kann
+        canSchmier = !_lastPlayerCanBeat(state, trump);
+      }
+
+      if (canSchmier) {
         final schmierbar = playable.where((c) {
           final pts = GameLogic.cardPoints(c, effectMode, trump);
-          if (pts < 8) return false; // zu wenig Punkte (8=Achter, 10=Zehner, 11=Ass)
-          // Nicht schmieren wenn diese Karte noch Stiche gewinnen kann
+          if (pts < 8) return false;
           if (_isHighestRemaining(c, state)) return false;
-          // Ass nur schmieren wenn man auch die zweithöchste Karte der Farbe hat
-          // (sonst verliert man die Kontrolle über die Farbe komplett)
           if (c.value == CardValue.ace || c.value == CardValue.six) {
             final myStrength = GameLogic.cardPlayStrength(c, effectMode, trump);
             final hasSecondHighest = player.hand.any((h) =>
@@ -598,6 +625,173 @@ class MonteCarloAI {
     final bT1 = b.position == PlayerPosition.south ||
         b.position == PlayerPosition.north;
     return aT1 == bT1;
+  }
+
+  /// Schafkopf: Team-Zuordnung anhand des Trumpf-Ass (dynamisch).
+  /// Ansager + Inhaber des Trumpf-Ass sind ein Team.
+  static bool _sameTeamFor(Player a, Player b, GameState state) {
+    if (state.gameMode != GameMode.schafkopf || state.trumpSuit == null) {
+      return _sameTeam(a, b);
+    }
+    final partnerId = _schafkopfPartnerId(state);
+    if (partnerId == null) return _sameTeam(a, b);
+    final announcerId = state.players[state.ansagerIndex].id;
+    final aInAnnouncing = a.id == announcerId || a.id == partnerId;
+    final bInAnnouncing = b.id == announcerId || b.id == partnerId;
+    return aInAnnouncing == bInAnnouncing;
+  }
+
+  /// Gibt die ID des Schafkopf-Partners zurück (Spieler mit Trumpf-Ass),
+  /// oder null wenn noch nicht bestimmbar.
+  static String? _schafkopfPartnerId(GameState state) {
+    if (state.trumpSuit == null) return null;
+    final trump = state.trumpSuit!;
+    final announcerId = state.players[state.ansagerIndex].id;
+    // In gespielten Stichen suchen
+    for (final trick in state.completedTricks) {
+      for (final entry in trick.cards.entries) {
+        if (entry.key != announcerId &&
+            entry.value.suit == trump &&
+            entry.value.value == CardValue.ace) {
+          return entry.key;
+        }
+      }
+    }
+    // Im aktuellen Stich suchen
+    for (int i = 0; i < state.currentTrickCards.length; i++) {
+      final c = state.currentTrickCards[i];
+      final id = state.currentTrickPlayerIds[i];
+      if (id != announcerId && c.suit == trump && c.value == CardValue.ace) {
+        return id;
+      }
+    }
+    // In Händen suchen (noch nicht gespielt)
+    for (final p in state.players) {
+      if (p.id != announcerId &&
+          p.hand.any((c) => c.suit == trump && c.value == CardValue.ace)) {
+        return p.id;
+      }
+    }
+    return null;
+  }
+
+  /// Ob der Ansager (Misère) gerade den laufenden Teilstich gewinnt.
+  static bool _isAnnouncerWinning(GameState state) {
+    if (state.currentTrickPlayerIds.isEmpty) return false;
+    final winnerId = GameLogic.determineTrickWinner(
+      cards: state.currentTrickCards,
+      playerIds: state.currentTrickPlayerIds,
+      gameMode: state.gameMode,
+      trumpSuit: state.trumpSuit,
+      trickNumber: state.currentTrickNumber,
+      molotofSubMode: state.molotofSubMode,
+    );
+    final winner = state.players.firstWhere((p) => p.id == winnerId);
+    final winnerIsTeam1 = winner.position == PlayerPosition.south ||
+        winner.position == PlayerPosition.north;
+    return winnerIsTeam1 == state.isTeam1Ansager;
+  }
+
+  /// Ob der letzte Spieler im Stich den aktuellen Gewinner schlagen kann.
+  /// Wird für "Schmieren zweitletzter" genutzt.
+  static bool _lastPlayerCanBeat(GameState state, Suit? trump) {
+    // Letzten Spieler in diesem Stich finden
+    final playedIds = {...state.currentTrickPlayerIds,
+        state.players[state.currentPlayerIndex].id};
+    final remaining = state.players.where((p) => !playedIds.contains(p.id)).toList();
+    if (remaining.isEmpty) return false;
+    final lastPlayer = remaining.first;
+
+    // Aktuellen Stichgewinner (aus bereits gespielten Karten)
+    if (state.currentTrickPlayerIds.isEmpty) return false;
+    final currentWinnerId = GameLogic.determineTrickWinner(
+      cards: state.currentTrickCards,
+      playerIds: state.currentTrickPlayerIds,
+      gameMode: state.gameMode,
+      trumpSuit: trump,
+      trickNumber: state.currentTrickNumber,
+      molotofSubMode: state.molotofSubMode,
+    );
+    final winnerIdx = state.currentTrickPlayerIds.indexOf(currentWinnerId);
+    if (winnerIdx < 0) return false;
+    final winnerCard = state.currentTrickCards[winnerIdx];
+
+    // Was kann der letzte Spieler spielen (Farbenpflicht)?
+    final effectMode = _effectiveMode(
+      state.gameMode, state.currentTrickNumber, trump, state.molotofSubMode,
+      slalomStartsOben: state.slalomStartsOben,
+    );
+    final lastPlayable = GameLogic.getPlayableCards(
+      lastPlayer.hand,
+      state.currentTrickCards,
+      mode: effectMode,
+      trumpSuit: (effectMode == GameMode.trump ||
+              effectMode == GameMode.schafkopf ||
+              effectMode == GameMode.trumpUnten)
+          ? trump
+          : null,
+    );
+
+    // Kann eine dieser Karten den aktuellen Gewinner schlagen?
+    final winnerStrength = GameLogic.cardPlayStrength(winnerCard, effectMode, trump);
+    return lastPlayable.any((c) {
+      final cStrength = GameLogic.cardPlayStrength(c, effectMode, trump);
+      if (c.suit == winnerCard.suit) return cStrength > winnerStrength;
+      // Trumpf schlägt Nicht-Trumpf (ausser Oben/Unten)
+      if (trump != null &&
+          c.suit == trump &&
+          winnerCard.suit != trump &&
+          effectMode != GameMode.oben &&
+          effectMode != GameMode.unten) {
+        return true;
+      }
+      return false;
+    });
+  }
+
+  // ─── Deterministische Endphase ────────────────────────────────────────────
+
+  /// Beste Karte für die letzten 1-2 Stiche via exaktem Minimax.
+  static JassCard _exactBestCard(Player aiPlayer, GameState state, bool aiIsTeam1) {
+    final playable = _getPlayable(aiPlayer, state);
+    if (playable.length == 1) return playable.first;
+
+    JassCard bestCard = playable.first;
+    double bestScore = double.negativeInfinity;
+
+    for (final card in playable) {
+      final score = _minimaxScore(_playCard(state, aiPlayer.id, card), aiIsTeam1);
+      if (score > bestScore) {
+        bestScore = score;
+        bestCard = card;
+      }
+    }
+    return bestCard;
+  }
+
+  /// Rekursiver Minimax bis Spielende. Jedes Team spielt für sich selbst optimal.
+  static double _minimaxScore(GameState state, bool aiIsTeam1) {
+    if (state.completedTricks.length >= 9) {
+      return _scoreFor(state.teamScores, aiIsTeam1, state);
+    }
+    final player = state.players[state.currentPlayerIndex];
+    if (player.hand.isEmpty) return _scoreFor(state.teamScores, aiIsTeam1, state);
+
+    final isTeam1 = player.position == PlayerPosition.south ||
+        player.position == PlayerPosition.north;
+    final maximize = isTeam1 == aiIsTeam1;
+
+    final playable = _getPlayable(player, state);
+    if (playable.isEmpty) return _scoreFor(state.teamScores, aiIsTeam1, state);
+
+    double? best;
+    for (final card in playable) {
+      final val = _minimaxScore(_playCard(state, player.id, card), aiIsTeam1);
+      if (best == null || (maximize ? val > best : val < best)) {
+        best = val;
+      }
+    }
+    return best!;
   }
 
   /// Klont den State mit tief kopierten Spielerhänden (Player.hand ist mutable).
