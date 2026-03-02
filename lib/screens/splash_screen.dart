@@ -1,8 +1,12 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/card_model.dart';
+import '../models/deck.dart';
+import '../widgets/card_widget.dart';
 import 'home_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -18,6 +22,7 @@ class _SplashScreenState extends State<SplashScreen>
   bool _nameLoaded = false;
   late AnimationController _anim;
   late Animation<double> _fade;
+  late List<_FanCard> _fanCards;
 
   @override
   void initState() {
@@ -27,7 +32,31 @@ class _SplashScreenState extends State<SplashScreen>
       duration: const Duration(milliseconds: 800),
     );
     _fade = CurvedAnimation(parent: _anim, curve: Curves.easeIn);
+    _fanCards = _buildFanCards();
     _loadName();
+  }
+
+  static List<_FanCard> _buildFanCards() {
+    final rng = Random();
+    final allCards = Deck.allCards(CardType.french);
+    allCards.shuffle(rng);
+    final picked = allCards.take(9).toList();
+    const count = 9;
+    final angles = List.generate(
+      count,
+      (i) => -0.40 + (i / (count - 1)) * 0.80, // -23° bis +23°
+    );
+    final offsets = List.generate(
+      count,
+      (i) {
+        final t = (i / (count - 1)) - 0.5; // -0.5 bis 0.5
+        return Offset(t * 160, t.abs() * 22); // leichter Bogen
+      },
+    );
+    return List.generate(
+      count,
+      (i) => _FanCard(card: picked[i], angle: angles[i], offset: offsets[i]),
+    );
   }
 
   Future<void> _loadName() async {
@@ -166,21 +195,30 @@ class _SplashScreenState extends State<SplashScreen>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
-                    '♥',
-                    style: TextStyle(
-                      fontSize: 80,
-                      color: Color(0xFFDC143C),
-                      shadows: [
-                        Shadow(
-                          color: Colors.black38,
-                          blurRadius: 12,
-                          offset: Offset(0, 4),
-                        ),
+                  // Kartenfächer
+                  SizedBox(
+                    height: 170,
+                    width: 340,
+                    child: Stack(
+                      alignment: Alignment.bottomCenter,
+                      children: [
+                        for (final fc in _fanCards)
+                          Positioned(
+                            bottom: 0,
+                            left: 150 + fc.offset.dx - 30,
+                            child: Transform.rotate(
+                              angle: fc.angle,
+                              alignment: Alignment.bottomCenter,
+                              child: Transform.translate(
+                                offset: Offset(0, -fc.offset.dy),
+                                child: CardWidget(card: fc.card, width: 62),
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 24),
                   const Text(
                     'Built von Flavio',
                     style: TextStyle(
@@ -235,4 +273,11 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
   }
+}
+
+class _FanCard {
+  final JassCard card;
+  final double angle;  // Radians
+  final Offset offset;
+  const _FanCard({required this.card, required this.angle, required this.offset});
 }
