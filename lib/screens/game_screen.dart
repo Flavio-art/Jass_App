@@ -1843,7 +1843,7 @@ class _WishCardOverlayState extends State<_WishCardOverlay> {
               Expanded(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    final cardWidth = (constraints.maxWidth - 32) / 9;
+                    final cardWidth = (constraints.maxWidth - 42) / 9;
                     return SingleChildScrollView(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 8),
@@ -3472,7 +3472,7 @@ class _WyssOverlayState extends State<_WyssOverlay> {
   @override
   void initState() {
     super.initState();
-    _timer = Timer(const Duration(seconds: 5), () {
+    _timer = Timer(const Duration(seconds: 7), () {
       if (mounted) widget.onAcknowledge();
     });
   }
