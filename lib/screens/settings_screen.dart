@@ -733,12 +733,10 @@ class _SuitPip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (cardType == CardType.german) {
-      final offset = suit == Suit.herzGerman ? const Offset(8, 0) : Offset.zero;
-      return Transform.translate(
-        offset: offset,
-        child: SizedBox(
-          width: 28,
-          height: 28,
+      return SizedBox(
+        width: 28,
+        height: 28,
+        child: Center(
           child: Image.asset('assets/suit_icons/${suit.name}.png', fit: BoxFit.contain),
         ),
       );
