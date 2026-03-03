@@ -42,9 +42,8 @@ class ModeSelectorAI {
 
     for (final variant in available) {
       if (variant == 'trump_ss' || variant == 'trump_re') {
-        final forced = state.gameType == GameType.friseur
-            ? null  // Friseur Solo: keine Richtungspflicht
-            : state.forcedTrumpDirection(isTeam1, variant);
+        // Solo + Team: gleiche Richtungslogik (1× oben + 1× unten pro Farbgruppe)
+        final forced = state.forcedTrumpDirection(isTeam1, variant);
         final m = mult(variant);
 
         final suits = variant == 'trump_ss'

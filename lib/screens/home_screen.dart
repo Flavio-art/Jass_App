@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_colors.dart';
 import '../models/card_model.dart';
 import '../models/game_state.dart';
@@ -7,6 +8,7 @@ import '../providers/game_provider.dart';
 import '../widgets/card_widget.dart';
 import 'game_screen.dart';
 import 'rules_screen.dart';
+import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,7 +20,12 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   CardType _selectedCardType = CardType.french;
   GameType _selectedGameType = GameType.friseurTeam;
-  int _schieberWinTarget = 1500;
+  int _schieberWinTarget = 2500;
+  String _playerName = 'Du';
+
+  /// Welche Spielmodi haben ein gespeichertes Spiel?
+  Set<GameType> _savedGameTypes = {};
+
   final Map<String, int> _schieberMultipliers = {
     'trump_ss': 1,
     'trump_re': 2,
@@ -28,27 +35,98 @@ class _HomeScreenState extends State<HomeScreen> {
   };
 
   final Set<String> _enabledVariants = {
-    'trump_ss', 'trump_re', 'oben', 'unten', 'slalom',
+    'trump_oben', 'trump_unten', 'oben', 'unten', 'slalom',
     'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof',
   };
 
-  static const _variantKeys  = ['trump_ss', 'trump_re', 'oben', 'unten', 'slalom', 'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof'];
-  static const _variantEmojis = ['🂡', '🂡', '⬆️', '⬇️', '〰️', '🐘', '😶', '👑', '🐑', '💣'];
-  static const _variantNames  = ['Trumpf Oben', 'Trumpf Unten', 'Obenabe', 'Undenufe', 'Slalom', 'Elefant', 'Misere', 'Alles Trumpf', 'Schafkopf', 'Molotof'];
+  bool get _hasCurrentSavedGame => _savedGameTypes.contains(_selectedGameType);
 
-  static const _modeKeys  = ['trump_ss', 'trump_re', 'oben',     'unten',     'slalom'];
-  static const _modeIcons = ['♠♣',       '♥♦',       '⬇️',       '⬆️',        '〰️'];
-  static const _modeNames = ['Trumpf Schwarz', 'Trumpf Rot', 'Obenabe', 'Undenufe', 'Slalom'];
+  @override
+  void initState() {
+    super.initState();
+    _loadPreferences();
+  }
 
-  void _editMultiplier(String key, String label) async {
-    final result = await showDialog<int>(
-      context: context,
-      builder: (ctx) => _MultiplierDialog(
-        label: label,
-        initial: _schieberMultipliers[key]!,
+  Future<void> _loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = <GameType>{};
+    for (final type in GameType.values) {
+      if (await GameProvider.hasSavedGame(type)) saved.add(type);
+    }
+    if (!mounted) return;
+    setState(() {
+      final savedCardType = prefs.getString('card_type');
+      if (savedCardType == 'german') {
+        _selectedCardType = CardType.german;
+      }
+      final name = prefs.getString('player_name');
+      if (name != null && name.trim().isNotEmpty) {
+        _playerName = name.trim();
+      }
+      _savedGameTypes = saved;
+    });
+  }
+
+  void _openSettings() async {
+    final initialTab = (_selectedGameType == GameType.friseurTeam ||
+            _selectedGameType == GameType.friseur)
+        ? 1
+        : 0;
+
+    final result = await Navigator.push<SettingsResult>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SettingsScreen(
+          cardType: _selectedCardType,
+          playerName: _playerName,
+          schieberMultipliers: Map.from(_schieberMultipliers),
+          schieberWinTarget: _schieberWinTarget,
+          enabledVariants: Set.from(_enabledVariants),
+          initialTab: initialTab,
+        ),
       ),
     );
-    if (result != null) setState(() => _schieberMultipliers[key] = result);
+    if (result != null && mounted) {
+      // Prüfen welche gespeicherten Spiele durch Einstellungsänderungen betroffen sind
+      final affectedTypes = <GameType>{};
+
+      // Kartentyp geändert → alle Spielstände betroffen
+      if (result.cardType != _selectedCardType) {
+        affectedTypes.addAll(_savedGameTypes);
+      }
+
+      // Schieber-Multiplikatoren oder Zielpunkte geändert → Schieber betroffen
+      final multipliersChanged = !_mapEquals(result.schieberMultipliers, _schieberMultipliers);
+      if ((multipliersChanged || result.schieberWinTarget != _schieberWinTarget)
+          && _savedGameTypes.contains(GameType.schieber)) {
+        affectedTypes.add(GameType.schieber);
+      }
+
+      // Varianten geändert → Friseur Team + Wunschkarte betroffen
+      final variantsChanged = !_setEquals(result.enabledVariants, _enabledVariants);
+      if (variantsChanged) {
+        if (_savedGameTypes.contains(GameType.friseurTeam)) affectedTypes.add(GameType.friseurTeam);
+        if (_savedGameTypes.contains(GameType.friseur)) affectedTypes.add(GameType.friseur);
+      }
+
+      // Wenn betroffene Spielstände existieren → Warndialog
+      if (affectedTypes.isNotEmpty) {
+        final ok = await _confirmSettingsChange(affectedTypes);
+        if (!ok) return; // Einstellungen verwerfen
+      }
+
+      setState(() {
+        _selectedCardType = result.cardType;
+        _playerName = result.playerName;
+        _schieberMultipliers
+          ..clear()
+          ..addAll(result.schieberMultipliers);
+        _schieberWinTarget = result.schieberWinTarget;
+        _enabledVariants
+          ..clear()
+          ..addAll(result.enabledVariants);
+      });
+    }
   }
 
   @override
@@ -69,7 +147,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // ── Titel ──────────────────────────────────────────────────
+                  // ── 1. JASS Titel ──────────────────────────────────────
                   const Text(
                     'JASS',
                     style: TextStyle(
@@ -79,78 +157,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       letterSpacing: 12,
                     ),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 28),
 
-                  // ── Kartenart ──────────────────────────────────────────────
+                  // ── 2. Spielmodus wählen + 2×2 Grid ────────────────────
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.black26,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text('Kartenart wählen',
-                            style: TextStyle(color: Colors.white70, fontSize: 13)),
-                        const SizedBox(height: 8),
-                        IntrinsicHeight(
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _CardTypeButton(
-                                label: 'Französisch',
-                                suits: const [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs],
-                                cardType: CardType.french,
-                                subtitle: 'Schaufeln · Herz\nEcken · Kreuz',
-                                selected: _selectedCardType == CardType.french,
-                                onTap: () => setState(() => _selectedCardType = CardType.french),
-                              ),
-                              const SizedBox(width: 10),
-                              _CardTypeButton(
-                                label: 'Deutsch',
-                                suits: const [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten],
-                                cardType: CardType.german,
-                                subtitle: 'Schellen · Rosen\nEichel · Schilten',
-                                selected: _selectedCardType == CardType.german,
-                                onTap: () => setState(() => _selectedCardType = CardType.german),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  // ── Spielen + Regeln ─────────────────────────────────────
-                  ElevatedButton(
-                    onPressed: _enabledVariants.isEmpty ? null : _startGame,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.gold,
-                      foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 14),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30)),
-                      textStyle: const TextStyle(
-                          fontSize: 20, fontWeight: FontWeight.bold),
-                    ),
-                    child: const Text('SPIELEN'),
-                  ),
-
-                  TextButton(
-                    onPressed: () => _showRules(context),
-                    child: const Text('Regeln',
-                        style: TextStyle(color: Colors.white38)),
-                  ),
-
-                  const SizedBox(height: 4),
-
-                  // ── Spielmodus ─────────────────────────────────────────────
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     decoration: BoxDecoration(
                       color: Colors.black26,
                       borderRadius: BorderRadius.circular(16),
@@ -160,7 +171,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         const Text('Spielmodus wählen',
                             style: TextStyle(color: Colors.white70, fontSize: 13)),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 10),
                         IntrinsicHeight(
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -170,8 +181,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                 label: 'Schieber',
                                 subtitle: 'Der Klassiker',
                                 iconWidget: SizedBox(
-                                  width: 38,
-                                  height: 52,
+                                  width: 46,
+                                  height: 64,
                                   child: CardWidget(
                                     card: JassCard(
                                       suit: _selectedCardType == CardType.french
@@ -180,19 +191,21 @@ class _HomeScreenState extends State<HomeScreen> {
                                       value: CardValue.ace,
                                       cardType: _selectedCardType,
                                     ),
-                                    width: 38,
+                                    width: 46,
                                   ),
                                 ),
                                 selected: _selectedGameType == GameType.schieber,
+                                hasSavedGame: _savedGameTypes.contains(GameType.schieber),
                                 onTap: () => setState(() => _selectedGameType = GameType.schieber),
                               ),
                               const SizedBox(width: 10),
                               _GameTypeButton(
                                 label: 'Differenzler',
                                 subtitle: '4 Runden',
-                                description: 'Vorhersage · Strafe · 4 Runden',
+                                details: const ['Vorhersage', 'Differenz'],
                                 emoji: '🎯',
                                 selected: _selectedGameType == GameType.differenzler,
+                                hasSavedGame: _savedGameTypes.contains(GameType.differenzler),
                                 onTap: () => setState(() => _selectedGameType = GameType.differenzler),
                               ),
                             ],
@@ -207,139 +220,93 @@ class _HomeScreenState extends State<HomeScreen> {
                               _GameTypeButton(
                                 label: 'Friseur',
                                 subtitle: 'Team',
-                                description: '2 Teams · Schieben',
+                                details: const ['Feste Teams', 'Schieben'],
                                 emoji: '✂️',
                                 selected: _selectedGameType == GameType.friseurTeam,
+                                hasSavedGame: _savedGameTypes.contains(GameType.friseurTeam),
                                 onTap: () => setState(() => _selectedGameType = GameType.friseurTeam),
                               ),
                               const SizedBox(width: 10),
                               _GameTypeButton(
                                 label: 'Wunschkarte',
                                 subtitle: 'Champions League',
-                                description: 'Wunschkarte · Jeder für sich',
+                                details: const ['Wunschkarte', 'Jeder für sich'],
                                 emoji: '🎴',
                                 selected: _selectedGameType == GameType.friseur,
+                                hasSavedGame: _savedGameTypes.contains(GameType.friseur),
                                 onTap: () => setState(() => _selectedGameType = GameType.friseur),
                               ),
                             ],
                           ),
                         ),
-                        // ── Schieber: Spielmodi + Multiplikatoren ────────────
-                        if (_selectedGameType == GameType.schieber) ...[
-                          const SizedBox(height: 8),
-                          const Divider(color: Colors.white12, height: 1),
-                          const SizedBox(height: 6),
-                          SizedBox(
-                            width: 306,
-                            child: Column(
-                              children: [
-                                for (int i = 0; i < _modeKeys.length; i++)
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(vertical: 1.5),
-                                    child: Row(
-                                      children: [
-                                        Text(
-                                          '${_modeIcons[i]}  ${_modeNames[i]}',
-                                          style: const TextStyle(color: Colors.white70, fontSize: 11),
-                                        ),
-                                        const Spacer(),
-                                        GestureDetector(
-                                          onTap: () => _editMultiplier(_modeKeys[i], _modeNames[i]),
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
-                                            decoration: BoxDecoration(
-                                              color: AppColors.gold.withValues(alpha: 0.15),
-                                              borderRadius: BorderRadius.circular(4),
-                                              border: Border.all(color: AppColors.gold, width: 1),
-                                            ),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Text(
-                                                  '${_schieberMultipliers[_modeKeys[i]]}×',
-                                                  style: const TextStyle(
-                                                    color: AppColors.gold,
-                                                    fontSize: 11,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 3),
-                                                const Icon(Icons.edit, color: AppColors.gold, size: 10),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          const Divider(color: Colors.white12, height: 1),
-                          const SizedBox(height: 6),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Text('Ziel:',
-                                  style: TextStyle(color: Colors.white54, fontSize: 12)),
-                              const SizedBox(width: 8),
-                              for (final target in [1500, 2500, 3500]) ...[
-                                if (target != 1500) const SizedBox(width: 6),
-                                _TargetButton(
-                                  label: '$target',
-                                  selected: _schieberWinTarget == target,
-                                  onTap: () => setState(() => _schieberWinTarget = target),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ],
-                        // ── Friseur Team / Wunschkarte: Varianten-Auswahl ──
-                        if (_selectedGameType == GameType.friseurTeam ||
-                            _selectedGameType == GameType.friseur) ...[
-                          const SizedBox(height: 8),
-                          const Divider(color: Colors.white12, height: 1),
-                          const SizedBox(height: 6),
-                          Text(
-                            _selectedGameType == GameType.friseurTeam
-                                ? 'Varianten  ·  ≈ ${_enabledVariants.length * 2} Runden'
-                                : 'Varianten  ·  ≈ ${_enabledVariants.length * 2}–${_enabledVariants.length * 4} Runden',
-                            style: const TextStyle(color: Colors.white54, fontSize: 11),
-                          ),
-                          const SizedBox(height: 6),
-                          SizedBox(
-                            width: 306,
-                            child: Wrap(
-                              spacing: 6,
-                              runSpacing: 6,
-                              children: [
-                                for (int i = 0; i < _variantKeys.length; i++)
-                                  _VariantToggle(
-                                    emoji: _variantEmojis[i],
-                                    label: _variantNames[i],
-                                    active: _enabledVariants.contains(_variantKeys[i]),
-                                    onTap: () {
-                                      setState(() {
-                                        if (_enabledVariants.contains(_variantKeys[i])) {
-                                          if (_enabledVariants.length > 1) {
-                                            _enabledVariants.remove(_variantKeys[i]);
-                                          }
-                                        } else {
-                                          _enabledVariants.add(_variantKeys[i]);
-                                        }
-                                      });
-                                    },
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ],
                       ],
                     ),
                   ),
 
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 28),
+
+                  // ── 3. Buttons: FORTSETZEN + NEUES SPIEL ─────────────
+                  if (_hasCurrentSavedGame) ...[
+                    ElevatedButton(
+                      onPressed: _resumeGame,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.gold,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30)),
+                        textStyle: const TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.bold),
+                      ),
+                      child: const Text('FORTSETZEN'),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton(
+                      onPressed: _enabledVariants.isEmpty ? null : _startGame,
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.gold),
+                        padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30)),
+                      ),
+                      child: const Text('NEUES SPIEL',
+                          style: TextStyle(
+                              color: AppColors.gold,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold)),
+                    ),
+                  ] else
+                    ElevatedButton(
+                      onPressed: _enabledVariants.isEmpty ? null : _startGame,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.gold,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30)),
+                        textStyle: const TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.bold),
+                      ),
+                      child: const Text('SPIELEN'),
+                    ),
+
+                  const SizedBox(height: 16),
+
+                  // ── 4. Einstellungen ───────────────────────────────────
+                  TextButton(
+                    onPressed: _openSettings,
+                    child: const Text('Einstellungen',
+                        style: TextStyle(color: Colors.white38, fontSize: 15)),
+                  ),
+
+                  // ── 5. Regeln ──────────────────────────────────────────
+                  TextButton(
+                    onPressed: () => _showRules(context),
+                    child: const Text('Regeln',
+                        style: TextStyle(color: Colors.white38, fontSize: 15)),
+                  ),
+
+                  const SizedBox(height: 8),
                 ],
               ),
             ),
@@ -349,7 +316,13 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _startGame() {
+  void _startGame() async {
+    // Warnung wenn ein gespeichertes Spiel für diesen Modus existiert
+    if (_hasCurrentSavedGame) {
+      final ok = await _confirmOverwriteGame();
+      if (!ok) return;
+    }
+    if (!mounted) return;
     final provider = context.read<GameProvider>();
     provider.startNewGame(
       cardType: _selectedCardType,
@@ -360,10 +333,132 @@ class _HomeScreenState extends State<HomeScreen> {
           ? Set.from(_enabledVariants)
           : null,
     );
-    Navigator.push(
+    await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const GameScreen()),
     );
+    _refreshSavedGameState();
+  }
+
+  void _resumeGame() async {
+    final provider = context.read<GameProvider>();
+    final success = await provider.resumeGame(_selectedGameType);
+    if (success && mounted) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const GameScreen()),
+      );
+      _refreshSavedGameState();
+    } else if (mounted) {
+      // Korrupter Spielstand → entfernen
+      setState(() => _savedGameTypes.remove(_selectedGameType));
+    }
+  }
+
+  void _refreshSavedGameState() async {
+    final saved = <GameType>{};
+    for (final type in GameType.values) {
+      if (await GameProvider.hasSavedGame(type)) saved.add(type);
+    }
+    if (mounted) setState(() => _savedGameTypes = saved);
+  }
+
+  /// Warndialog: "Gespeichertes Spiel überschreiben?"
+  Future<bool> _confirmOverwriteGame() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1B4D2E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Neues Spiel starten?',
+            style: TextStyle(color: Colors.white)),
+        content: const Text(
+            'Dein gespeichertes Spiel wird überschrieben.',
+            style: TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Abbrechen',
+                style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Neues Spiel',
+                style: TextStyle(color: AppColors.gold)),
+          ),
+        ],
+      ),
+    );
+    if (result == true) {
+      await GameProvider.clearSavedGame(_selectedGameType);
+      if (mounted) setState(() => _savedGameTypes.remove(_selectedGameType));
+      return true;
+    }
+    return false;
+  }
+
+  /// Warndialog wenn Einstellungsänderungen gespeicherte Spiele betreffen.
+  Future<bool> _confirmSettingsChange(Set<GameType> affectedTypes) async {
+    final names = affectedTypes.map(_gameTypeName).join(', ');
+    final single = affectedTypes.length == 1;
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1B4D2E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Einstellungen ändern?',
+            style: TextStyle(color: Colors.white)),
+        content: Text(
+          single
+              ? 'Dein offenes $names-Spiel wird dadurch beendet.'
+              : 'Deine offenen Spiele ($names) werden dadurch beendet.',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Abbrechen',
+                style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Ändern',
+                style: TextStyle(color: AppColors.gold)),
+          ),
+        ],
+      ),
+    );
+    if (result == true) {
+      for (final type in affectedTypes) {
+        await GameProvider.clearSavedGame(type);
+      }
+      if (mounted) {
+        setState(() => _savedGameTypes.removeAll(affectedTypes));
+      }
+      return true;
+    }
+    return false;
+  }
+
+  static String _gameTypeName(GameType type) {
+    switch (type) {
+      case GameType.schieber: return 'Schieber';
+      case GameType.differenzler: return 'Differenzler';
+      case GameType.friseurTeam: return 'Friseur';
+      case GameType.friseur: return 'Wunschkarte';
+    }
+  }
+
+  static bool _mapEquals<K, V>(Map<K, V> a, Map<K, V> b) {
+    if (a.length != b.length) return false;
+    for (final key in a.keys) {
+      if (a[key] != b[key]) return false;
+    }
+    return true;
+  }
+
+  static bool _setEquals<T>(Set<T> a, Set<T> b) {
+    return a.length == b.length && a.containsAll(b);
   }
 
   void _showRules(BuildContext context) {
@@ -379,87 +474,26 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ── Multiplikator-Editor Dialog ────────────────────────────────────────────────
-
-class _MultiplierDialog extends StatefulWidget {
-  final String label;
-  final int initial;
-  const _MultiplierDialog({required this.label, required this.initial});
-
-  @override
-  State<_MultiplierDialog> createState() => _MultiplierDialogState();
-}
-
-class _MultiplierDialogState extends State<_MultiplierDialog> {
-  late int _value;
-
-  @override
-  void initState() {
-    super.initState();
-    _value = widget.initial;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: const Color(0xFF1B4D2E),
-      title: Text(
-        widget.label,
-        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-      ),
-      content: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.remove_circle_outline, color: Colors.white70, size: 32),
-            onPressed: _value > 1 ? () => setState(() => _value--) : null,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '$_value×',
-            style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(width: 8),
-          IconButton(
-            icon: const Icon(Icons.add_circle_outline, color: Colors.white70, size: 32),
-            onPressed: _value < 8 ? () => setState(() => _value++) : null,
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Abbrechen', style: TextStyle(color: Colors.white54)),
-        ),
-        ElevatedButton(
-          onPressed: () => Navigator.pop(context, _value),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.gold,
-            foregroundColor: Colors.black,
-          ),
-          child: const Text('OK', style: TextStyle(fontWeight: FontWeight.bold)),
-        ),
-      ],
-    );
-  }
-}
+// ── GameType Button ──────────────────────────────────────────────────────────
 
 class _GameTypeButton extends StatelessWidget {
   final String label;
   final String? subtitle;
-  final String? description;
+  final List<String>? details;
   final String? emoji;
   final Widget? iconWidget;
   final bool selected;
+  final bool hasSavedGame;
   final VoidCallback onTap;
 
   const _GameTypeButton({
     required this.label,
     this.subtitle,
-    this.description,
+    this.details,
     this.emoji,
     this.iconWidget,
     required this.selected,
+    this.hasSavedGame = false,
     required this.onTap,
   });
 
@@ -482,248 +516,58 @@ class _GameTypeButton extends StatelessWidget {
           ),
         ),
         child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (iconWidget != null)
-                iconWidget!
-              else if (emoji != null)
-                Text(emoji!, style: const TextStyle(fontSize: 22)),
-              const SizedBox(height: 3),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-              ),
-              if (subtitle != null)
-                Text(
-                  subtitle!,
-                  style: TextStyle(
-                    color: selected ? AppColors.gold : Colors.white54,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              if (description != null) ...[
-                const SizedBox(height: 3),
-                Text(
-                  description!,
-                  style: const TextStyle(color: Colors.white38, fontSize: 9),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ],
-          ),
-        ),
-    );
-  }
-}
-
-class _CardTypeButton extends StatelessWidget {
-  final String label;
-  final List<Suit> suits;
-  final CardType cardType;
-  final String subtitle;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _CardTypeButton({
-    required this.label,
-    required this.suits,
-    required this.cardType,
-    required this.subtitle,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: 148,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.gold.withValues(alpha: 0.15) : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: selected ? AppColors.gold : Colors.white24,
-            width: selected ? 2 : 1,
-          ),
-        ),
-        child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Vier Suit-Pips kompakt
-            SizedBox(
-              width: 100,
-              height: 66,
-              child: Stack(
-                children: [
-                  Positioned(left: 2, top: 2,
-                    child: Transform.rotate(angle: -0.18,
-                      child: _SuitPip(suit: suits[0], cardType: cardType))),
-                  Positioned(right: 2, top: 4,
-                    child: Transform.rotate(angle: 0.14,
-                      child: _SuitPip(suit: suits[1], cardType: cardType))),
-                  Positioned(left: 4, bottom: 2,
-                    child: Transform.rotate(angle: 0.16,
-                      child: _SuitPip(suit: suits[2], cardType: cardType))),
-                  Positioned(right: 2, bottom: 2,
-                    child: Transform.rotate(angle: -0.12,
-                      child: _SuitPip(suit: suits[3], cardType: cardType))),
-                ],
-              ),
-            ),
+            if (iconWidget != null)
+              iconWidget!
+            else if (emoji != null)
+              Text(emoji!, style: const TextStyle(fontSize: 22)),
             const SizedBox(height: 4),
             Text(
               label,
-              style: TextStyle(
-                color: selected ? AppColors.gold : Colors.white,
+              style: const TextStyle(
+                color: Colors.white,
                 fontWeight: FontWeight.bold,
                 fontSize: 13,
               ),
             ),
-            const SizedBox(height: 2),
-            Text(
-              subtitle,
-              style: const TextStyle(color: Colors.white38, fontSize: 9),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SuitPip extends StatelessWidget {
-  final Suit suit;
-  final CardType cardType;
-  const _SuitPip({required this.suit, required this.cardType});
-
-  String get _imagePath {
-    if (cardType == CardType.german) {
-      return 'assets/suit_icons/${suit.name}.png';
-    }
-    return 'assets/cards/french/${suit.name}_ace.png';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (cardType == CardType.german) {
-      return SizedBox(
-        width: 36,
-        height: 36,
-        child: Image.asset(_imagePath, fit: BoxFit.contain),
-      );
-    }
-    // French: crop center of ace card
-    return SizedBox(
-      width: 36,
-      height: 36,
-      child: ClipRect(
-        child: Align(
-          alignment: Alignment.center,
-          child: Image.asset(_imagePath, width: 86, fit: BoxFit.fitWidth),
-        ),
-      ),
-    );
-  }
-}
-
-class _VariantToggle extends StatelessWidget {
-  final String emoji;
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-
-  const _VariantToggle({
-    required this.emoji,
-    required this.label,
-    required this.active,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        width: 148,
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-        decoration: BoxDecoration(
-          color: active
-              ? AppColors.gold.withValues(alpha: 0.15)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: active ? AppColors.gold : Colors.white12,
-            width: active ? 1.5 : 1,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 13)),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                label,
+            if (subtitle != null)
+              Text(
+                subtitle!,
                 style: TextStyle(
-                  color: active ? Colors.white : Colors.white30,
+                  color: selected ? AppColors.gold : Colors.white54,
                   fontSize: 11,
-                  fontWeight: active ? FontWeight.w600 : FontWeight.normal,
+                  fontWeight: FontWeight.w500,
                 ),
-                overflow: TextOverflow.ellipsis,
               ),
-            ),
+            if (details != null) ...[
+              const SizedBox(height: 3),
+              for (final line in details!)
+                Text(
+                  line,
+                  style: const TextStyle(color: Colors.white38, fontSize: 9),
+                  textAlign: TextAlign.center,
+                ),
+            ],
+            if (hasSavedGame) ...[
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text(
+                  'Offenes Spiel',
+                  style: TextStyle(
+                    color: AppColors.gold,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TargetButton extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _TargetButton({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: 82,
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.gold.withValues(alpha: 0.15) : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: selected ? AppColors.gold : Colors.white24,
-            width: selected ? 2 : 1,
-          ),
-        ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: selected ? AppColors.gold : Colors.white70,
-            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-            fontSize: 14,
-          ),
         ),
       ),
     );

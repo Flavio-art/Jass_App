@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -19,8 +20,62 @@ class GameProvider extends ChangeNotifier {
   // Molotof: Spieler-ID der Person die Oben/Unten bestimmt hat (gewinnt den Stich)
   String? _molotofDeterminerForTrick;
   static String _cachedPlayerName = 'Du';
+  Timer? _saveDebounce;
 
   GameState get state => _state;
+
+  @override
+  void notifyListeners() {
+    super.notifyListeners();
+    _scheduleSave();
+  }
+
+  void _scheduleSave() {
+    _saveDebounce?.cancel();
+    _saveDebounce = Timer(const Duration(milliseconds: 500), _saveState);
+  }
+
+  static String _saveKey(GameType type) => 'saved_game_${type.name}';
+
+  Future<void> _saveState() async {
+    if (_state.phase == GamePhase.setup || _state.phase == GamePhase.gameEnd) {
+      await clearSavedGame(_state.gameType);
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final json = jsonEncode(_state.toJson());
+    await prefs.setString(_saveKey(_state.gameType), json);
+  }
+
+  /// Sofort speichern (ohne Debounce), z.B. beim Verlassen des Spielscreens.
+  void saveNow() {
+    _saveDebounce?.cancel();
+    _saveState();
+  }
+
+  static Future<bool> hasSavedGame(GameType type) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.containsKey(_saveKey(type));
+  }
+
+  Future<bool> resumeGame(GameType type) async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonStr = prefs.getString(_saveKey(type));
+    if (jsonStr == null) return false;
+    try {
+      _state = GameState.fromJson(jsonDecode(jsonStr) as Map<String, dynamic>);
+      notifyListeners();
+      return true;
+    } catch (_) {
+      await clearSavedGame(type);
+      return false;
+    }
+  }
+
+  static Future<void> clearSavedGame(GameType type) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_saveKey(type));
+  }
 
   /// Einmalig beim App-Start den gespeicherten Namen laden (statisch, vor Provider-Erstellung).
   static Future<void> loadPlayerName() async {
@@ -127,7 +182,7 @@ class GameProvider extends ChangeNotifier {
       playerScores: {for (final p in players) p.id: 0},
       schieberWinTarget: schieberWinTarget,
       schieberMultipliers: schieberMultipliers,
-      enabledVariants: enabledVariants ?? const {'trump_ss', 'trump_re', 'oben', 'unten', 'slalom', 'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof'},
+      enabledVariants: enabledVariants ?? const {'trump_oben', 'trump_unten', 'oben', 'unten', 'slalom', 'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof'},
     );
     notifyListeners();
 
@@ -285,6 +340,30 @@ class GameProvider extends ChangeNotifier {
     newAnnounced.putIfAbsent(announcerId, () => {});
     newAnnounced[announcerId]!.add(varKey);
 
+    // Trumpfrichtung pro Spieler speichern (Ansager + Partner)
+    final newObenPP = currentState.trumpPlayedObenPerPlayer.map(
+      (k, v) => MapEntry(k, Set<String>.from(v)),
+    );
+    final newUntenPP = currentState.trumpPlayedUntenPerPlayer.map(
+      (k, v) => MapEntry(k, Set<String>.from(v)),
+    );
+    if (currentState.gameMode == GameMode.trump ||
+        currentState.gameMode == GameMode.trumpUnten) {
+      final isOben = currentState.gameMode == GameMode.trump;
+      final targetMap = isOben ? newObenPP : newUntenPP;
+      // Ansager
+      targetMap.putIfAbsent(announcerId, () => {});
+      targetMap[announcerId]!.add(varKey);
+      // Partner (falls aufgedeckt)
+      if (currentState.friseurPartnerIndex != null) {
+        final partnerId = currentState.players[currentState.friseurPartnerIndex!].id;
+        if (partnerId != announcerId) {
+          targetMap.putIfAbsent(partnerId, () => {});
+          targetMap[partnerId]!.add(varKey);
+        }
+      }
+    }
+
     // Auch für den Partner markieren: wer gewünscht wurde, muss die Variante
     // nicht mehr selbst spielen.
     if (currentState.friseurPartnerIndex != null) {
@@ -305,6 +384,8 @@ class GameProvider extends ChangeNotifier {
     if (allDone) {
       _state = _state.copyWith(
         friseurAnnouncedVariants: newAnnounced,
+        trumpPlayedObenPerPlayer: newObenPP,
+        trumpPlayedUntenPerPlayer: newUntenPP,
         phase: GamePhase.gameEnd,
       );
       notifyListeners();
@@ -358,6 +439,8 @@ class GameProvider extends ChangeNotifier {
       friseurPartnerRevealed: false,
       friseurPartnerJustRevealed: false,
       friseurAnnouncedVariants: newAnnounced,
+      trumpPlayedObenPerPlayer: newObenPP,
+      trumpPlayedUntenPerPlayer: newUntenPP,
       soloSchiebungRounds: 0,
       soloSchiebungComment: fertigComment,
       stockeComment: null,
@@ -1406,6 +1489,27 @@ class GameProvider extends ChangeNotifier {
       final rawTeam1 = _state.teamScores['team1'] ?? 0;
       final rawTeam2 = _state.teamScores['team2'] ?? 0;
 
+      // Debug: Scoring-Anomalie erkennen
+      if (_state.gameType != GameType.schieber &&
+          _state.gameType != GameType.differenzler) {
+        final rawTotal = rawTeam1 + rawTeam2;
+        if (rawTotal != 157 && rawTotal != 0) {
+          debugPrint('⚠️ SCORING BUG: rawTeam1=$rawTeam1 + rawTeam2=$rawTeam2 = $rawTotal (expected 157)');
+          debugPrint('   Mode: ${_state.gameMode}, TrumpSuit: ${_state.trumpSuit}');
+          debugPrint('   GameType: ${_state.gameType}, PartnerRevealed: ${_state.friseurPartnerRevealed}');
+          for (int i = 0; i < _state.completedTricks.length; i++) {
+            final t = _state.completedTricks[i];
+            final trickNum = i + 1;
+            final mode = _state.gameMode == GameMode.slalom
+                ? (_state.slalomStartsOben ? GameMode.oben : GameMode.unten)
+                : _state.effectiveMode;
+            final pts = GameLogic.trickPoints(
+                t.cards.values.toList(), mode, _state.trumpSuit);
+            debugPrint('   Trick $trickNum: pts=$pts winner=${t.winnerId} mode=$mode cards=${t.cards.values.map((c) => '${c.suit.name}${c.value.name}').join(',')}');
+          }
+        }
+      }
+
       int finalTeam1;
       int finalTeam2;
       int roundWyssPoints1 = 0;
@@ -1600,7 +1704,11 @@ class GameProvider extends ChangeNotifier {
         card == _state.wishCard &&
         playerId != _state.players[_state.ansagerIndex].id) {
       // Dieser Spieler ist der Partner!
+      final oldScores = Map<String, int>.from(_state.teamScores);
       final retroScores = _retroCalcFriseurScores(playerIdx);
+      debugPrint('🤝 Partner revealed: ${_state.players[playerIdx].name} (idx=$playerIdx)');
+      debugPrint('   Old teamScores: $oldScores → Retro: $retroScores');
+      debugPrint('   CompletedTricks: ${_state.completedTricks.length}, Mode: ${_state.gameMode}');
       _state = _state.copyWith(
         friseurPartnerIndex: playerIdx,
         friseurPartnerRevealed: true,
@@ -1762,9 +1870,13 @@ class GameProvider extends ChangeNotifier {
         _state.gameMode == GameMode.elefant && trickNumber <= 6;
     final molotofPreTrump = _state.gameMode == GameMode.molotof &&
         _state.molotofSubMode == null;
+    // Slalom: Kartenwerte IMMER nach Startrichtung, nur Gewinner alterniert
+    final scoringMode = _state.gameMode == GameMode.slalom
+        ? (_state.slalomStartsOben ? GameMode.oben : GameMode.unten)
+        : effectiveMode;
     final points = (elefantPreTrump || molotofPreTrump)
         ? 0
-        : GameLogic.trickPoints(trickCards, effectiveMode, _state.trumpSuit);
+        : GameLogic.trickPoints(trickCards, scoringMode, _state.trumpSuit);
 
     final winnerPlayer = updatedPlayers.firstWhere((p) => p.id == winnerId);
     final isAnnouncingTeam = _isAnnouncingTeam(winnerPlayer);
@@ -1786,6 +1898,11 @@ class GameProvider extends ChangeNotifier {
       } else {
         newScores['team2'] = (newScores['team2'] ?? 0) + 5;
       }
+    }
+
+    // Debug: Stich-Scoring Trace
+    if (_state.gameMode == GameMode.slalom) {
+      debugPrint('🃏 Trick $trickNumber: pts=$points scoringMode=$scoringMode winnerMode=$effectiveMode winner=$winnerId team=${isAnnouncingTeam ? "team1" : "team2"} scores=${newScores['team1']}:${newScores['team2']}');
     }
 
     // Individuelle Punkte pro Spieler nachführen
@@ -1855,12 +1972,9 @@ class GameProvider extends ChangeNotifier {
               trick.cards.values.toList(), state.molotofSubMode!, state.trumpSuit);
         }
       } else if (state.gameMode == GameMode.slalom) {
-        final trickNum = i + 1;
-        final isOben = state.slalomStartsOben
-            ? trickNum % 2 == 1
-            : trickNum % 2 == 0;
-        pts = GameLogic.trickPoints(trick.cards.values.toList(),
-            isOben ? GameMode.oben : GameMode.unten, null);
+        // Kartenwerte immer nach Startrichtung, nicht alternierend
+        final scoringMode = state.slalomStartsOben ? GameMode.oben : GameMode.unten;
+        pts = GameLogic.trickPoints(trick.cards.values.toList(), scoringMode, null);
       } else if (state.gameMode == GameMode.misere) {
         pts = GameLogic.trickPoints(
             trick.cards.values.toList(), GameMode.oben, null);

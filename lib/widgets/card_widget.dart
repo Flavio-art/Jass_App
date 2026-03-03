@@ -29,7 +29,7 @@ class CardWidget extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         transform: isSelected
-            ? (Matrix4.identity()..translateByDouble(0.0, -14.0, 0.0, 1.0))
+            ? (Matrix4.identity()..translateByDouble(0.0, -24.0, 0.0, 1.0))
             : Matrix4.identity(),
         width: width,
         height: height,

@@ -23,18 +23,21 @@ class ScoreBoardWidget extends StatelessWidget {
         color: Colors.black38,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _teamScore(label1, teamScores['team1'] ?? 0, AppColors.gold),
-          const SizedBox(width: 16),
-          Text(
-            'Runde $roundNumber',
-            style: const TextStyle(color: Colors.white54, fontSize: 12),
-          ),
-          const SizedBox(width: 16),
-          _teamScore(label2, teamScores['team2'] ?? 0, Colors.red.shade300),
-        ],
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _teamScore(label1, teamScores['team1'] ?? 0, AppColors.gold),
+            const SizedBox(width: 16),
+            Text(
+              'Runde $roundNumber',
+              style: const TextStyle(color: Colors.white54, fontSize: 12),
+            ),
+            const SizedBox(width: 16),
+            _teamScore(label2, teamScores['team2'] ?? 0, Colors.red.shade300),
+          ],
+        ),
       ),
     );
   }

@@ -67,6 +67,36 @@ class RoundResult {
     this.wyssPoints2 = 0,
   });
 
+  Map<String, dynamic> toJson() => {
+    'roundNumber': roundNumber,
+    'variantKey': variantKey,
+    if (trumpSuit != null) 'trumpSuit': trumpSuit!.name,
+    'isTeam1Ansager': isTeam1Ansager,
+    'team1Score': team1Score,
+    'team2Score': team2Score,
+    'rawTeam1Score': rawTeam1Score,
+    'rawTeam2Score': rawTeam2Score,
+    'announcerName': announcerName,
+    if (partnerName != null) 'partnerName': partnerName,
+    'wyssPoints1': wyssPoints1,
+    'wyssPoints2': wyssPoints2,
+  };
+
+  static RoundResult fromJson(Map<String, dynamic> j) => RoundResult(
+    roundNumber: j['roundNumber'] as int,
+    variantKey: j['variantKey'] as String,
+    trumpSuit: j['trumpSuit'] != null ? Suit.values.byName(j['trumpSuit']) : null,
+    isTeam1Ansager: j['isTeam1Ansager'] as bool,
+    team1Score: j['team1Score'] as int,
+    team2Score: j['team2Score'] as int,
+    rawTeam1Score: j['rawTeam1Score'] as int,
+    rawTeam2Score: j['rawTeam2Score'] as int,
+    announcerName: j['announcerName'] as String,
+    partnerName: j['partnerName'] as String?,
+    wyssPoints1: j['wyssPoints1'] as int? ?? 0,
+    wyssPoints2: j['wyssPoints2'] as int? ?? 0,
+  );
+
   /// Lesbare Bezeichnung des Spielmodus für die Tabelle
   String get displayName {
     switch (variantKey) {
@@ -76,7 +106,7 @@ class RoundResult {
         return 'Rosen/Eicheln ${trumpSuit?.symbol ?? '🌹🌰'}';
       case 'oben':       return 'Oben ⬆️';
       case 'unten':      return 'Unten ⬇️';
-      case 'slalom':     return 'Slalom 〰️';
+      case 'slalom':     return 'Slalom ↕️';
       case 'elefant':    return 'Elefant 🐘';
       case 'misere':     return 'Misere 😶';
       case 'allesTrumpf': return 'Alles Trumpf 👑';
@@ -107,6 +137,26 @@ class WyssEntry {
     this.suit,
     this.isTrumpSuit = false,
   }) : bottomValue = bottomValue ?? topValue;
+
+  Map<String, dynamic> toJson() => {
+    'playerId': playerId,
+    'isFourOfAKind': isFourOfAKind,
+    'points': points,
+    'topValue': topValue.name,
+    'bottomValue': bottomValue.name,
+    if (suit != null) 'suit': suit!.name,
+    'isTrumpSuit': isTrumpSuit,
+  };
+
+  static WyssEntry fromJson(Map<String, dynamic> j) => WyssEntry(
+    playerId: j['playerId'] as String,
+    isFourOfAKind: j['isFourOfAKind'] as bool,
+    points: j['points'] as int,
+    topValue: CardValue.values.byName(j['topValue']),
+    bottomValue: CardValue.values.byName(j['bottomValue']),
+    suit: j['suit'] != null ? Suit.values.byName(j['suit']) : null,
+    isTrumpSuit: j['isTrumpSuit'] as bool? ?? false,
+  );
 
   String get typeName {
     if (isFourOfAKind) return 'Vier gleiche';
@@ -148,6 +198,20 @@ class Trick {
 
   int get cardCount => cards.length;
   bool get isComplete => cardCount == 4;
+
+  Map<String, dynamic> toJson() => {
+    'cards': cards.map((k, v) => MapEntry(k, v.toJson())),
+    if (winnerId != null) 'winnerId': winnerId,
+    'trickNumber': trickNumber,
+  };
+
+  static Trick fromJson(Map<String, dynamic> j) => Trick(
+    cards: (j['cards'] as Map<String, dynamic>).map(
+      (k, v) => MapEntry(k, JassCard.fromJson(v as Map<String, dynamic>)),
+    ),
+    winnerId: j['winnerId'] as String?,
+    trickNumber: j['trickNumber'] as int,
+  );
 }
 
 // ─── GameState ────────────────────────────────────────────────────────────────
@@ -177,6 +241,10 @@ class GameState {
   // trumpObenTeam1/2: 'trump_ss'/'trump_re' → true=oben (normal), false=unten
   final Map<String, bool> trumpObenTeam1;
   final Map<String, bool> trumpObenTeam2;
+  // Friseur Solo: pro Spieler welche Farbgruppen als Oben/Unten gespielt wurden
+  // (als Ansager ODER als gewünschter Partner)
+  final Map<String, Set<String>> trumpPlayedObenPerPlayer;  // {playerId: {'trump_re', ...}}
+  final Map<String, Set<String>> trumpPlayedUntenPerPlayer; // {playerId: {'trump_ss', ...}}
   final bool slalomStartsOben; // true = 1. Stich Obenabe, false = 1. Stich Undenufe
 
   // ─── Friseur Solo ──────────────────────────────────────────────────────────
@@ -264,6 +332,8 @@ class GameState {
     this.molotofSubMode,
     this.trumpObenTeam1 = const {},
     this.trumpObenTeam2 = const {},
+    this.trumpPlayedObenPerPlayer = const {},
+    this.trumpPlayedUntenPerPlayer = const {},
     this.slalomStartsOben = true,
     this.wishCard,
     this.friseurPartnerIndex,
@@ -285,7 +355,7 @@ class GameState {
     this.stockeRoundPoints = const {'team1': 0, 'team2': 0},
     this.differenzlerPredictions = const {},
     this.differenzlerPenalties = const {},
-    this.enabledVariants = const {'trump_ss', 'trump_re', 'oben', 'unten', 'slalom', 'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof'},
+    this.enabledVariants = const {'trump_oben', 'trump_unten', 'oben', 'unten', 'slalom', 'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof'},
   });
 
   Player get currentPlayer => players[currentPlayerIndex];
@@ -366,8 +436,23 @@ class GameState {
     'molotof',
   ];
 
-  List<String> _allVariants() =>
-      allVariantKeys.where((v) => enabledVariants.contains(v)).toList();
+  /// Ob Trumpf in einer bestimmten Richtung verfügbar ist (Settings-Toggle).
+  bool get trumpObenEnabled => enabledVariants.contains('trump_oben');
+  bool get trumpUntenEnabled => enabledVariants.contains('trump_unten');
+  bool get trumpEnabled => trumpObenEnabled || trumpUntenEnabled;
+
+  List<String> _allVariants() {
+    final result = <String>[];
+    for (final v in allVariantKeys) {
+      if (v == 'trump_ss' || v == 'trump_re') {
+        // Trumpf-Varianten sind verfügbar wenn mindestens eine Richtung aktiv ist
+        if (trumpEnabled) result.add(v);
+      } else {
+        if (enabledVariants.contains(v)) result.add(v);
+      }
+    }
+    return result;
+  }
 
   List<String> availableVariants(bool isTeam1) {
     final used = isTeam1 ? usedVariantsTeam1 : usedVariantsTeam2;
@@ -395,11 +480,159 @@ class GameState {
   /// Gibt zurück ob die Trumpfrichtung erzwungen ist.
   /// true = muss Oben (normal), false = muss Unten, null = freie Wahl.
   bool? forcedTrumpDirection(bool isTeam1, String variantKey) {
-    final dirMap = isTeam1 ? trumpObenTeam1 : trumpObenTeam2;
+    // Nur eine Richtung in Einstellungen aktiv → immer erzwungen
+    if (trumpObenEnabled && !trumpUntenEnabled) return true;
+    if (trumpUntenEnabled && !trumpObenEnabled) return false;
+
+    // Beide aktiv → anhand der anderen Farbgruppe bestimmen
     final otherKey = variantKey == 'trump_ss' ? 'trump_re' : 'trump_ss';
+
+    // Friseur Solo: pro Spieler (Ansager + gewünschter Partner)
+    if (gameType == GameType.friseur) {
+      final playerId = players[ansagerIndex].id;
+      final playedOben = trumpPlayedObenPerPlayer[playerId]?.contains(otherKey) ?? false;
+      final playedUnten = trumpPlayedUntenPerPlayer[playerId]?.contains(otherKey) ?? false;
+      if (!playedOben && !playedUnten) return null; // noch nicht gespielt → frei
+      if (playedOben && playedUnten) return null;   // beide Richtungen gespielt → frei
+      return playedOben ? false : true; // nur eine Richtung → entgegengesetzt
+    }
+
+    // Friseur Team / Schieber: pro Team
+    final dirMap = isTeam1 ? trumpObenTeam1 : trumpObenTeam2;
     final otherDirection = dirMap[otherKey];
-    if (otherDirection == null) return null; // noch keine andere Gruppe gespielt
-    return !otherDirection; // muss die entgegengesetzte Richtung spielen
+    if (otherDirection == null) return null;
+    return !otherDirection;
+  }
+
+  Map<String, dynamic> toJson() => {
+    'cardType': cardType.name,
+    'gameType': gameType.name,
+    'players': players.map((p) => p.toJson()).toList(),
+    'phase': phase.name,
+    'gameMode': gameMode.name,
+    if (trumpSuit != null) 'trumpSuit': trumpSuit!.name,
+    'currentTrickCards': currentTrickCards.map((c) => c.toJson()).toList(),
+    'currentTrickPlayerIds': currentTrickPlayerIds,
+    'completedTricks': completedTricks.map((t) => t.toJson()).toList(),
+    'currentPlayerIndex': currentPlayerIndex,
+    'roundNumber': roundNumber,
+    'teamScores': teamScores,
+    'ansagerIndex': ansagerIndex,
+    'lochPlayerIndex': lochPlayerIndex,
+    if (trumpSelectorIndex != null) 'trumpSelectorIndex': trumpSelectorIndex,
+    'usedVariantsTeam1': usedVariantsTeam1.toList(),
+    'usedVariantsTeam2': usedVariantsTeam2.toList(),
+    'totalTeamScores': totalTeamScores,
+    if (pendingNextPlayerIndex != null) 'pendingNextPlayerIndex': pendingNextPlayerIndex,
+    'roundHistory': roundHistory.map((r) => r.toJson()).toList(),
+    if (molotofSubMode != null) 'molotofSubMode': molotofSubMode!.name,
+    'trumpObenTeam1': trumpObenTeam1,
+    'trumpObenTeam2': trumpObenTeam2,
+    'trumpPlayedObenPerPlayer': trumpPlayedObenPerPlayer.map((k, v) => MapEntry(k, v.toList())),
+    'trumpPlayedUntenPerPlayer': trumpPlayedUntenPerPlayer.map((k, v) => MapEntry(k, v.toList())),
+    'slalomStartsOben': slalomStartsOben,
+    if (wishCard != null) 'wishCard': wishCard!.toJson(),
+    if (friseurPartnerIndex != null) 'friseurPartnerIndex': friseurPartnerIndex,
+    'friseurPartnerRevealed': friseurPartnerRevealed,
+    'friseurPartnerJustRevealed': friseurPartnerJustRevealed,
+    'friseurSoloScores': friseurSoloScores.map((k, v) => MapEntry(k, v.map((k2, v2) => MapEntry(k2, v2)))),
+    'friseurAnnouncedVariants': friseurAnnouncedVariants.map((k, v) => MapEntry(k, v.toList())),
+    'soloSchiebungRounds': soloSchiebungRounds,
+    if (soloSchiebungComment != null) 'soloSchiebungComment': soloSchiebungComment,
+    'roundWasImLoch': roundWasImLoch,
+    'playerWyss': playerWyss.map((k, v) => MapEntry(k, v.map((e) => e.toJson()).toList())),
+    if (wyssWinnerTeam != null) 'wyssWinnerTeam': wyssWinnerTeam,
+    'wyssDeclarationPending': wyssDeclarationPending,
+    'wyssResolved': wyssResolved,
+    if (stockeComment != null) 'stockeComment': stockeComment,
+    'playerScores': playerScores,
+    'schieberWinTarget': schieberWinTarget,
+    'schieberMultipliers': schieberMultipliers,
+    'stockeRoundPoints': stockeRoundPoints,
+    'differenzlerPredictions': differenzlerPredictions,
+    'differenzlerPenalties': differenzlerPenalties,
+    'enabledVariants': enabledVariants.toList(),
+  };
+
+  static GameState fromJson(Map<String, dynamic> j) {
+    return GameState(
+      cardType: CardType.values.byName(j['cardType']),
+      gameType: GameType.values.byName(j['gameType']),
+      players: (j['players'] as List).map((p) => Player.fromJson(p as Map<String, dynamic>)).toList(),
+      phase: GamePhase.values.byName(j['phase']),
+      gameMode: GameMode.values.byName(j['gameMode']),
+      trumpSuit: j['trumpSuit'] != null ? Suit.values.byName(j['trumpSuit']) : null,
+      currentTrickCards: (j['currentTrickCards'] as List).map((c) => JassCard.fromJson(c as Map<String, dynamic>)).toList(),
+      currentTrickPlayerIds: List<String>.from(j['currentTrickPlayerIds'] as List),
+      completedTricks: (j['completedTricks'] as List).map((t) => Trick.fromJson(t as Map<String, dynamic>)).toList(),
+      currentPlayerIndex: j['currentPlayerIndex'] as int,
+      roundNumber: j['roundNumber'] as int,
+      teamScores: Map<String, int>.from(j['teamScores'] as Map),
+      ansagerIndex: j['ansagerIndex'] as int,
+      lochPlayerIndex: j['lochPlayerIndex'] as int? ?? 0,
+      trumpSelectorIndex: j['trumpSelectorIndex'] as int?,
+      usedVariantsTeam1: Set<String>.from(j['usedVariantsTeam1'] as List),
+      usedVariantsTeam2: Set<String>.from(j['usedVariantsTeam2'] as List),
+      totalTeamScores: Map<String, int>.from(j['totalTeamScores'] as Map),
+      pendingNextPlayerIndex: j['pendingNextPlayerIndex'] as int?,
+      roundHistory: (j['roundHistory'] as List).map((r) => RoundResult.fromJson(r as Map<String, dynamic>)).toList(),
+      molotofSubMode: j['molotofSubMode'] != null ? GameMode.values.byName(j['molotofSubMode']) : null,
+      trumpObenTeam1: Map<String, bool>.from(j['trumpObenTeam1'] as Map? ?? {}),
+      trumpObenTeam2: Map<String, bool>.from(j['trumpObenTeam2'] as Map? ?? {}),
+      trumpPlayedObenPerPlayer: (j['trumpPlayedObenPerPlayer'] as Map<String, dynamic>?)?.map(
+        (k, v) => MapEntry(k, Set<String>.from(v as List)),
+      ) ?? const {},
+      trumpPlayedUntenPerPlayer: (j['trumpPlayedUntenPerPlayer'] as Map<String, dynamic>?)?.map(
+        (k, v) => MapEntry(k, Set<String>.from(v as List)),
+      ) ?? const {},
+      slalomStartsOben: j['slalomStartsOben'] as bool? ?? true,
+      wishCard: j['wishCard'] != null ? JassCard.fromJson(j['wishCard'] as Map<String, dynamic>) : null,
+      friseurPartnerIndex: j['friseurPartnerIndex'] as int?,
+      friseurPartnerRevealed: j['friseurPartnerRevealed'] as bool? ?? false,
+      friseurPartnerJustRevealed: j['friseurPartnerJustRevealed'] as bool? ?? false,
+      friseurSoloScores: (j['friseurSoloScores'] as Map<String, dynamic>?)?.map(
+        (k, v) => MapEntry(k, (v as Map<String, dynamic>).map(
+          (k2, v2) => MapEntry(k2, List<int>.from(v2 as List)),
+        )),
+      ) ?? const {},
+      friseurAnnouncedVariants: (j['friseurAnnouncedVariants'] as Map<String, dynamic>?)?.map(
+        (k, v) => MapEntry(k, Set<String>.from(v as List)),
+      ) ?? const {},
+      soloSchiebungRounds: j['soloSchiebungRounds'] as int? ?? 0,
+      soloSchiebungComment: j['soloSchiebungComment'] as String?,
+      roundWasImLoch: j['roundWasImLoch'] as bool? ?? false,
+      playerWyss: (j['playerWyss'] as Map<String, dynamic>?)?.map(
+        (k, v) => MapEntry(k, (v as List).map((e) => WyssEntry.fromJson(e as Map<String, dynamic>)).toList()),
+      ) ?? const {},
+      wyssWinnerTeam: j['wyssWinnerTeam'] as String?,
+      wyssDeclarationPending: j['wyssDeclarationPending'] as bool? ?? false,
+      wyssResolved: j['wyssResolved'] as bool? ?? false,
+      stockeComment: j['stockeComment'] as String?,
+      playerScores: Map<String, int>.from(j['playerScores'] as Map? ?? {}),
+      schieberWinTarget: j['schieberWinTarget'] as int? ?? 1500,
+      schieberMultipliers: Map<String, int>.from(j['schieberMultipliers'] as Map? ?? {'trump_ss': 1, 'trump_re': 2, 'oben': 3, 'unten': 3, 'slalom': 4}),
+      stockeRoundPoints: Map<String, int>.from(j['stockeRoundPoints'] as Map? ?? {'team1': 0, 'team2': 0}),
+      differenzlerPredictions: Map<String, int>.from(j['differenzlerPredictions'] as Map? ?? {}),
+      differenzlerPenalties: Map<String, int>.from(j['differenzlerPenalties'] as Map? ?? {}),
+      enabledVariants: _migrateEnabledVariants(j['enabledVariants'] as List?),
+    );
+  }
+
+  /// Migration: alte enabledVariants (trump_ss/trump_re) → neue (trump_oben/trump_unten)
+  static Set<String> _migrateEnabledVariants(List? raw) {
+    const defaults = {'trump_oben', 'trump_unten', 'oben', 'unten', 'slalom', 'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof'};
+    if (raw == null) return defaults;
+    final set = Set<String>.from(raw);
+    // Alte Keys → neue Keys migrieren
+    if (set.contains('trump_ss') || set.contains('trump_re')) {
+      final hadSS = set.remove('trump_ss');
+      final hadRE = set.remove('trump_re');
+      if (hadSS || hadRE) {
+        set.add('trump_oben');
+        set.add('trump_unten');
+      }
+    }
+    return set;
   }
 
   static GameState initial({required CardType cardType}) {
@@ -436,6 +669,8 @@ class GameState {
     Object? molotofSubMode = _sentinel,
     Map<String, bool>? trumpObenTeam1,
     Map<String, bool>? trumpObenTeam2,
+    Map<String, Set<String>>? trumpPlayedObenPerPlayer,
+    Map<String, Set<String>>? trumpPlayedUntenPerPlayer,
     bool? slalomStartsOben,
     Object? wishCard = _sentinel,
     Object? friseurPartnerIndex = _sentinel,
@@ -490,6 +725,8 @@ class GameState {
           : molotofSubMode as GameMode?,
       trumpObenTeam1: trumpObenTeam1 ?? this.trumpObenTeam1,
       trumpObenTeam2: trumpObenTeam2 ?? this.trumpObenTeam2,
+      trumpPlayedObenPerPlayer: trumpPlayedObenPerPlayer ?? this.trumpPlayedObenPerPlayer,
+      trumpPlayedUntenPerPlayer: trumpPlayedUntenPerPlayer ?? this.trumpPlayedUntenPerPlayer,
       slalomStartsOben: slalomStartsOben ?? this.slalomStartsOben,
       wishCard: wishCard == _sentinel ? this.wishCard : wishCard as JassCard?,
       friseurPartnerIndex: friseurPartnerIndex == _sentinel

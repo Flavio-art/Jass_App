@@ -270,7 +270,11 @@ class _GameScreenState extends State<GameScreen> {
                           IconButton(
                             icon: const Icon(Icons.arrow_back,
                                 color: Colors.white70),
-                            onPressed: () => Navigator.pop(context),
+                            onPressed: () {
+                              // Sofort speichern (Debounce nicht abwarten)
+                              context.read<GameProvider>().saveNow();
+                              Navigator.pop(context);
+                            },
                           ),
                           // Spieltyp-Indikator (klein, zur Diagnose)
                           if (state.gameType == GameType.friseur)
@@ -480,6 +484,7 @@ class _GameScreenState extends State<GameScreen> {
                                     ? () => setState(() => _showWishCardDetail = true)
                                     : null,
                                 gameType: state.gameType,
+                                cardType: state.cardType,
                               ),
                             ),
                           ),
@@ -696,7 +701,7 @@ class _GameScreenState extends State<GameScreen> {
                     Positioned(
                       left: 0,
                       right: 0,
-                      bottom: 270,
+                      bottom: 300,
                       child: Center(
                         child: GestureDetector(
                           onTap: () {
@@ -738,7 +743,7 @@ class _GameScreenState extends State<GameScreen> {
                   Positioned(
                     left: 0,
                     right: 0,
-                    bottom: 215,
+                    bottom: 245,
                     child: Center(
                       child: GestureDetector(
                         onTap: _showTrumpSelection,
@@ -749,7 +754,7 @@ class _GameScreenState extends State<GameScreen> {
                             color: state.soloSchiebungRounds >= 2 &&
                                     state.gameType == GameType.friseur
                                 ? Colors.red.shade700
-                                : AppColors.gold,
+                                : const Color(0xFF2E7D32),
                             borderRadius: BorderRadius.circular(30),
                             boxShadow: const [
                               BoxShadow(
@@ -906,40 +911,62 @@ class _GameScreenState extends State<GameScreen> {
                           players: state.players,
                           friseurSoloScores: state.friseurSoloScores,
                           cardType: state.cardType,
-                          onNewGame: () => provider.startNewGame(
-                            cardType: state.cardType,
-                            gameType: GameType.friseur,
-                          ),
-                          onHome: () => Navigator.pop(context),
+                          onNewGame: () {
+                            GameProvider.clearSavedGame(state.gameType);
+                            provider.startNewGame(
+                              cardType: state.cardType,
+                              gameType: GameType.friseur,
+                            );
+                          },
+                          onHome: () {
+                            GameProvider.clearSavedGame(state.gameType);
+                            Navigator.pop(context);
+                          },
                         )
                       : state.gameType == GameType.schieber
                           ? _SchieberGameEndOverlay(
                               totalTeamScores: state.totalTeamScores,
                               winTarget: state.schieberWinTarget,
-                              onNewGame: () => provider.startNewGame(
-                                cardType: state.cardType,
-                                gameType: GameType.schieber,
-                                schieberWinTarget: state.schieberWinTarget,
-                                schieberMultipliers: state.schieberMultipliers,
-                              ),
-                              onHome: () => Navigator.pop(context),
+                              onNewGame: () {
+                                GameProvider.clearSavedGame(state.gameType);
+                                provider.startNewGame(
+                                  cardType: state.cardType,
+                                  gameType: GameType.schieber,
+                                  schieberWinTarget: state.schieberWinTarget,
+                                  schieberMultipliers: state.schieberMultipliers,
+                                );
+                              },
+                              onHome: () {
+                                GameProvider.clearSavedGame(state.gameType);
+                                Navigator.pop(context);
+                              },
                             )
                           : state.gameType == GameType.differenzler
                               ? _DifferenzlerGameEndOverlay(
                                   players: state.players,
                                   penalties: state.differenzlerPenalties,
-                                  onNewGame: () => provider.startNewGame(
-                                    cardType: state.cardType,
-                                    gameType: GameType.differenzler,
-                                  ),
-                                  onHome: () => Navigator.pop(context),
+                                  onNewGame: () {
+                                    GameProvider.clearSavedGame(state.gameType);
+                                    provider.startNewGame(
+                                      cardType: state.cardType,
+                                      gameType: GameType.differenzler,
+                                    );
+                                  },
+                                  onHome: () {
+                                    GameProvider.clearSavedGame(state.gameType);
+                                    Navigator.pop(context);
+                                  },
                                 )
                               : _GameEndOverlay(
                                   totalTeamScores: state.totalTeamScores,
                                   onNewGame: () {
+                                    GameProvider.clearSavedGame(state.gameType);
                                     provider.startNewGame(cardType: state.cardType);
                                   },
-                                  onHome: () => Navigator.pop(context),
+                                  onHome: () {
+                                    GameProvider.clearSavedGame(state.gameType);
+                                    Navigator.pop(context);
+                                  },
                                 ),
               ],
             );
@@ -968,6 +995,7 @@ class _GameScreenState extends State<GameScreen> {
               title: const Text('Neues Spiel',
                   style: TextStyle(color: Colors.white)),
               onTap: () {
+                GameProvider.clearSavedGame(provider.state.gameType);
                 Navigator.pop(context);
                 provider.startNewGame(cardType: provider.state.cardType);
               },
@@ -990,6 +1018,7 @@ class _GameScreenState extends State<GameScreen> {
               title: const Text('Hauptmenü',
                   style: TextStyle(color: Colors.white)),
               onTap: () {
+                GameProvider.clearSavedGame(provider.state.gameType);
                 Navigator.pop(context);
                 Navigator.pop(context);
               },
@@ -1189,27 +1218,58 @@ Widget _buildShortVariantLabel(String variant, CardType cardType, TextStyle styl
     final suits = variant == 'trump_ss'
         ? [Suit.schellen, Suit.schilten]
         : [Suit.herzGerman, Suit.eichel];
+    final iconSize = (style.fontSize ?? 12) * 1.1;
     return Row(
       mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
       children: [
         for (final s in suits) ...[
           Image.asset(
             'assets/suit_icons/${s.name}.png',
-            width: 13,
-            height: 13,
+            width: iconSize,
+            height: iconSize,
           ),
-          const SizedBox(width: 1),
+          SizedBox(width: iconSize > 14 ? 3 : 1),
         ],
       ],
     );
   }
+  // Französische Trump-Symbole farbig darstellen
+  if (variant == 'trump_ss') {
+    final fontSize = style.fontSize ?? 12;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('♠', style: TextStyle(
+          fontSize: fontSize, color: Colors.black, height: style.height,
+          shadows: [
+            Shadow(color: Colors.white.withValues(alpha: 0.9), blurRadius: 2),
+            Shadow(color: Colors.white.withValues(alpha: 0.5), blurRadius: 4),
+          ],
+        )),
+        Text('♣', style: TextStyle(
+          fontSize: fontSize, color: Colors.black, height: style.height,
+          shadows: [
+            Shadow(color: Colors.white.withValues(alpha: 0.9), blurRadius: 2),
+            Shadow(color: Colors.white.withValues(alpha: 0.5), blurRadius: 4),
+          ],
+        )),
+      ],
+    );
+  }
+  if (variant == 'trump_re') {
+    final fontSize = style.fontSize ?? 12;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('♥', style: TextStyle(fontSize: fontSize, color: AppColors.cardRed, height: style.height)),
+        Text('♦', style: TextStyle(fontSize: fontSize, color: AppColors.cardRed, height: style.height)),
+      ],
+    );
+  }
   const labels = {
-    'trump_ss': '♠♣',
-    'trump_re': '♥♦',
     'oben':        '⬇️',
     'unten':       '⬆️',
-    'slalom':      '〰️',
+    'slalom':      '↕️',
     'elefant':     '🐘',
     'misere':      '😶',
     'allesTrumpf': '👑',
@@ -1250,16 +1310,19 @@ class _RoundEndOverlay extends StatelessWidget {
     'molotof',
   ];
 
+  bool get _trumpEnabled => enabledVariants.contains('trump_oben') || enabledVariants.contains('trump_unten');
   List<String> get _variants =>
-      _allVariants.where((v) => enabledVariants.contains(v)).toList();
+      _allVariants.where((v) {
+        if (v == 'trump_ss' || v == 'trump_re') return _trumpEnabled;
+        return enabledVariants.contains(v);
+      }).toList();
 
-  // Für Französische Karten (Deutsche Karten werden via Suit-Icons angezeigt)
   static const _labels = {
     'trump_ss':  '♠♣ Schaufeln/Kreuz',
     'trump_re':  '♥♦ Herz/Ecken',
     'oben':         '⬇️ Obenabe',
     'unten':        '⬆️ Undenufe',
-    'slalom':       '〰️ Slalom',
+    'slalom':       '↕️ Slalom',
     'elefant':      '🐘 Elefant',
     'misere':       '😶 Misere',
     'allesTrumpf':  '👑 Alles Trumpf',
@@ -1280,7 +1343,7 @@ class _RoundEndOverlay extends StatelessWidget {
     this.postRoundComment,
     required this.onNextRound,
     required this.onHome,
-    this.enabledVariants = const {'trump_ss', 'trump_re', 'oben', 'unten', 'slalom', 'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof'},
+    this.enabledVariants = const {'trump_oben', 'trump_unten', 'oben', 'unten', 'slalom', 'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof'},
   });
 
   /// Resultat wenn Team 1 (Ihr) diese Variante angesagt hat
@@ -1529,7 +1592,7 @@ class _RoundEndOverlay extends StatelessWidget {
       color: Colors.black54,
       child: Center(
         child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 28),
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 24),
           decoration: BoxDecoration(
             color: const Color(0xFF1B4D2E),
             borderRadius: BorderRadius.circular(20),
@@ -1668,15 +1731,15 @@ class _RoundEndOverlay extends StatelessWidget {
     Widget scoreCell(RoundResult? r, int pts) {
       if (r == null) {
         return const Padding(
-          padding: EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+          padding: EdgeInsets.symmetric(vertical: 8, horizontal: 6),
           child: Text('—',
               textAlign: TextAlign.right,
-              style: TextStyle(color: Colors.white24, fontSize: 12)),
+              style: TextStyle(color: Colors.white24, fontSize: 14)),
         );
       }
       final isMatch = pts == 170;
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
         child: isMatch
             ? Row(
                 mainAxisSize: MainAxisSize.min,
@@ -1686,7 +1749,7 @@ class _RoundEndOverlay extends StatelessWidget {
                     'M ',
                     style: TextStyle(
                       color: Colors.amber.shade300,
-                      fontSize: 9,
+                      fontSize: 10,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -1695,7 +1758,7 @@ class _RoundEndOverlay extends StatelessWidget {
                     textAlign: TextAlign.right,
                     style: TextStyle(
                       color: Colors.amber.shade300,
-                      fontSize: 12,
+                      fontSize: 14,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -1706,7 +1769,7 @@ class _RoundEndOverlay extends StatelessWidget {
                 textAlign: TextAlign.right,
                 style: TextStyle(
                   color: Colors.greenAccent.shade200,
-                  fontSize: 12,
+                  fontSize: 14,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -1719,7 +1782,7 @@ class _RoundEndOverlay extends StatelessWidget {
       ),
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
           child: labelWidget,
         ),
         scoreCell(r1, r1?.team1Score ?? 0),
@@ -1741,7 +1804,7 @@ class _RoundEndOverlay extends StatelessWidget {
         : Colors.white24;
     final textStyle = TextStyle(
       color: textColor,
-      fontSize: 11,
+      fontSize: 13,
       fontWeight: isLastPlayed ? FontWeight.bold : FontWeight.normal,
     );
 
@@ -1754,21 +1817,49 @@ class _RoundEndOverlay extends StatelessWidget {
           variant == 'trump_ss' ? 'Schellen/Schilten' : 'Rosen/Eichel';
 
       return Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           for (final s in suits) ...[
             Image.asset(
               'assets/suit_icons/${s.name}.png',
-              width: 14,
-              height: 14,
+              width: 15,
+              height: 15,
               color: anyPlayed ? null : Colors.white24,
               colorBlendMode: BlendMode.modulate,
             ),
             const SizedBox(width: 2),
           ],
-          const SizedBox(width: 2),
+          const SizedBox(width: 3),
           Flexible(
             child:
                 Text(label, style: textStyle, overflow: TextOverflow.ellipsis),
+          ),
+        ],
+      );
+    }
+
+    // Französische Trump-Symbole farbig
+    if (variant == 'trump_ss' || variant == 'trump_re') {
+      final isBlack = variant == 'trump_ss';
+      final symbols = isBlack ? '♠♣' : '♥♦';
+      final label = isBlack ? 'Schaufeln/Kreuz' : 'Herz/Ecken';
+      final symbolColor = isBlack ? Colors.black : AppColors.cardRed;
+      final symbolStyle = TextStyle(
+        fontSize: 12,
+        color: anyPlayed ? symbolColor : Colors.white24,
+        shadows: isBlack && anyPlayed
+            ? [
+                Shadow(color: Colors.white.withValues(alpha: 0.9), blurRadius: 2),
+                Shadow(color: Colors.white.withValues(alpha: 0.5), blurRadius: 4),
+              ]
+            : null,
+      );
+      return Row(
+        children: [
+          Text(symbols, style: symbolStyle),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(label, style: textStyle, overflow: TextOverflow.ellipsis),
           ),
         ],
       );
@@ -1794,23 +1885,23 @@ class _RoundEndOverlay extends StatelessWidget {
   }
 
   static Widget _hCell(String text, {bool right = false}) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
         child: Text(text,
             textAlign: right ? TextAlign.right : TextAlign.left,
             style: const TextStyle(
                 color: Colors.white38,
-                fontSize: 10,
+                fontSize: 12,
                 fontWeight: FontWeight.bold)),
       );
 
   static Widget _totalCell(String text,
           {bool right = false, Color color = AppColors.gold}) =>
       Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
         child: Text(text,
             textAlign: right ? TextAlign.right : TextAlign.left,
             style: TextStyle(
-                color: color, fontSize: 13, fontWeight: FontWeight.bold)),
+                color: color, fontSize: 15, fontWeight: FontWeight.bold)),
       );
 
   static Widget _resultBadge(String label, int score) => Column(
@@ -1940,31 +2031,42 @@ class _WishCardOverlayState extends State<_WishCardOverlay> {
     Suit.schilten,
   ];
 
-  String _modeLabel() {
+  Widget _modeLabelWidget() {
     final state = widget.state;
     final suit = state.trumpSuit;
-    switch (state.gameMode) {
-      case GameMode.trump:
-        return 'Trumpf Oben: ${suit?.symbol ?? '?'}';
-      case GameMode.trumpUnten:
-        return 'Trumpf Unten: ${suit?.symbol ?? '?'}';
-      case GameMode.oben:
-        return 'Obenabe';
-      case GameMode.unten:
-        return 'Undenufe';
-      case GameMode.slalom:
-        return 'Slalom';
-      case GameMode.elefant:
-        return 'Elefant';
-      case GameMode.misere:
-        return 'Misere';
-      case GameMode.allesTrumpf:
-        return 'Alles Trumpf';
-      case GameMode.schafkopf:
-        return 'Schafkopf';
-      case GameMode.molotof:
-        return 'Molotof';
+    const style = TextStyle(
+        color: AppColors.gold, fontSize: 14, fontWeight: FontWeight.w600);
+
+    // Trumpf-Modi: Suit-Icon für deutsche Karten
+    if ((state.gameMode == GameMode.trump ||
+            state.gameMode == GameMode.trumpUnten) &&
+        suit != null &&
+        state.cardType == CardType.german) {
+      final direction =
+          state.gameMode == GameMode.trump ? 'Trumpf Oben: ' : 'Trumpf Unten: ';
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(direction, style: style),
+          Image.asset('assets/suit_icons/${suit.name}.png',
+              width: 18, height: 18),
+        ],
+      );
     }
+
+    final label = switch (state.gameMode) {
+      GameMode.trump => 'Trumpf Oben: ${suit?.symbol ?? '?'}',
+      GameMode.trumpUnten => 'Trumpf Unten: ${suit?.symbol ?? '?'}',
+      GameMode.oben => 'Obenabe',
+      GameMode.unten => 'Undenufe',
+      GameMode.slalom => 'Slalom',
+      GameMode.elefant => 'Elefant',
+      GameMode.misere => 'Misere',
+      GameMode.allesTrumpf => 'Alles Trumpf',
+      GameMode.schafkopf => 'Schafkopf',
+      GameMode.molotof => 'Molotof',
+    };
+    return Text(label, style: style, textAlign: TextAlign.center);
   }
 
   @override
@@ -2016,14 +2118,7 @@ class _WishCardOverlayState extends State<_WishCardOverlay> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 6),
-                    Text(
-                      _modeLabel(),
-                      style: const TextStyle(
-                          color: AppColors.gold,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600),
-                      textAlign: TextAlign.center,
-                    ),
+                    _modeLabelWidget(),
                   ],
                 ),
               ),
@@ -2437,14 +2532,18 @@ class _FriseurSoloScoreTable extends StatelessWidget {
     'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof',
   ];
 
+  bool get _trumpEnabled => enabledVariants.contains('trump_oben') || enabledVariants.contains('trump_unten');
   List<String> get _variants =>
-      _allVariants.where((v) => enabledVariants.contains(v)).toList();
+      _allVariants.where((v) {
+        if (v == 'trump_ss' || v == 'trump_re') return _trumpEnabled;
+        return enabledVariants.contains(v);
+      }).toList();
 
   const _FriseurSoloScoreTable({
     required this.players,
     required this.friseurSoloScores,
     required this.cardType,
-    this.enabledVariants = const {'trump_ss', 'trump_re', 'oben', 'unten', 'slalom', 'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof'},
+    this.enabledVariants = const {'trump_oben', 'trump_unten', 'oben', 'unten', 'slalom', 'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof'},
   });
 
   int _avgScore(String playerId, String variant) {
@@ -2480,7 +2579,7 @@ class _FriseurSoloScoreTable extends StatelessWidget {
                 child: _buildShortVariantLabel(
                   variant,
                   cardType,
-                  const TextStyle(color: Colors.white70, fontSize: 11),
+                  const TextStyle(color: Colors.white70, fontSize: 15),
                 ),
               ),
               for (final p in players) _scoreCell(p.id, variant),
@@ -2568,8 +2667,12 @@ class _GameOverviewOverlay extends StatelessWidget {
     'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof',
   ];
 
+  bool get _trumpEnabled => state.enabledVariants.contains('trump_oben') || state.enabledVariants.contains('trump_unten');
   List<String> get _variants =>
-      _allVariants.where((v) => state.enabledVariants.contains(v)).toList();
+      _allVariants.where((v) {
+        if (v == 'trump_ss' || v == 'trump_re') return _trumpEnabled;
+        return state.enabledVariants.contains(v);
+      }).toList();
 
   @override
   Widget build(BuildContext context) {
@@ -2750,7 +2853,7 @@ class _GameOverviewOverlay extends StatelessWidget {
                   child: _buildShortVariantLabel(
                     v,
                     state.cardType,
-                    const TextStyle(color: Colors.white70, fontSize: 12),
+                    const TextStyle(color: Colors.white70, fontSize: 16),
                   ),
                 ),
                 _teamScoreCell(byTeam1(v)?.team1Score),
@@ -3019,18 +3122,21 @@ class _SchieberScoreBar extends StatelessWidget {
         color: Colors.black38,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _col('Ihr', live1, cur1, AppColors.gold),
-          const SizedBox(width: 10),
-          Text(
-            'R$roundNumber / $winTarget',
-            style: const TextStyle(color: Colors.white38, fontSize: 10),
-          ),
-          const SizedBox(width: 10),
-          _col('Geg.', live2, cur2, Colors.red.shade300),
-        ],
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _col('Ihr', live1, cur1, AppColors.gold),
+            const SizedBox(width: 10),
+            Text(
+              'R$roundNumber / $winTarget',
+              style: const TextStyle(color: Colors.white38, fontSize: 10),
+            ),
+            const SizedBox(width: 10),
+            _col('Geg.', live2, cur2, Colors.red.shade300),
+          ],
+        ),
       ),
     );
   }
@@ -3156,9 +3262,37 @@ class _DifferenzlerPredictionOverlayState
                       fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 6),
-                Text(
-                  'Trumpf: ${trump?.symbol ?? '?'}',
-                  style: const TextStyle(color: Colors.white70, fontSize: 16),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Trumpf: ',
+                        style: TextStyle(color: Colors.white70, fontSize: 16)),
+                    if (trump != null && widget.state.cardType == CardType.german)
+                      Image.asset(
+                        'assets/suit_icons/${trump.name}.png',
+                        width: 20,
+                        height: 20,
+                      )
+                    else if (trump != null)
+                      Text(
+                        trump.symbol,
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: (trump == Suit.hearts || trump == Suit.diamonds)
+                              ? AppColors.cardRed
+                              : Colors.black,
+                          shadows: (trump == Suit.spades || trump == Suit.clubs)
+                              ? const [
+                                  Shadow(color: Colors.white, blurRadius: 4),
+                                  Shadow(color: Colors.white, blurRadius: 8),
+                                ]
+                              : null,
+                        ),
+                      )
+                    else
+                      const Text('?',
+                          style: TextStyle(color: Colors.white70, fontSize: 16)),
+                  ],
                 ),
                 const SizedBox(height: 20),
                 const Text(
