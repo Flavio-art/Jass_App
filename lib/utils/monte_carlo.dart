@@ -67,7 +67,18 @@ class MonteCarloAI {
             if (safeNonTrump.isNotEmpty) {
               return _strongest(safeNonTrump, state.effectiveMode, trump);
             }
-            // Keine sicheren Gewinner → tiefe Karte, Partner kann ggf. gewinnen
+            // Keine sicheren Gewinner → Friseur: Wunschkarten-Farbe bevorzugen
+            if (state.gameType == GameType.friseur &&
+                state.wishCard != null &&
+                aiPlayer.id == state.players[state.ansagerIndex].id) {
+              final wishSuit = state.wishCard!.suit;
+              final wishSuitCards =
+                  nonTrump.where((c) => c.suit == wishSuit).toList();
+              if (wishSuitCards.isNotEmpty) {
+                return _weakest(wishSuitCards, state.effectiveMode, trump);
+              }
+            }
+            // Sonst tiefe Karte, Partner kann ggf. gewinnen
             return _weakest(nonTrump, state.effectiveMode, trump);
           }
         }
