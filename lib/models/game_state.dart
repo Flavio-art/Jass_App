@@ -351,7 +351,7 @@ class GameState {
     this.stockeComment,
     this.playerScores = const {},
     this.schieberWinTarget = 1500,
-    this.schieberMultipliers = const {'trump_ss': 1, 'trump_re': 2, 'oben': 3, 'unten': 3, 'slalom': 4},
+    this.schieberMultipliers = const {'trump_ss': 1, 'trump_re': 2, 'oben': 3, 'unten': 3, 'slalom': 3},
     this.stockeRoundPoints = const {'team1': 0, 'team2': 0},
     this.differenzlerPredictions = const {},
     this.differenzlerPenalties = const {},

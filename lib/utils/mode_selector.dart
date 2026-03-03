@@ -32,16 +32,20 @@ class ModeSelectorAI {
     // Delta-Amplifikation (wie NN-Pfad):
     //   adjusted = mittelwert + (rawScore − mittelwert) × multiplikator
     // Nur die Abweichung vom Durchschnitt wird mit dem Multiplikator verstärkt.
-    // So kann Trump ×1 mit einer exzellenten Hand trotzdem Slalom ×4 schlagen.
+    // So kann Trump ×1 mit einer exzellenten Hand trotzdem Slalom ×3 schlagen.
 
     GameMode bestMode = GameMode.oben;
     Suit? bestTrump;
     bool bestSlalomStartsOben = true;
 
     final isSchieber = state.gameType == GameType.schieber;
-    double mult(String vk) => isSchieber
-        ? (state.schieberMultipliers[vk] ?? 1).toDouble()
-        : 1.0;
+    // Wenn Partner geschoben hat, ist Slalom riskant (Partner hat schlechte Hand)
+    final partnerHatGeschoben = isSchieber && state.trumpSelectorIndex != null;
+    double mult(String vk) {
+      final m = isSchieber ? (state.schieberMultipliers[vk] ?? 1).toDouble() : 1.0;
+      if (vk == 'slalom' && partnerHatGeschoben) return m * 0.5;
+      return m;
+    }
 
     // ── Schritt 1: Alle Raw-Scores sammeln ──────────────────────────────
     final rawEntries = <({double raw, double m, GameMode mode, Suit? trump, bool slalomOben})>[];
@@ -134,7 +138,7 @@ class ModeSelectorAI {
     // Mittelwert der NN-Scores als Baseline für Delta-Verstärkung.
     // Formel: adjusted = mean + (raw - mean) × mult
     // Damit verstärkt ein Multiplikator nur den Vorteil ÜBER dem Durchschnitt,
-    // nicht den Absolutwert. Slalom ×4 mit Durchschnittsscore gewinnt nicht mehr
+    // nicht den Absolutwert. Slalom ×3 mit Durchschnittsscore gewinnt nicht mehr
     // gegen Trump ×1 mit nur leicht überdurchschnittlichem Score.
     final nnMean = scores.reduce((a, b) => a + b) / scores.length;
     double adj(double raw, double m) => nnMean + (raw - nnMean) * m;
@@ -144,11 +148,15 @@ class ModeSelectorAI {
     final nnMax = scores.fold(double.negativeInfinity, (a, b) => a > b ? a : b);
     final nnRange = nnMax > nnMin ? nnMax - nnMin : 1.0;
 
-    // Multiplikator für Schieber einrechnen (×1/×2/×3/×4 je nach Variante)
+    // Multiplikator für Schieber einrechnen (×1/×2/×3 je nach Variante)
     final isSchieber = state.gameType == GameType.schieber;
-    double mult(String vk) => isSchieber
-        ? (state.schieberMultipliers[vk] ?? 1).toDouble()
-        : 1.0;
+    // Wenn Partner geschoben hat, ist Slalom riskant (Partner hat schlechte Hand)
+    final partnerHatGeschoben = isSchieber && state.trumpSelectorIndex != null;
+    double mult(String vk) {
+      final m = isSchieber ? (state.schieberMultipliers[vk] ?? 1).toDouble() : 1.0;
+      if (vk == 'slalom' && partnerHatGeschoben) return m * 0.5;
+      return m;
+    }
 
     for (final variant in available) {
       if (variant == 'trump_ss' || variant == 'trump_re') {
