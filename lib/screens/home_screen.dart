@@ -123,7 +123,30 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
+
+                  // ── Spielen + Regeln ─────────────────────────────────────
+                  ElevatedButton(
+                    onPressed: _enabledVariants.isEmpty ? null : _startGame,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.gold,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30)),
+                      textStyle: const TextStyle(
+                          fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    child: const Text('SPIELEN'),
+                  ),
+
+                  TextButton(
+                    onPressed: () => _showRules(context),
+                    child: const Text('Regeln',
+                        style: TextStyle(color: Colors.white38)),
+                  ),
+
+                  const SizedBox(height: 4),
 
                   // ── Spielmodus ─────────────────────────────────────────────
                   Container(
@@ -184,7 +207,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               _GameTypeButton(
                                 label: 'Friseur',
                                 subtitle: 'Team',
-                                description: '2 Teams · 20 Runden · Schieben',
+                                description: '2 Teams · Schieben',
                                 emoji: '✂️',
                                 selected: _selectedGameType == GameType.friseurTeam,
                                 onTap: () => setState(() => _selectedGameType = GameType.friseurTeam),
@@ -278,84 +301,42 @@ class _HomeScreenState extends State<HomeScreen> {
                           const SizedBox(height: 8),
                           const Divider(color: Colors.white12, height: 1),
                           const SizedBox(height: 6),
-                          const Text('Varianten',
-                              style: TextStyle(color: Colors.white54, fontSize: 11)),
-                          const SizedBox(height: 4),
+                          Text(
+                            _selectedGameType == GameType.friseurTeam
+                                ? 'Varianten  ·  ≈ ${_enabledVariants.length * 2} Runden'
+                                : 'Varianten  ·  ≈ ${_enabledVariants.length * 2}–${_enabledVariants.length * 4} Runden',
+                            style: const TextStyle(color: Colors.white54, fontSize: 11),
+                          ),
+                          const SizedBox(height: 6),
                           SizedBox(
                             width: 306,
-                            child: Column(
+                            child: Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
                               children: [
                                 for (int i = 0; i < _variantKeys.length; i++)
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(vertical: 0.5),
-                                    child: Row(
-                                      children: [
-                                        Text(
-                                          '${_variantEmojis[i]}  ${_variantNames[i]}',
-                                          style: TextStyle(
-                                            color: _enabledVariants.contains(_variantKeys[i])
-                                                ? Colors.white70
-                                                : Colors.white30,
-                                            fontSize: 11,
-                                          ),
-                                        ),
-                                        const Spacer(),
-                                        SizedBox(
-                                          height: 24,
-                                          child: Switch(
-                                            value: _enabledVariants.contains(_variantKeys[i]),
-                                            onChanged: (val) {
-                                              setState(() {
-                                                if (val) {
-                                                  _enabledVariants.add(_variantKeys[i]);
-                                                } else if (_enabledVariants.length > 1) {
-                                                  _enabledVariants.remove(_variantKeys[i]);
-                                                }
-                                              });
-                                            },
-                                            activeTrackColor: AppColors.gold,
-                                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                                  _VariantToggle(
+                                    emoji: _variantEmojis[i],
+                                    label: _variantNames[i],
+                                    active: _enabledVariants.contains(_variantKeys[i]),
+                                    onTap: () {
+                                      setState(() {
+                                        if (_enabledVariants.contains(_variantKeys[i])) {
+                                          if (_enabledVariants.length > 1) {
+                                            _enabledVariants.remove(_variantKeys[i]);
+                                          }
+                                        } else {
+                                          _enabledVariants.add(_variantKeys[i]);
+                                        }
+                                      });
+                                    },
                                   ),
                               ],
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '≈ ${_selectedGameType == GameType.friseurTeam ? _enabledVariants.length * 2 : _enabledVariants.length * 4} Runden',
-                            style: const TextStyle(color: Colors.white38, fontSize: 11),
-                          ),
                         ],
                       ],
                     ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  // ── Spielen ────────────────────────────────────────────────
-                  ElevatedButton(
-                    onPressed: _enabledVariants.isEmpty ? null : _startGame,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.gold,
-                      foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 14),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30)),
-                      textStyle: const TextStyle(
-                          fontSize: 20, fontWeight: FontWeight.bold),
-                    ),
-                    child: const Text('SPIELEN'),
-                  ),
-
-                  const SizedBox(height: 4),
-
-                  TextButton(
-                    onPressed: () => _showRules(context),
-                    child: const Text('Regeln',
-                        style: TextStyle(color: Colors.white38)),
                   ),
 
                   const SizedBox(height: 4),
@@ -648,6 +629,60 @@ class _SuitPip extends StatelessWidget {
         child: Align(
           alignment: Alignment.center,
           child: Image.asset(_imagePath, width: 86, fit: BoxFit.fitWidth),
+        ),
+      ),
+    );
+  }
+}
+
+class _VariantToggle extends StatelessWidget {
+  final String emoji;
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _VariantToggle({
+    required this.emoji,
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 148,
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+        decoration: BoxDecoration(
+          color: active
+              ? AppColors.gold.withValues(alpha: 0.15)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: active ? AppColors.gold : Colors.white12,
+            width: active ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 13)),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: active ? Colors.white : Colors.white30,
+                  fontSize: 11,
+                  fontWeight: active ? FontWeight.w600 : FontWeight.normal,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
       ),
     );

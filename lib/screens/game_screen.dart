@@ -887,6 +887,7 @@ class _GameScreenState extends State<GameScreen> {
                           totalTeamScores: state.totalTeamScores,
                           schieberWinTarget: state.schieberWinTarget,
                           postRoundComment: state.soloSchiebungComment,
+                          enabledVariants: state.enabledVariants,
                           onNextRound: () => provider.startNewRound(),
                           onHome: () => Navigator.pop(context),
                         ),
@@ -1233,9 +1234,10 @@ class _RoundEndOverlay extends StatelessWidget {
   final String? postRoundComment;
   final VoidCallback onNextRound;
   final VoidCallback onHome;
+  final Set<String> enabledVariants;
 
-  // Feste Reihenfolge der 9 Varianten
-  static const _variants = [
+  // Feste Reihenfolge aller Varianten
+  static const _allVariants = [
     'trump_ss',
     'trump_re',
     'oben',
@@ -1247,6 +1249,9 @@ class _RoundEndOverlay extends StatelessWidget {
     'schafkopf',
     'molotof',
   ];
+
+  List<String> get _variants =>
+      _allVariants.where((v) => enabledVariants.contains(v)).toList();
 
   // Für Französische Karten (Deutsche Karten werden via Suit-Icons angezeigt)
   static const _labels = {
@@ -1275,6 +1280,7 @@ class _RoundEndOverlay extends StatelessWidget {
     this.postRoundComment,
     required this.onNextRound,
     required this.onHome,
+    this.enabledVariants = const {'trump_ss', 'trump_re', 'oben', 'unten', 'slalom', 'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof'},
   });
 
   /// Resultat wenn Team 1 (Ihr) diese Variante angesagt hat
@@ -1380,6 +1386,7 @@ class _RoundEndOverlay extends StatelessWidget {
                         players: players,
                         friseurSoloScores: soloScores,
                         cardType: cardType,
+                        enabledVariants: enabledVariants,
                       ),
                     ),
                   ),
@@ -2423,16 +2430,21 @@ class _FriseurSoloScoreTable extends StatelessWidget {
   final List<Player> players;
   final Map<String, Map<String, List<int>>> friseurSoloScores;
   final CardType cardType;
+  final Set<String> enabledVariants;
 
-  static const _variants = [
+  static const _allVariants = [
     'trump_ss', 'trump_re', 'oben', 'unten', 'slalom',
     'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof',
   ];
+
+  List<String> get _variants =>
+      _allVariants.where((v) => enabledVariants.contains(v)).toList();
 
   const _FriseurSoloScoreTable({
     required this.players,
     required this.friseurSoloScores,
     required this.cardType,
+    this.enabledVariants = const {'trump_ss', 'trump_re', 'oben', 'unten', 'slalom', 'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof'},
   });
 
   int _avgScore(String playerId, String variant) {
@@ -2551,10 +2563,13 @@ class _GameOverviewOverlay extends StatelessWidget {
 
   const _GameOverviewOverlay({required this.state, required this.onClose});
 
-  static const _variants = [
+  static const _allVariants = [
     'trump_ss', 'trump_re', 'oben', 'unten', 'slalom',
     'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof',
   ];
+
+  List<String> get _variants =>
+      _allVariants.where((v) => state.enabledVariants.contains(v)).toList();
 
   @override
   Widget build(BuildContext context) {
@@ -2681,6 +2696,7 @@ class _GameOverviewOverlay extends StatelessWidget {
           players: state.players,
           friseurSoloScores: state.friseurSoloScores,
           cardType: state.cardType,
+          enabledVariants: state.enabledVariants,
         ),
       );
     }
