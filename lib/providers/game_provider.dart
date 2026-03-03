@@ -1088,11 +1088,13 @@ class GameProvider extends ChangeNotifier {
     }
 
     // Bei Schafkopf: höchste Dame oder 8 wünschen die man nicht hat
+    // Damen/8er sind IMMER Trumpf in fester Stärke-Reihenfolge:
+    // Kreuz/Eichel > Schaufel/Schilten > Herz > Ecken/Schellen
     if (mode == GameMode.schafkopf && trumpSuit != null) {
-      final suitOrder = [
-        trumpSuit,
-        ...Suit.values.where((s) => s != trumpSuit),
-      ];
+      final isFrench = selector.hand.first.cardType == CardType.french;
+      final suitOrder = isFrench
+          ? [Suit.clubs, Suit.spades, Suit.hearts, Suit.diamonds]
+          : [Suit.eichel, Suit.schilten, Suit.herzGerman, Suit.schellen];
       for (final val in [CardValue.queen, CardValue.eight]) {
         for (final suit in suitOrder) {
           final card = available.firstWhere(
