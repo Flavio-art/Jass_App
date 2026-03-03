@@ -31,7 +31,7 @@ class _HomeScreenState extends State<HomeScreen> {
     'trump_re': 2,
     'oben': 3,
     'unten': 3,
-    'slalom': 4,
+    'slalom': 3,
   };
 
   final Set<String> _enabledVariants = {

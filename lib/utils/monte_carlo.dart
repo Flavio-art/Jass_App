@@ -854,14 +854,21 @@ class MonteCarloAI {
           final pts = GameLogic.cardPoints(c, effectMode, trump);
           if (pts < 8) return false;
           if (_isHighestRemaining(c, state)) return false;
+          // Ass in Oben / 6 in Unten: nur schmieren wenn man eine starke
+          // Sequenz hat (z.B. Ass+König+Ober), damit man die Farbe noch
+          // dominiert. Sonst verliert man die stärkste Karte der Farbe.
           if (c.value == CardValue.ace || c.value == CardValue.six) {
             final myStrength = GameLogic.cardPlayStrength(c, effectMode, trump);
-            final hasSecondHighest = player.hand.any((h) =>
-                h != c &&
-                h.suit == c.suit &&
-                GameLogic.cardPlayStrength(h, effectMode, trump) ==
-                    _secondHighestStrength(c.suit, player.hand, effectMode, trump, myStrength));
-            if (!hasSecondHighest) return false;
+            // Brauche mind. 2 weitere Karten derselben Farbe mit hoher Stärke
+            final suitStrengths = player.hand
+                .where((h) => h != c && h.suit == c.suit)
+                .map((h) => GameLogic.cardPlayStrength(h, effectMode, trump))
+                .toList()
+              ..sort((a, b) => b.compareTo(a)); // absteigend
+            // Mind. 2 Begleiter UND der stärkste muss nah dran sein (max 2 Stufen Abstand)
+            if (suitStrengths.length < 2 || myStrength - suitStrengths[0] > 2) {
+              return false;
+            }
           }
           return true;
         }).toList();

@@ -47,6 +47,22 @@ class JassNNModel {
     }
   }
 
+  /// Lädt Gewichte direkt aus einer JSON-Map (für Tests ohne rootBundle).
+  void loadFromJson(Map<String, dynamic> data) {
+    if (_loaded) return;
+    _W.clear();
+    _b.clear();
+    for (final layer in data['layers'] as List) {
+      _W.add((layer['W'] as List)
+          .map((row) => List<double>.from(
+              (row as List).map((v) => (v as num).toDouble())))
+          .toList());
+      _b.add(List<double>.from(
+          (layer['b'] as List).map((v) => (v as num).toDouble())));
+    }
+    _loaded = true;
+  }
+
   // ─── Forward Pass ─────────────────────────────────────────────────────────
   /// Gibt 14 Scores zurück (einer pro Modus). Leere Liste wenn nicht geladen.
   List<double> predict(List<JassCard> hand, CardType cardType) {
