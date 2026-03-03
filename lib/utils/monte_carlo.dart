@@ -58,7 +58,9 @@ class MonteCarloAI {
       final trumpCards = playable.where((c) => c.suit == trump).toList();
       if (trumpCards.isNotEmpty) {
         // Einziger Spieler mit Trumpf → Trumpf sparen, Nebenfarbe spielen
-        if (_onlyPlayerWithTrump(aiPlayer, state, trump)) {
+        // Nur Team hat Trumpf → ebenfalls sparen (sonst 2 Trümpfe für 1 Stich)
+        if (_onlyPlayerWithTrump(aiPlayer, state, trump) ||
+            _onlyTeamHasTrump(aiPlayer, state, trump)) {
           final nonTrump = playable.where((c) => c.suit != trump).toList();
           if (nonTrump.isNotEmpty) {
             final safeNonTrump = nonTrump
@@ -159,6 +161,22 @@ class MonteCarloAI {
                 .compareTo(GameLogic.cardPoints(a, effectMode, null)));
         return safeLeads.first;
       }
+      // Keine sicheren Gewinner → Karte spielen, die in der ANDEREN Richtung
+      // am wenigsten wertvoll ist (wertvolle Karten für die passende Richtung
+      // aufsparen: z.B. 6er für Unten-Stiche, Asse für Oben-Stiche).
+      final otherMode = effectMode == GameMode.oben
+          ? GameMode.unten : GameMode.oben;
+      final sorted = List.of(playable)..sort((a, b) {
+        // Primär: höchste Spielstärke im aktuellen Modus (versuche zu gewinnen)
+        final aStr = GameLogic.cardPlayStrength(a, effectMode, null);
+        final bStr = GameLogic.cardPlayStrength(b, effectMode, null);
+        if (aStr != bStr) return bStr.compareTo(aStr);
+        // Tiebreak: geringster Wert im anderen Modus (spare wertvolle Karten)
+        final aOther = GameLogic.cardPoints(a, otherMode, null);
+        final bOther = GameLogic.cardPoints(b, otherMode, null);
+        return aOther.compareTo(bOther);
+      });
+      return sorted.first;
     }
 
     // ── Friseur Solo: Ansager spielt Wunschkarten-Farbe an ─────────────────
@@ -218,6 +236,19 @@ class MonteCarloAI {
         }
         if (card.value == CardValue.six && elefantTrick <= 3) {
           avg -= 8.0; // 6er wertvoll in Unten-Phase (Stiche 4-6)
+        }
+      }
+
+      // Nell-Schutz: Nell NICHT schmieren wenn Partner den Buur spielt.
+      // Nach dem Buur ist die Nell die stärkste Trumpfkarte → eigenen Stich wert.
+      if (state.trumpSuit != null &&
+          card.suit == state.trumpSuit &&
+          card.value == CardValue.nine &&
+          state.currentTrickCards.isNotEmpty) {
+        final partnerBuur = state.currentTrickCards.any((tc) =>
+            tc.suit == state.trumpSuit && tc.value == CardValue.jack);
+        if (partnerBuur) {
+          avg -= 20.0; // Nell aufsparen (14 Pkt + Stichkontrolle)
         }
       }
 
@@ -588,6 +619,13 @@ class MonteCarloAI {
         p.id != player.id && p.hand.any((c) => c.suit == trump));
   }
 
+  /// Nur das eigene Team (Spieler + Partner) hat noch Trumpf.
+  /// → Trumpf ausspielen kostet 2 Team-Trümpfe für 1 Stich.
+  static bool _onlyTeamHasTrump(Player player, GameState state, Suit trump) {
+    final opponents = state.players.where((p) => !_sameTeam(p, player));
+    return !opponents.any((p) => p.hand.any((c) => c.suit == trump));
+  }
+
   /// Ob [card] ein sicherer Stichgewinner ist:
   /// - Keine stärkere Karte der gleichen Farbe bei anderen Spielern, UND
   /// - Kein Trumpf mehr bei Gegnern (sonst wird die Karte gestochen).
@@ -741,6 +779,22 @@ class MonteCarloAI {
         return _strongest(guaranteed, effectMode, trump);
       }
 
+      // Slalom: keine sicheren Gewinner → stärkste Karte im aktuellen Modus,
+      // aber Karten für die andere Richtung aufsparen
+      if (state.gameMode == GameMode.slalom) {
+        final otherMode = effectMode == GameMode.oben
+            ? GameMode.unten : GameMode.oben;
+        final sorted = List.of(playable)..sort((a, b) {
+          final aStr = GameLogic.cardPlayStrength(a, effectMode, null);
+          final bStr = GameLogic.cardPlayStrength(b, effectMode, null);
+          if (aStr != bStr) return bStr.compareTo(aStr);
+          final aOther = GameLogic.cardPoints(a, otherMode, null);
+          final bOther = GameLogic.cardPoints(b, otherMode, null);
+          return aOther.compareTo(bOther);
+        });
+        return sorted.first;
+      }
+
       return _strongest(playable, effectMode, trump);
     }
 
@@ -815,6 +869,10 @@ class MonteCarloAI {
           return _strongest(schmierbar, effectMode, trump);
         }
       }
+      // Slalom: wertvolle Karten für andere Richtung aufsparen
+      if (state.gameMode == GameMode.slalom) {
+        return _slalomDiscard(playable, effectMode);
+      }
       return _weakest(playable, effectMode, trump);
     }
 
@@ -826,7 +884,31 @@ class MonteCarloAI {
     }
 
     // Kann nicht gewinnen → wegwerfen
+    // Slalom: Karten aufsparen, die in der anderen Richtung wertvoll sind
+    // (z.B. 6er nicht in Oben-Stichen verbraten, Asse nicht in Unten-Stichen)
+    if (state.gameMode == GameMode.slalom) {
+      return _slalomDiscard(playable, effectMode);
+    }
     return _weakest(playable, effectMode, trump);
+  }
+
+  /// Slalom-Discard: schwächste Karte im aktuellen Modus, aber Karten die
+  /// im ANDEREN Modus wertvoll sind, aufsparen.
+  static JassCard _slalomDiscard(List<JassCard> cards, GameMode currentMode) {
+    final otherMode = currentMode == GameMode.oben
+        ? GameMode.unten : GameMode.oben;
+    final sorted = List.of(cards)..sort((a, b) {
+      // Primär: niedrigste Spielstärke im aktuellen Modus (schwächste zuerst)
+      final aStr = GameLogic.cardPlayStrength(a, currentMode, null);
+      final bStr = GameLogic.cardPlayStrength(b, currentMode, null);
+      if (aStr != bStr) return aStr.compareTo(bStr);
+      // Tiebreak: geringster Wert im anderen Modus bevorzugt
+      // (Karten die in beiden Richtungen wertlos sind zuerst abwerfen)
+      final aOther = GameLogic.cardPoints(a, otherMode, null);
+      final bOther = GameLogic.cardPoints(b, otherMode, null);
+      return aOther.compareTo(bOther);
+    });
+    return sorted.first;
   }
 
   /// Gibt true zurück, wenn [card] den aktuellen Teilstich gewinnen würde.
