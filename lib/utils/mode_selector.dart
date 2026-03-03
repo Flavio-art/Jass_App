@@ -89,11 +89,11 @@ class ModeSelectorAI {
       } else if (variant == 'slalom') {
         // KI wählt Slalom-Richtung basierend auf der Hand
         // Slalom profitiert von Karten in BEIDEN Richtungen.
-        // 10% Bonus (×0.55 statt ×0.5) da Slalom sicherer ist als
-        // reines Oben/Unten – man braucht nicht alle Stiche in einer Richtung.
+        // Kleiner Bonus (×0.52 statt ×0.5) da Slalom etwas sicherer ist als
+        // reines Oben/Unten. Slalom gewinnt wenn untenScore > 44% von obenScore.
         final sOben = _scoreOben(hand);
         final sUnten = _scoreUnten(hand);
-        final s = (sOben + sUnten) * 0.55 * mult(variant);
+        final s = (sOben + sUnten) * 0.52 * mult(variant);
         if (s > bestScore) {
           bestScore = s;
           bestMode = GameMode.slalom;
@@ -205,7 +205,7 @@ class ModeSelectorAI {
           // Schieber: Slalom (×4) Bonus – NN tendiert dazu, Slalom zu
           // unterschätzen, da das Training auf Einzelrunden basiert.
           if (variant == 'slalom' && isSchieber) {
-            s += nnRange * 0.06;
+            s += nnRange * 0.03;
           }
           if (s > bestScore) {
             bestScore = s;
