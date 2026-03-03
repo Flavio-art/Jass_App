@@ -200,11 +200,6 @@ class ModeSelectorAI {
         final nnIdx = _variantToNNIdx(variant);
         if (nnIdx >= 0 && nnIdx < scores.length) {
           var s = adj(scores[nnIdx], mult(variant));
-          // Schieber: Slalom (×4) Bonus – NN tendiert dazu, Slalom zu
-          // unterschätzen, da das Training auf Einzelrunden basiert.
-          if (variant == 'slalom' && isSchieber) {
-            s += nnRange * 0.03;
-          }
           if (s > bestScore) {
             bestScore = s;
             bestMode  = GameMode.values.firstWhere((m) => m.name == variant,
