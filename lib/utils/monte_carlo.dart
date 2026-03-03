@@ -125,6 +125,24 @@ class MonteCarloAI {
       }
     }
 
+    // ── Alles Trumpf: sichere Gewinner sofort ausspielen ────────────────────
+    // Bauern (J) sind in jeder Farbe unschlagbar (20 Pkt), Nell (9) ebenfalls
+    // wenn der Bauer dieser Farbe bereits gespielt wurde (14 Pkt).
+    // MC unterschätzt diese garantierten Stiche systematisch.
+    if (state.currentTrickCards.isEmpty &&
+        state.gameMode == GameMode.allesTrumpf) {
+      final safeLeads = playable
+          .where((c) => _isHighestRemaining(c, state))
+          .toList();
+      if (safeLeads.isNotEmpty) {
+        // Höchste Punkte zuerst (Bauer=20, Nell=14, König=4)
+        safeLeads.sort((a, b) =>
+            GameLogic.cardPoints(b, GameMode.allesTrumpf, null)
+                .compareTo(GameLogic.cardPoints(a, GameMode.allesTrumpf, null)));
+        return safeLeads.first;
+      }
+    }
+
     // ── Friseur Solo: Ansager spielt Wunschkarten-Farbe an ─────────────────
     // Wenn der Ansager keine sicheren Gewinner hat, spielt er die Farbe der
     // Wunschkarte an, damit der Partner mit der Wunschkarte stechen kann.
@@ -422,6 +440,7 @@ class MonteCarloAI {
       trumpSuit: newTrump,
       trickNumber: trickNumber,
       molotofSubMode: state.molotofSubMode,
+      slalomStartsOben: state.slalomStartsOben,
     );
 
     // effectiveMode mit aktuellem Trumpf berechnen (wichtig für Elefant Stich 7+)
@@ -715,6 +734,7 @@ class MonteCarloAI {
       trumpSuit: trump,
       trickNumber: state.currentTrickNumber,
       molotofSubMode: state.molotofSubMode,
+      slalomStartsOben: state.slalomStartsOben,
     );
     final currentWinner =
         state.players.firstWhere((p) => p.id == currentWinnerId);
@@ -803,6 +823,7 @@ class MonteCarloAI {
       trumpSuit: trump,
       trickNumber: state.currentTrickNumber,
       molotofSubMode: state.molotofSubMode,
+      slalomStartsOben: state.slalomStartsOben,
     );
     return winnerId == playerId;
   }
@@ -904,6 +925,7 @@ class MonteCarloAI {
       trumpSuit: state.trumpSuit,
       trickNumber: state.currentTrickNumber,
       molotofSubMode: state.molotofSubMode,
+      slalomStartsOben: state.slalomStartsOben,
     );
     final winner = state.players.firstWhere((p) => p.id == winnerId);
     final winnerIsTeam1 = winner.position == PlayerPosition.south ||
@@ -930,6 +952,7 @@ class MonteCarloAI {
       trumpSuit: trump,
       trickNumber: state.currentTrickNumber,
       molotofSubMode: state.molotofSubMode,
+      slalomStartsOben: state.slalomStartsOben,
     );
     final winnerIdx = state.currentTrickPlayerIds.indexOf(currentWinnerId);
     if (winnerIdx < 0) return false;
