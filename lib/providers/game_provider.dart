@@ -1180,9 +1180,12 @@ class GameProvider extends ChangeNotifier {
         wishCard == null;
 
     // Merken ob diese Runde nach 2× Schieben gestartet wird (Im Loch)
+    // Der Loch-Spieler ist erzwungen wenn soloSchiebungRounds >= 2 und
+    // der aktuelle Wähler der Loch-Spieler ist (trumpSelectorIndex == null
+    // bedeutet ansagerIndex wählt, und ansagerIndex == lochPlayerIndex bei Rundenbeginn).
     final wasImLoch = _state.gameType == GameType.friseur &&
         _state.soloSchiebungRounds >= 2 &&
-        _state.trumpSelectorIndex == null;
+        effectiveAnsagerIndex == _state.lochPlayerIndex;
 
     // Weisen detektieren für Schieber / Friseur Team
     Map<String, List<WyssEntry>> playerWyss = {};
