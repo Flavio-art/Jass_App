@@ -28,24 +28,28 @@ class ModeSelectorAI {
     }
 
     // ── Fallback: regelbasierte Heuristik ─────────────────────────────────
+    //
+    // Delta-Amplifikation (wie NN-Pfad):
+    //   adjusted = mittelwert + (rawScore − mittelwert) × multiplikator
+    // Nur die Abweichung vom Durchschnitt wird mit dem Multiplikator verstärkt.
+    // So kann Trump ×1 mit einer exzellenten Hand trotzdem Slalom ×4 schlagen.
 
-    double bestScore = double.negativeInfinity;
     GameMode bestMode = GameMode.oben;
     Suit? bestTrump;
     bool bestSlalomStartsOben = true;
 
-    // Multiplikator für Schieber: höhere Varianten sind mehr wert
     final isSchieber = state.gameType == GameType.schieber;
     double mult(String vk) => isSchieber
         ? (state.schieberMultipliers[vk] ?? 1).toDouble()
         : 1.0;
 
+    // ── Schritt 1: Alle Raw-Scores sammeln ──────────────────────────────
+    final rawEntries = <({double raw, double m, GameMode mode, Suit? trump, bool slalomOben})>[];
+
     for (final variant in available) {
       if (variant == 'trump_ss' || variant == 'trump_re') {
-        // Solo + Team: gleiche Richtungslogik (1× oben + 1× unten pro Farbgruppe)
         final forced = state.forcedTrumpDirection(isTeam1, variant);
         final m = mult(variant);
-
         final suits = variant == 'trump_ss'
             ? (state.cardType == CardType.french
                 ? [Suit.spades, Suit.clubs]
@@ -53,60 +57,54 @@ class ModeSelectorAI {
             : (state.cardType == CardType.french
                 ? [Suit.hearts, Suit.diamonds]
                 : [Suit.herzGerman, Suit.eichel]);
-
         for (final suit in suits) {
-          // Trumpf Oben
           if (forced == null || forced == true) {
-            final s = _scoreTrump(hand, suit, oben: true) * m;
-            if (s > bestScore) {
-              bestScore = s;
-              bestMode = GameMode.trump;
-              bestTrump = suit;
-            }
+            rawEntries.add((raw: _scoreTrump(hand, suit, oben: true), m: m,
+                mode: GameMode.trump, trump: suit, slalomOben: true));
           }
-          // Trumpf Unten
           if (forced == null || forced == false) {
-            final s = _scoreTrump(hand, suit, oben: false) * m;
-            if (s > bestScore) {
-              bestScore = s;
-              bestMode = GameMode.trumpUnten;
-              bestTrump = suit;
-            }
+            rawEntries.add((raw: _scoreTrump(hand, suit, oben: false), m: m,
+                mode: GameMode.trumpUnten, trump: suit, slalomOben: true));
           }
         }
       } else if (variant == 'schafkopf') {
         final suits = state.cardType == CardType.french
             ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
             : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
+        final m = mult(variant);
         for (final suit in suits) {
-          final s = _scoreSchafkopf(hand, suit) * mult(variant);
-          if (s > bestScore) {
-            bestScore = s;
-            bestMode = GameMode.schafkopf;
-            bestTrump = suit;
-          }
+          rawEntries.add((raw: _scoreSchafkopf(hand, suit), m: m,
+              mode: GameMode.schafkopf, trump: suit, slalomOben: true));
         }
       } else if (variant == 'slalom') {
-        // KI wählt Slalom-Richtung basierend auf der Hand
-        // Slalom profitiert von Karten in BEIDEN Richtungen.
-        // Kleiner Bonus (×0.52 statt ×0.5) da Slalom etwas sicherer ist als
-        // reines Oben/Unten. Slalom gewinnt wenn untenScore > 44% von obenScore.
         final sOben = _scoreOben(hand);
         final sUnten = _scoreUnten(hand);
-        final s = (sOben + sUnten) * 0.52 * mult(variant);
-        if (s > bestScore) {
-          bestScore = s;
-          bestMode = GameMode.slalom;
-          bestTrump = null;
-          bestSlalomStartsOben = sOben >= sUnten; // Beginne mit der stärkeren Seite
-        }
+        rawEntries.add((raw: (sOben + sUnten) / 2, m: mult(variant),
+            mode: GameMode.slalom, trump: null, slalomOben: sOben >= sUnten));
       } else {
-        final s = _scoreFlatMode(hand, variant) * mult(variant);
-        if (s > bestScore) {
-          bestScore = s;
-          bestMode = GameMode.values.firstWhere((m) => m.name == variant);
-          bestTrump = null;
-        }
+        final mode = GameMode.values.firstWhere((m) => m.name == variant,
+            orElse: () => GameMode.oben);
+        rawEntries.add((raw: _scoreFlatMode(hand, variant), m: mult(variant),
+            mode: mode, trump: null, slalomOben: true));
+      }
+    }
+
+    if (rawEntries.isEmpty) {
+      return (mode: GameMode.oben, trumpSuit: null, slalomStartsOben: true);
+    }
+
+    // ── Schritt 2: Mittelwert berechnen und Delta-Amplifikation anwenden ─
+    final rawMean = rawEntries.map((e) => e.raw).reduce((a, b) => a + b)
+        / rawEntries.length;
+
+    double bestScore = double.negativeInfinity;
+    for (final e in rawEntries) {
+      final adjusted = rawMean + (e.raw - rawMean) * e.m;
+      if (adjusted > bestScore) {
+        bestScore = adjusted;
+        bestMode = e.mode;
+        bestTrump = e.trump;
+        bestSlalomStartsOben = e.slalomOben;
       }
     }
 
