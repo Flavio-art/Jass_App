@@ -27,6 +27,15 @@ class _HomeScreenState extends State<HomeScreen> {
     'slalom': 4,
   };
 
+  final Set<String> _enabledVariants = {
+    'trump_ss', 'trump_re', 'oben', 'unten', 'slalom',
+    'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof',
+  };
+
+  static const _variantKeys  = ['trump_ss', 'trump_re', 'oben', 'unten', 'slalom', 'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof'];
+  static const _variantEmojis = ['🂡', '🂡', '⬆️', '⬇️', '〰️', '🐘', '😶', '👑', '🐑', '💣'];
+  static const _variantNames  = ['Trumpf Oben', 'Trumpf Unten', 'Obenabe', 'Undenufe', 'Slalom', 'Elefant', 'Misere', 'Alles Trumpf', 'Schafkopf', 'Molotof'];
+
   static const _modeKeys  = ['trump_ss', 'trump_re', 'oben',     'unten',     'slalom'];
   static const _modeIcons = ['♠♣',       '♥♦',       '⬇️',       '⬆️',        '〰️'];
   static const _modeNames = ['Trumpf Schwarz', 'Trumpf Rot', 'Obenabe', 'Undenufe', 'Slalom'];
@@ -263,6 +272,63 @@ class _HomeScreenState extends State<HomeScreen> {
                             ],
                           ),
                         ],
+                        // ── Friseur Team / Wunschkarte: Varianten-Auswahl ──
+                        if (_selectedGameType == GameType.friseurTeam ||
+                            _selectedGameType == GameType.friseur) ...[
+                          const SizedBox(height: 8),
+                          const Divider(color: Colors.white12, height: 1),
+                          const SizedBox(height: 6),
+                          const Text('Varianten',
+                              style: TextStyle(color: Colors.white54, fontSize: 11)),
+                          const SizedBox(height: 4),
+                          SizedBox(
+                            width: 306,
+                            child: Column(
+                              children: [
+                                for (int i = 0; i < _variantKeys.length; i++)
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 0.5),
+                                    child: Row(
+                                      children: [
+                                        Text(
+                                          '${_variantEmojis[i]}  ${_variantNames[i]}',
+                                          style: TextStyle(
+                                            color: _enabledVariants.contains(_variantKeys[i])
+                                                ? Colors.white70
+                                                : Colors.white30,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                        const Spacer(),
+                                        SizedBox(
+                                          height: 24,
+                                          child: Switch(
+                                            value: _enabledVariants.contains(_variantKeys[i]),
+                                            onChanged: (val) {
+                                              setState(() {
+                                                if (val) {
+                                                  _enabledVariants.add(_variantKeys[i]);
+                                                } else if (_enabledVariants.length > 1) {
+                                                  _enabledVariants.remove(_variantKeys[i]);
+                                                }
+                                              });
+                                            },
+                                            activeTrackColor: AppColors.gold,
+                                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '≈ ${_selectedGameType == GameType.friseurTeam ? _enabledVariants.length * 2 : _enabledVariants.length * 4} Runden',
+                            style: const TextStyle(color: Colors.white38, fontSize: 11),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -271,7 +337,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                   // ── Spielen ────────────────────────────────────────────────
                   ElevatedButton(
-                    onPressed: _startGame,
+                    onPressed: _enabledVariants.isEmpty ? null : _startGame,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.gold,
                       foregroundColor: Colors.black,
@@ -309,6 +375,9 @@ class _HomeScreenState extends State<HomeScreen> {
       gameType: _selectedGameType,
       schieberWinTarget: _schieberWinTarget,
       schieberMultipliers: Map.from(_schieberMultipliers),
+      enabledVariants: (_selectedGameType == GameType.friseurTeam || _selectedGameType == GameType.friseur)
+          ? Set.from(_enabledVariants)
+          : null,
     );
     Navigator.push(
       context,
