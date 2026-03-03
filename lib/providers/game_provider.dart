@@ -51,6 +51,7 @@ class GameProvider extends ChangeNotifier {
     GameType gameType = GameType.friseurTeam,
     int schieberWinTarget = 1500,
     Map<String, int> schieberMultipliers = const {'trump_ss': 1, 'trump_re': 2, 'oben': 3, 'unten': 3, 'slalom': 4},
+    Set<String>? enabledVariants,
   }) {
     _aiRunning = false;
     final deck = Deck(cardType: cardType);
@@ -126,6 +127,7 @@ class GameProvider extends ChangeNotifier {
       playerScores: {for (final p in players) p.id: 0},
       schieberWinTarget: schieberWinTarget,
       schieberMultipliers: schieberMultipliers,
+      enabledVariants: enabledVariants ?? const {'trump_ss', 'trump_re', 'oben', 'unten', 'slalom', 'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof'},
     );
     notifyListeners();
 
@@ -210,8 +212,9 @@ class GameProvider extends ChangeNotifier {
       }
     }
 
-    // Spielende prüfen (jedes Team hat alle 10 Varianten gespielt)
-    if (newUsed1.length >= 10 && newUsed2.length >= 10) {
+    // Spielende prüfen (jedes Team hat alle aktivierten Varianten gespielt)
+    final variantCount = currentState.enabledVariants.length;
+    if (newUsed1.length >= variantCount && newUsed2.length >= variantCount) {
       _state = _state.copyWith(
         totalTeamScores: newTotal,
         usedVariantsTeam1: newUsed1,
@@ -292,10 +295,11 @@ class GameProvider extends ChangeNotifier {
       }
     }
 
-    // Spielende: alle Spieler haben alle 10 Varianten angesagt
+    // Spielende: alle Spieler haben alle aktivierten Varianten angesagt
+    final variantCount = currentState.enabledVariants.length;
     final allDone = currentState.players.every((p) {
       final announced = newAnnounced[p.id] ?? {};
-      return announced.length >= 10;
+      return announced.length >= variantCount;
     });
 
     if (allDone) {
@@ -312,7 +316,7 @@ class GameProvider extends ChangeNotifier {
     String? fertigComment;
     for (int i = 0; i < 4; i++) {
       final pid = currentState.players[newLochIndex].id;
-      if ((newAnnounced[pid] ?? {}).length < 10) break;
+      if ((newAnnounced[pid] ?? {}).length < variantCount) break;
       // Fertiger Spieler übersprungen
       if (!currentState.players[newLochIndex].isHuman && Random().nextDouble() < 0.30) {
         fertigComment = _fertigComment(currentState.players[newLochIndex].name);

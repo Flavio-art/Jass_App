@@ -213,6 +213,10 @@ class GameState {
   /// {playerId: kumulierte Strafe} – aufsummierte Strafen über alle Runden.
   final Map<String, int> differenzlerPenalties;
 
+  // ─── Varianten-Auswahl ──────────────────────────────────────────────────────
+  /// Aktivierte Varianten (Friseur Team / Wunschkarte). Default: alle 10.
+  final Set<String> enabledVariants;
+
   // ─── Friseur Solo Schieben ─────────────────────────────────────────────────
   /// Wie oft der ursprüngliche Ansager bereits vollständig geschoben hat.
   /// 0 = noch nie, 1 = einmal (Mitspieler können annehmen), 2 = erzwungen.
@@ -281,6 +285,7 @@ class GameState {
     this.stockeRoundPoints = const {'team1': 0, 'team2': 0},
     this.differenzlerPredictions = const {},
     this.differenzlerPenalties = const {},
+    this.enabledVariants = const {'trump_ss', 'trump_re', 'oben', 'unten', 'slalom', 'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof'},
   });
 
   Player get currentPlayer => players[currentPlayerIndex];
@@ -347,19 +352,22 @@ class GameState {
     return mode.name;
   }
 
-  /// Alle 10 Varianten
-  List<String> _allVariants() => const [
-        'trump_ss',  // Schellen / Schilten
-        'trump_re',  // Rosen / Eicheln
-        'oben',
-        'unten',
-        'slalom',
-        'elefant',
-        'misere',
-        'allesTrumpf',
-        'schafkopf',
-        'molotof',
-      ];
+  /// Alle aktivierten Varianten (gefiltert nach enabledVariants)
+  static const allVariantKeys = [
+    'trump_ss',  // Schellen / Schilten
+    'trump_re',  // Rosen / Eicheln
+    'oben',
+    'unten',
+    'slalom',
+    'elefant',
+    'misere',
+    'allesTrumpf',
+    'schafkopf',
+    'molotof',
+  ];
+
+  List<String> _allVariants() =>
+      allVariantKeys.where((v) => enabledVariants.contains(v)).toList();
 
   List<String> availableVariants(bool isTeam1) {
     final used = isTeam1 ? usedVariantsTeam1 : usedVariantsTeam2;
@@ -449,6 +457,7 @@ class GameState {
     Map<String, int>? stockeRoundPoints,
     Map<String, int>? differenzlerPredictions,
     Map<String, int>? differenzlerPenalties,
+    Set<String>? enabledVariants,
   }) {
     return GameState(
       cardType: cardType ?? this.cardType,
@@ -510,6 +519,7 @@ class GameState {
       stockeRoundPoints: stockeRoundPoints ?? this.stockeRoundPoints,
       differenzlerPredictions: differenzlerPredictions ?? this.differenzlerPredictions,
       differenzlerPenalties: differenzlerPenalties ?? this.differenzlerPenalties,
+      enabledVariants: enabledVariants ?? this.enabledVariants,
     );
   }
 }
