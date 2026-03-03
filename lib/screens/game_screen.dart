@@ -964,7 +964,10 @@ class _GameScreenState extends State<GameScreen> {
                                   totalTeamScores: state.totalTeamScores,
                                   onNewGame: () {
                                     GameProvider.clearSavedGame(state.gameType);
-                                    provider.startNewGame(cardType: state.cardType);
+                                    provider.startNewGame(
+                                      cardType: state.cardType,
+                                      gameType: state.gameType,
+                                    );
                                   },
                                   onHome: () {
                                     GameProvider.clearSavedGame(state.gameType);
@@ -998,9 +1001,16 @@ class _GameScreenState extends State<GameScreen> {
               title: const Text('Neues Spiel',
                   style: TextStyle(color: Colors.white)),
               onTap: () {
-                GameProvider.clearSavedGame(provider.state.gameType);
+                final s = provider.state;
+                GameProvider.clearSavedGame(s.gameType);
                 Navigator.pop(context);
-                provider.startNewGame(cardType: provider.state.cardType);
+                provider.startNewGame(
+                  cardType: s.cardType,
+                  gameType: s.gameType,
+                  schieberWinTarget: s.schieberWinTarget,
+                  schieberMultipliers: s.schieberMultipliers,
+                  enabledVariants: s.enabledVariants,
+                );
               },
             ),
             ListTile(
