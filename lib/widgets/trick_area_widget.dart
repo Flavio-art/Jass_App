@@ -205,8 +205,8 @@ class _ModeIndicator extends StatelessWidget {
       );
 
   Widget _suitBox() => Container(
-        width: 28,
-        height: 28,
+        width: 32,
+        height: 32,
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(6),
@@ -214,10 +214,10 @@ class _ModeIndicator extends StatelessWidget {
         child: Center(
           child: cardType == CardType.german
               ? Image.asset('assets/suit_icons/${trumpSuit!.name}.png',
-                  width: 20, height: 20)
+                  width: 24, height: 24)
               : Text(
                   trumpSuit!.symbol,
-                  style: const TextStyle(fontSize: 18, color: Colors.black),
+                  style: const TextStyle(fontSize: 20, color: Colors.black),
                 ),
         ),
       );
@@ -237,7 +237,7 @@ class _ModeIndicator extends StatelessWidget {
                     color: color, fontSize: 11, fontWeight: FontWeight.bold)),
             if (trumpSuit != null && cardType == CardType.german)
               Image.asset('assets/suit_icons/${trumpSuit!.name}.png',
-                  width: 14, height: 14)
+                  width: 16, height: 16)
             else
               Text(trumpSuit?.symbol ?? '?',
                   style: TextStyle(

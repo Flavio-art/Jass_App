@@ -560,21 +560,24 @@ class _GameScreenState extends State<GameScreen> {
                       ),
 
                     // ── Ansager / Loch-Indikator (South/Human) ────────
-                    if (ansagerId == human.id && lochId == human.id)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 4),
-                        child: _AnsagerLochBadge(),
-                      )
-                    else if (ansagerId == human.id)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 4),
-                        child: _AnsagerBadge(),
-                      )
-                    else if (lochId == human.id)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 4),
-                        child: _LochBadge(),
-                      ),
+                    // Während Trumpfwahl ausblenden (überlappt mit Buttons)
+                    if (state.phase != GamePhase.trumpSelection) ...[
+                      if (ansagerId == human.id && lochId == human.id)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 4),
+                          child: _AnsagerLochBadge(),
+                        )
+                      else if (ansagerId == human.id)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 4),
+                          child: _AnsagerBadge(),
+                        )
+                      else if (lochId == human.id)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 4),
+                          child: _LochBadge(),
+                        ),
+                    ],
 
                     // ── Human Wyss-Sprechblase ────────────────────────
                     if (state.wyssDeclarationPending &&
@@ -1218,19 +1221,23 @@ Widget _buildShortVariantLabel(String variant, CardType cardType, TextStyle styl
     final suits = variant == 'trump_ss'
         ? [Suit.schellen, Suit.schilten]
         : [Suit.herzGerman, Suit.eichel];
-    final iconSize = (style.fontSize ?? 12) * 1.1;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (final s in suits) ...[
-          Image.asset(
-            'assets/suit_icons/${s.name}.png',
-            width: iconSize,
-            height: iconSize,
-          ),
-          SizedBox(width: iconSize > 14 ? 3 : 1),
+    final iconSize = (style.fontSize ?? 12) * 1.4;
+    return SizedBox(
+      height: iconSize + 2,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          for (final s in suits) ...[
+            Image.asset(
+              'assets/suit_icons/${s.name}.png',
+              width: iconSize,
+              height: iconSize,
+            ),
+            const SizedBox(width: 3),
+          ],
         ],
-      ],
+      ),
     );
   }
   // Französische Trump-Symbole farbig darstellen
@@ -1822,8 +1829,8 @@ class _RoundEndOverlay extends StatelessWidget {
           for (final s in suits) ...[
             Image.asset(
               'assets/suit_icons/${s.name}.png',
-              width: 15,
-              height: 15,
+              width: 18,
+              height: 18,
               color: anyPlayed ? null : Colors.white24,
               colorBlendMode: BlendMode.modulate,
             ),
@@ -2049,7 +2056,7 @@ class _WishCardOverlayState extends State<_WishCardOverlay> {
         children: [
           Text(direction, style: style),
           Image.asset('assets/suit_icons/${suit.name}.png',
-              width: 18, height: 18),
+              width: 22, height: 22),
         ],
       );
     }
@@ -2559,10 +2566,11 @@ class _FriseurSoloScoreTable extends StatelessWidget {
   Widget build(BuildContext context) {
     return Table(
       columnWidths: {
-        0: const FlexColumnWidth(1.4),
+        0: const FlexColumnWidth(1.6),
         for (int i = 0; i < players.length; i++)
           i + 1: const FlexColumnWidth(1.0),
       },
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
       children: [
         TableRow(
           decoration: const BoxDecoration(color: Colors.black26),
@@ -2832,10 +2840,11 @@ class _GameOverviewOverlay extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       child: Table(
         columnWidths: const {
-          0: FlexColumnWidth(2.2),
+          0: FlexColumnWidth(2.4),
           1: FlexColumnWidth(1.0),
           2: FlexColumnWidth(1.0),
         },
+        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
         children: [
           TableRow(
             decoration: const BoxDecoration(color: Colors.black26),
@@ -3270,8 +3279,8 @@ class _DifferenzlerPredictionOverlayState
                     if (trump != null && widget.state.cardType == CardType.german)
                       Image.asset(
                         'assets/suit_icons/${trump.name}.png',
-                        width: 20,
-                        height: 20,
+                        width: 24,
+                        height: 24,
                       )
                     else if (trump != null)
                       Text(
