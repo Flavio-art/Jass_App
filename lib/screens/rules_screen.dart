@@ -114,12 +114,14 @@ class _RulesScreenState extends State<RulesScreen>
               'der auf beide Team-Punkte angewendet wird:'),
         ]),
         if (isGerman) ...[
-          _MultCard('🔔🛡  Metall – Schellen / Schilten', '1×',
+          _MultCard('', '1×',
               'Schellen oder Schilten wird Trumpf (Metall-Gruppe). '
-              'Buur (Under) und Näll (9) sind die stärksten Trumpfkarten.'),
-          _MultCard('🌹🌰  Gemüse – Rosen / Eicheln', '2×',
+              'Buur (Under) und Näll (9) sind die stärksten Trumpfkarten.',
+              titleWidget: _germanSuitTitle([Suit.schellen, Suit.schilten], 'Metall – Schellen / Schilten')),
+          _MultCard('', '2×',
               'Rosen oder Eicheln wird Trumpf (Gemüse-Gruppe). '
-              'Gleiche Regeln, aber doppelte Punkte.'),
+              'Gleiche Regeln, aber doppelte Punkte.',
+              titleWidget: _germanSuitTitle([Suit.herzGerman, Suit.eichel], 'Gemüse – Rosen / Eicheln')),
         ] else ...[
           _MultCard('♠♣  Schaufeln / Kreuz-Trumpf', '1×',
               'Schwarze Trumpffarbe (Schaufeln oder Kreuz). '
@@ -237,10 +239,10 @@ class _RulesScreenState extends State<RulesScreen>
 
   List<Widget> _buildFriseurTeamContent(CardType ct) {
     final isGerman = ct == CardType.german;
-    final grp1 = isGerman ? 'Metall-Trumpf (🔔🛡)' : 'Schaufeln/Kreuz-Trumpf (♠♣)';
-    final grp2 = isGerman ? 'Gemüse-Trumpf (🌹🌰)' : 'Herz/Ecken-Trumpf (♥♦)';
+    final grp1 = isGerman ? 'Metall-Trumpf (Schellen/Schilten)' : 'Schaufeln/Kreuz-Trumpf (♠♣)';
+    final grp2 = isGerman ? 'Gemüse-Trumpf (Rosen/Eichel)' : 'Herz/Ecken-Trumpf (♥♦)';
     final grpHint = isGerman
-        ? 'Metall (🔔🛡) und Gemüse (🌹🌰)'
+        ? 'Metall (Schellen/Schilten) und Gemüse (Rosen/Eichel)'
         : '♠♣ schwarz und ♥♦ rot';
     return [
         _Section('Spielstruktur – Friseur Team', [
@@ -300,11 +302,13 @@ class _RulesScreenState extends State<RulesScreen>
     final naell  = 'Näll (Trumpf-Neun)';
     final dame   = isGerman ? 'Ober'                 : 'Dame';
     final bube   = isGerman ? 'Under (kein Trumpf)'  : 'Bauer (kein Trumpf)';
-    final grp1   = isGerman ? '🔔🛡  Metall  (Schellen / Schilten)' : '♠♣  Schaufeln / Kreuz  (Trumpf schwarz)';
+    final grp1   = isGerman ? 'Metall (Schellen / Schilten)' : '♠♣  Schaufeln / Kreuz  (Trumpf schwarz)';
+    final grp1w  = isGerman ? _germanSuitTitle([Suit.schellen, Suit.schilten], 'Metall  (Schellen / Schilten)') : null;
     final grp1d  = isGerman
         ? 'Schellen oder Schilten wird Trumpf. Buur (Under) und Näll (9) sind die stärksten Karten.'
         : 'Eine Farbe aus der Gruppe Schaufeln (♠) / Kreuz (♣) wird Trumpf. Der Buur (Bauer) und die Näll (9) sind die stärksten Karten.';
-    final grp2   = isGerman ? '🌹🌰  Gemüse  (Rosen / Eicheln)' : '♥♦  Herz / Ecken  (Trumpf rot)';
+    final grp2   = isGerman ? 'Gemüse (Rosen / Eicheln)' : '♥♦  Herz / Ecken  (Trumpf rot)';
+    final grp2w  = isGerman ? _germanSuitTitle([Suit.herzGerman, Suit.eichel], 'Gemüse  (Rosen / Eicheln)') : null;
     final grp2d  = isGerman
         ? 'Rosen oder Eicheln wird Trumpf. Gleiche Regeln wie Metall.'
         : 'Eine Farbe aus der Gruppe Herz (♥) / Ecken (♦) wird Trumpf. Gleiche Regeln wie oben.';
@@ -370,8 +374,8 @@ class _RulesScreenState extends State<RulesScreen>
         ]),
 
         _Section('Spielmodi', []),
-        _ModeCard(grp1, grp1d),
-        _ModeCard(grp2, grp2d),
+        _ModeCard(grp1, grp1d, titleWidget: grp1w),
+        _ModeCard(grp2, grp2d, titleWidget: grp2w),
         _ModeCard('⬆️  Trumpf Unten',
             'Wie Trumpfspiel, aber die Reihenfolge im Trumpf ist umgekehrt. '
             'Nicht-Trumpf folgt der Undenufe-Reihenfolge (6 schlägt Ass).'),
@@ -501,7 +505,8 @@ class _MultCard extends StatelessWidget {
   final String title;
   final String multiplier;
   final String description;
-  const _MultCard(this.title, this.multiplier, this.description);
+  final Widget? titleWidget;
+  const _MultCard(this.title, this.multiplier, this.description, {this.titleWidget});
 
   @override
   Widget build(BuildContext context) {
@@ -520,7 +525,7 @@ class _MultCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
+                titleWidget ?? Text(title,
                     style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -557,7 +562,8 @@ class _MultCard extends StatelessWidget {
 class _ModeCard extends StatelessWidget {
   final String title;
   final String description;
-  const _ModeCard(this.title, this.description);
+  final Widget? titleWidget;
+  const _ModeCard(this.title, this.description, {this.titleWidget});
 
   @override
   Widget build(BuildContext context) {
@@ -572,7 +578,7 @@ class _ModeCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title,
+          titleWidget ?? Text(title,
               style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -585,4 +591,26 @@ class _ModeCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Hilfsfunktion: Baut ein Row-Widget mit deutschen Suit-Icons + Text
+Widget _germanSuitTitle(List<Suit> suits, String text) {
+  return Row(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
+      for (final s in suits) ...[
+        Image.asset('assets/suit_icons/${s.name}.png', width: 18, height: 18),
+        const SizedBox(width: 2),
+      ],
+      const SizedBox(width: 4),
+      Flexible(
+        child: Text(text,
+            style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 14)),
+      ),
+    ],
+  );
 }
