@@ -72,21 +72,18 @@ class GameLogic {
       return List.of(hand);
     }
 
-    // ── Alles Trumpf: Bauern (Jacks) dürfen zurückgehalten werden ─────────────
-    // Die angespielte Farbe ist Trumpf; alle Bauern gelten ebenfalls als Trumpf.
-    // Wie der Buur im regulären Trumpf muss der Bauer nicht zwingend gespielt werden.
+    // ── Alles Trumpf: Farbenpflicht, nur Bauer der angespielten Farbe darf
+    //    zurückgehalten werden (wie Buur im regulären Trumpf).
     if (mode == GameMode.allesTrumpf) {
       final ledSuit = currentTrick.first.suit;
-      // Nicht-Bauer-Karten der ansgespielten Farbe → Farbenpflicht
-      final ledNonJack = hand
-          .where((c) => c.suit == ledSuit && c.value != CardValue.jack)
-          .toList();
-      if (ledNonJack.isNotEmpty) {
-        // Bauern dürfen zusätzlich gespielt werden (sie sind Trump)
-        final jacks = hand.where((c) => c.value == CardValue.jack).toList();
-        return <JassCard>{...ledNonJack, ...jacks}.toList();
+      final suitCards = hand.where((c) => c.suit == ledSuit).toList();
+      final suitNonJack = suitCards.where((c) => c.value != CardValue.jack).toList();
+      if (suitNonJack.isNotEmpty) {
+        // Hat Nicht-Bauer-Karten der Farbe → muss Farbe spielen
+        // Bauer der angespielten Farbe darf optional dazu (aber muss nicht)
+        return suitCards;
       }
-      // Nur Bauern oder keine Karte der Farbe → freie Kartenwahl
+      // Nur Bauer der Farbe oder gar keine Karte → freie Kartenwahl
       return List.of(hand);
     }
 
