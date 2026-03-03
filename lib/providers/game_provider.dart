@@ -85,8 +85,9 @@ class GameProvider extends ChangeNotifier {
       }
     }
 
-    // Zufälliger Startansager
+    // Zufälliger Startansager / Loch-Spieler
     final initialAnsager = Random().nextInt(4);
+    final initialLoch = gameType == GameType.friseur ? initialAnsager : 0;
 
     // Differenzler: zufälligen Trumpf wählen und Vorhersage-Phase starten
     if (gameType == GameType.differenzler) {
@@ -116,6 +117,7 @@ class GameProvider extends ChangeNotifier {
       phase: GamePhase.trumpSelection,
       teamScores: const {'team1': 0, 'team2': 0},
       ansagerIndex: initialAnsager,
+      lochPlayerIndex: initialLoch,
       usedVariantsTeam1: const {},
       usedVariantsTeam2: const {},
       totalTeamScores: const {'team1': 0, 'team2': 0},
@@ -305,13 +307,21 @@ class GameProvider extends ChangeNotifier {
       return;
     }
 
-    // Nächsten Ansager finden: nächster in Rotation der noch Varianten hat
-    int newAnsagerIndex = (currentState.ansagerIndex + 1) % 4;
+    // Loch-Spieler rotieren (unabhängig vom Ansager), fertige Spieler überspringen
+    int newLochIndex = (currentState.lochPlayerIndex + 1) % 4;
+    String? fertigComment;
     for (int i = 0; i < 4; i++) {
-      final pid = currentState.players[newAnsagerIndex].id;
+      final pid = currentState.players[newLochIndex].id;
       if ((newAnnounced[pid] ?? {}).length < 10) break;
-      newAnsagerIndex = (newAnsagerIndex + 1) % 4;
+      // Fertiger Spieler übersprungen
+      if (!currentState.players[newLochIndex].isHuman && Random().nextDouble() < 0.30) {
+        fertigComment = _fertigComment(currentState.players[newLochIndex].name);
+      }
+      newLochIndex = (newLochIndex + 1) % 4;
     }
+
+    // Ansager = Loch-Spieler (Loch-Spieler startet die Wahl)
+    int newAnsagerIndex = newLochIndex;
 
     // Neue Karten austeilen
     final deck = Deck(cardType: currentState.cardType);
@@ -333,6 +343,7 @@ class GameProvider extends ChangeNotifier {
       teamScores: {'team1': 0, 'team2': 0},
       roundNumber: currentState.roundNumber + 1,
       ansagerIndex: newAnsagerIndex,
+      lochPlayerIndex: newLochIndex,
       trumpSelectorIndex: null,
       pendingNextPlayerIndex: null,
       currentPlayerIndex: newAnsagerIndex,
@@ -344,7 +355,7 @@ class GameProvider extends ChangeNotifier {
       friseurPartnerJustRevealed: false,
       friseurAnnouncedVariants: newAnnounced,
       soloSchiebungRounds: 0,
-      soloSchiebungComment: null,
+      soloSchiebungComment: fertigComment,
       stockeComment: null,
       stockeRoundPoints: const {'team1': 0, 'team2': 0},
       playerScores: {for (final p in updatedPlayers) p.id: 0},
@@ -477,28 +488,38 @@ class GameProvider extends ChangeNotifier {
   }
 
   /// Friseur Solo: Schieben-Logik. Verschiebt den Entscheider zum nächsten
-  /// Spieler; wenn die Runde zum Ursprungs-Ansager zurückkehrt, wird
+  /// Spieler; wenn die Runde zum Loch-Spieler zurückkehrt, wird
   /// soloSchiebungRounds hochgezählt.
   void _schiebenSolo({String? comment}) {
     final state = _state;
 
     final currentSelectorIndex =
         state.trumpSelectorIndex ?? state.ansagerIndex;
-    final nextSelectorIndex = (currentSelectorIndex + 1) % 4;
+    // Nächster Spieler, fertige Spieler überspringen (aber bei lochPlayerIndex stoppen)
+    int nextSelectorIndex = (currentSelectorIndex + 1) % 4;
+    String? skipComment = comment;
+    while (nextSelectorIndex != state.lochPlayerIndex &&
+        state.availableVariantsForPlayer(state.players[nextSelectorIndex].id).isEmpty) {
+      // Fertiger Spieler übersprungen
+      if (!state.players[nextSelectorIndex].isHuman && Random().nextDouble() < 0.30) {
+        skipComment = _fertigComment(state.players[nextSelectorIndex].name);
+      }
+      nextSelectorIndex = (nextSelectorIndex + 1) % 4;
+    }
 
     int newRounds = state.soloSchiebungRounds;
     int? newTrumpSelectorIndex = nextSelectorIndex;
 
-    // Volle Runde abgeschlossen – zurück beim ursprünglichen Ansager
-    if (nextSelectorIndex == state.ansagerIndex) {
+    // Volle Runde abgeschlossen – zurück beim Loch-Spieler
+    if (nextSelectorIndex == state.lochPlayerIndex) {
       newRounds++;
-      newTrumpSelectorIndex = null; // Trumpf-Selektor zurücksetzen = Ansager
+      newTrumpSelectorIndex = null; // Trumpf-Selektor zurücksetzen = Ansager (= Loch-Spieler)
     }
 
     _state = _state.copyWith(
       trumpSelectorIndex: newTrumpSelectorIndex,
       soloSchiebungRounds: newRounds,
-      soloSchiebungComment: comment,
+      soloSchiebungComment: skipComment,
     );
     notifyListeners();
 
@@ -506,12 +527,40 @@ class GameProvider extends ChangeNotifier {
     final nextPlayer = _state.currentTrumpSelector;
     if (!nextPlayer.isHuman) {
       if (newRounds >= 2 && newTrumpSelectorIndex == null) {
-        // Ursprünglicher Ansager (KI) ist erzwungen – muss Trumpf wählen
+        // Loch-Spieler (KI) ist erzwungen – muss Trumpf wählen
         _autoSelectMode();
       } else {
         _kiDecideSchieben();
       }
     }
+  }
+
+  /// Friseur Solo: Spruch wenn ein fertiger Spieler übersprungen wird.
+  static String _fertigComment(String playerName) {
+    const comments = [
+      'Ich bin schon fertig!',
+      'Ich hab schon alle gespielt.',
+      'Ohne mich – ich bin durch!',
+      'Meine Arbeit ist getan.',
+      'Ich lehn mich zurück.',
+      'Ihr macht das schon ohne mich.',
+      'Fertig! Endlich Pause.',
+      'Ich schau einfach zu.',
+      'Bin raus – viel Spass!',
+      'Alle Varianten gespielt, ciao!',
+      'Ich gönn mir eine Pause.',
+      'Weiter ohne mich!',
+      'Geschafft – ich bin durch!',
+      'Nix mehr für mich.',
+      'Mein Teller ist leer.',
+      'Ab auf die Ersatzbank!',
+      'Ich bin nur noch Zuschauer.',
+      'Alles erledigt hier.',
+      'Feierabend für mich!',
+      'Ich trink jetzt einen Kaffee.',
+    ];
+    final idx = Random().nextInt(comments.length);
+    return '$playerName: «${comments[idx]}»';
   }
 
   /// Ob die KI spielen soll (true) oder schieben (false).
@@ -1278,7 +1327,7 @@ class GameProvider extends ChangeNotifier {
     for (final card in player.hand) {
       final isTrump = card.suit == trumpSuit;
       if (isTrump && card.value == CardValue.jack) {
-        estimate += 14;
+        estimate += 28;
       } else if (isTrump && card.value == CardValue.nine) {
         estimate += 10;
       } else if (card.value == CardValue.ace) {

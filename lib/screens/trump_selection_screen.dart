@@ -293,8 +293,8 @@ class TrumpSelectionScreen extends StatelessWidget {
       bool hasSchieben, bool forcedTrump) {
     if (forcedTrump) {
       return selector.isHuman
-          ? '2× geschoben – Du musst spielen!'
-          : '${selector.name} muss spielen';
+          ? '🕳️ Im Loch – Du musst spielen!'
+          : '${selector.name} ist im Loch';
     }
     if (hasSchieben) {
       // Intermediate player (not original announcer)

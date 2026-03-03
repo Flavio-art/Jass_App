@@ -204,13 +204,16 @@ class _GameScreenState extends State<GameScreen> {
             final wonByPlayer = _computeWonTricks(state);
             final teamColors = _computeTeamColors(state);
 
-            // Im-Loch-Indikator: Spieler der nach 2× Schieben spielen muss
-            final inLochId = (state.gameType == GameType.friseur &&
-                    state.phase == GamePhase.trumpSelection &&
-                    state.soloSchiebungRounds >= 2 &&
-                    state.trumpSelectorIndex == null)
-                ? state.currentAnsager.id
+            // Loch-Spieler: permanent sichtbar im Friseur Solo
+            final lochId = state.gameType == GameType.friseur
+                ? state.players[state.lochPlayerIndex].id
                 : null;
+
+            // Im-Loch-Banner: nur während trumpSelection wenn 2× geschoben
+            final showImLochBanner = state.gameType == GameType.friseur &&
+                state.phase == GamePhase.trumpSelection &&
+                state.soloSchiebungRounds >= 2 &&
+                state.trumpSelectorIndex == null;
 
             // Ansager-Indikator: zeigt wer den Trumpf angesagt hat / ansagen kann
             final ansagerId = (state.phase == GamePhase.trumpSelection ||
@@ -330,6 +333,8 @@ class _GameScreenState extends State<GameScreen> {
                         children: [
                           if (ansagerId == north.id)
                             const _AnsagerBadge(),
+                          if (lochId == north.id)
+                            const _LochBadge(),
                           if (state.wyssDeclarationPending &&
                               state.completedTricks.isEmpty &&
                               state.phase == GamePhase.playing &&
@@ -356,12 +361,6 @@ class _GameScreenState extends State<GameScreen> {
                               padding: const EdgeInsets.only(top: 4),
                               child: _WonPile(
                                   wonByPlayer[PlayerPosition.north]!),
-                            ),
-                          if (inLochId == north.id)
-                            const Padding(
-                              padding: EdgeInsets.only(top: 2),
-                              child: Text('🕳️',
-                                  style: TextStyle(fontSize: 14)),
                             ),
                         ],
                       ),
@@ -403,11 +402,10 @@ class _GameScreenState extends State<GameScreen> {
                                       padding: EdgeInsets.only(top: 2),
                                       child: _AnsagerBadge(),
                                     ),
-                                  if (inLochId == west.id)
+                                  if (lochId == west.id)
                                     const Padding(
                                       padding: EdgeInsets.only(top: 2),
-                                      child: Text('🕳️',
-                                          style: TextStyle(fontSize: 14)),
+                                      child: _LochBadge(),
                                     ),
                                   if (state.wyssDeclarationPending &&
                                       state.completedTricks.isEmpty &&
@@ -486,11 +484,10 @@ class _GameScreenState extends State<GameScreen> {
                                       padding: EdgeInsets.only(top: 2),
                                       child: _AnsagerBadge(),
                                     ),
-                                  if (inLochId == east.id)
+                                  if (lochId == east.id)
                                     const Padding(
                                       padding: EdgeInsets.only(top: 2),
-                                      child: Text('🕳️',
-                                          style: TextStyle(fontSize: 14)),
+                                      child: _LochBadge(),
                                     ),
                                   if (state.wyssDeclarationPending &&
                                       state.completedTricks.isEmpty &&
@@ -528,22 +525,11 @@ class _GameScreenState extends State<GameScreen> {
                         child: _AnsagerBadge(),
                       ),
 
-                    // ── Im-Loch Indikator (South/Human) ─────────────
-                    if (inLochId == human.id)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Text('🕳️', style: TextStyle(fontSize: 16)),
-                            SizedBox(width: 4),
-                            Text('Im Loch',
-                                style: TextStyle(
-                                    color: Colors.red,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13)),
-                          ],
-                        ),
+                    // ── Loch-Spieler Indikator (South/Human) ──────────
+                    if (lochId == human.id)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 4),
+                        child: _LochBadge(),
                       ),
 
                     // ── Human Wyss-Sprechblase ────────────────────────
@@ -721,7 +707,7 @@ class _GameScreenState extends State<GameScreen> {
                 ],
 
                 // ── Im-Loch Banner (Friseur Solo, Mitte) ──────────────
-                if (inLochId != null)
+                if (showImLochBanner)
                   Positioned(
                     left: 0,
                     right: 0,
@@ -744,7 +730,7 @@ class _GameScreenState extends State<GameScreen> {
                               const Text('🕳️', style: TextStyle(fontSize: 18)),
                               const SizedBox(width: 8),
                               Text(
-                                '${state.players.firstWhere((p) => p.id == inLochId).name} ist im Loch',
+                                '${state.players[state.lochPlayerIndex].name} ist im Loch',
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
@@ -999,6 +985,30 @@ class _AnsagerBadge extends StatelessWidget {
         '★ Ansager',
         style: TextStyle(
           color: AppColors.gold,
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+}
+
+class _LochBadge extends StatelessWidget {
+  const _LochBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.red.shade900.withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.red.shade300, width: 1),
+      ),
+      child: Text(
+        '🕳️ Im Loch',
+        style: TextStyle(
+          color: Colors.red.shade300,
           fontSize: 9,
           fontWeight: FontWeight.bold,
         ),

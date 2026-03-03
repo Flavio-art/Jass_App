@@ -166,6 +166,7 @@ class GameState {
   final int roundNumber;
   final Map<String, int> teamScores;
   final int ansagerIndex;
+  final int lochPlayerIndex; // Friseur Solo: wer spielen MUSS wenn alle passen (rotiert unabhängig)
   final int? trumpSelectorIndex; // null = Ansager wählt; gesetzt = Partner wählt (nach Schieben)
   final Set<String> usedVariantsTeam1;
   final Set<String> usedVariantsTeam2;
@@ -249,6 +250,7 @@ class GameState {
     this.roundNumber = 1,
     this.teamScores = const {'team1': 0, 'team2': 0},
     this.ansagerIndex = 0,
+    this.lochPlayerIndex = 0,
     this.trumpSelectorIndex,
     this.usedVariantsTeam1 = const {},
     this.usedVariantsTeam2 = const {},
@@ -416,6 +418,7 @@ class GameState {
     int? roundNumber,
     Map<String, int>? teamScores,
     int? ansagerIndex,
+    int? lochPlayerIndex,
     Object? trumpSelectorIndex = _sentinel,
     Set<String>? usedVariantsTeam1,
     Set<String>? usedVariantsTeam2,
@@ -462,6 +465,7 @@ class GameState {
       roundNumber: roundNumber ?? this.roundNumber,
       teamScores: teamScores ?? this.teamScores,
       ansagerIndex: ansagerIndex ?? this.ansagerIndex,
+      lochPlayerIndex: lochPlayerIndex ?? this.lochPlayerIndex,
       trumpSelectorIndex: trumpSelectorIndex == _sentinel
           ? this.trumpSelectorIndex
           : trumpSelectorIndex as int?,
