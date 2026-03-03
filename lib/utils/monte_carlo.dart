@@ -143,6 +143,24 @@ class MonteCarloAI {
       }
     }
 
+    // ── Slalom: sichere Gewinner sofort ausspielen ─────────────────────────
+    // In der Oben-Phase sind Asse (höchste Spielstärke) sichere Gewinner,
+    // in der Unten-Phase sind 6er (höchste Spielstärke). MC unterschätzt
+    // diese garantierten Stiche, daher heuristisch zuerst abräumen.
+    if (state.currentTrickCards.isEmpty &&
+        state.gameMode == GameMode.slalom) {
+      final effectMode = state.effectiveMode;
+      final safeLeads = playable
+          .where((c) => _isHighestRemaining(c, state))
+          .toList();
+      if (safeLeads.isNotEmpty) {
+        safeLeads.sort((a, b) =>
+            GameLogic.cardPoints(b, effectMode, null)
+                .compareTo(GameLogic.cardPoints(a, effectMode, null)));
+        return safeLeads.first;
+      }
+    }
+
     // ── Friseur Solo: Ansager spielt Wunschkarten-Farbe an ─────────────────
     // Wenn der Ansager keine sicheren Gewinner hat, spielt er die Farbe der
     // Wunschkarte an, damit der Partner mit der Wunschkarte stechen kann.

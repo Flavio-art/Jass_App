@@ -41,12 +41,12 @@ class _PlayerHandWidgetState extends State<PlayerHandWidget> {
   }
 
   Widget _buildHumanHand(List<JassCard> cards) {
-    const cardWidth = 72.0;
-    const overlap = 34.0; // etwas enger
     final n = cards.length;
+    final cardWidth = n >= 9 ? 70.0 : 80.0;
+    final overlap = n >= 9 ? 33.0 : 38.0;
 
     if (n == 0) {
-      return const SizedBox(height: 150);
+      return const SizedBox(height: 160);
     }
 
     // Fan (Fächer) layout: rotate cards around bottom center
@@ -94,7 +94,7 @@ class _PlayerHandWidgetState extends State<PlayerHandWidget> {
             ),
           ),
         SizedBox(
-          height: 150,
+          height: 160,
           width: totalWidth,
           child: Stack(
             clipBehavior: Clip.none, // Karten oben nicht abschneiden

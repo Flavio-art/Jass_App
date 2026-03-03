@@ -134,7 +134,7 @@ class _RulesScreenState extends State<RulesScreen>
         _MultCard('⬆️  Undenufe', '3×',
             'Kein Trumpf. Sechs gewinnt, Ass verliert. Achter = 8 Pkt. '
             'Dreifache Punkte.'),
-        _MultCard('〰️  Slalom', '4×',
+        _MultCard('↕️  Slalom', '4×',
             'Abwechselnd Obenabe und Undenufe (1. Stich Obenabe). '
             'Vierfache Punkte.'),
 
@@ -381,7 +381,7 @@ class _RulesScreenState extends State<RulesScreen>
         _ModeCard('⬆️  Undenufe',
             'Kein Trumpf. Die Sechs ist die höchste Karte, das Ass die niedrigste. '
             'Die vier Achter zählen je 8 Punkte.'),
-        _ModeCard('〰️  Slalom',
+        _ModeCard('↕️  Slalom',
             'Abwechselnd Obenabe und Undenufe. Beim Slalom Oben gilt der 1. Stich nach Obenabe-Regeln usw.'),
         _ModeCard('🐘  Elefant',
             'Stiche 1–3: Obenabe. Stiche 4–6: Undenufe. '

@@ -18,6 +18,7 @@ class TrickAreaWidget extends StatelessWidget {
   final JassCard? wishCard; // Friseur Solo: öffentliche Wunschkarte
   final VoidCallback? onWishCardTap; // Tap auf Wunschkarte → Detail-Overlay
   final GameType gameType;
+  final CardType cardType;
 
   const TrickAreaWidget({
     super.key,
@@ -34,6 +35,7 @@ class TrickAreaWidget extends StatelessWidget {
     this.wishCard,
     this.onWishCardTap,
     this.gameType = GameType.friseurTeam,
+    this.cardType = CardType.french,
   });
 
   @override
@@ -60,6 +62,7 @@ class TrickAreaWidget extends StatelessWidget {
                 trickNumber: trickNumber,
                 slalomStartsOben: slalomStartsOben,
                 gameType: gameType,
+                cardType: cardType,
               ),
             ),
             // Wunschkarte (Friseur Solo) oben links
@@ -135,6 +138,7 @@ class _ModeIndicator extends StatelessWidget {
   final int trickNumber;
   final bool slalomStartsOben;
   final GameType gameType;
+  final CardType cardType;
 
   const _ModeIndicator({
     required this.gameMode,
@@ -143,6 +147,7 @@ class _ModeIndicator extends StatelessWidget {
     required this.trickNumber,
     this.slalomStartsOben = true,
     this.gameType = GameType.friseurTeam,
+    this.cardType = CardType.french,
   });
 
   bool get _isFriseur =>
@@ -207,10 +212,37 @@ class _ModeIndicator extends StatelessWidget {
           borderRadius: BorderRadius.circular(6),
         ),
         child: Center(
-          child: Text(
-            trumpSuit!.symbol,
-            style: const TextStyle(fontSize: 18, color: Colors.black),
-          ),
+          child: cardType == CardType.german
+              ? Image.asset('assets/suit_icons/${trumpSuit!.name}.png',
+                  width: 20, height: 20)
+              : Text(
+                  trumpSuit!.symbol,
+                  style: const TextStyle(fontSize: 18, color: Colors.black),
+                ),
+        ),
+      );
+
+  /// Label mit Trumpf-Farbsymbol (Icon für deutsch, Symbol für französisch)
+  Widget _trumpLabel(String text, Color color) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.black38,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('$text: ',
+                style: TextStyle(
+                    color: color, fontSize: 11, fontWeight: FontWeight.bold)),
+            if (trumpSuit != null && cardType == CardType.german)
+              Image.asset('assets/suit_icons/${trumpSuit!.name}.png',
+                  width: 14, height: 14)
+            else
+              Text(trumpSuit?.symbol ?? '?',
+                  style: TextStyle(
+                      color: color, fontSize: 11, fontWeight: FontWeight.bold)),
+          ],
         ),
       );
 
@@ -231,7 +263,7 @@ class _ModeIndicator extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _label('Slalom 〰️', Colors.purple.shade300),
+        _label('Slalom ↕️', Colors.purple.shade300),
         const SizedBox(height: 2),
         _label(
           isOben ? 'Oben ⬇️' : 'Unten ⬆️',
@@ -252,31 +284,26 @@ class _ModeIndicator extends StatelessWidget {
         ],
       );
     }
-    final String sub;
-    final Color col;
+    final Widget subWidget;
     switch (molotofSubMode!) {
       case GameMode.oben:
-        sub = 'Obenabe ⬇️';
-        col = Colors.blue.shade300;
+        subWidget = _label('Obenabe ⬇️', Colors.blue.shade300);
         break;
       case GameMode.unten:
-        sub = 'Undenufe ⬆️';
-        col = Colors.orange.shade300;
+        subWidget = _label('Undenufe ⬆️', Colors.orange.shade300);
         break;
       case GameMode.trump:
-        sub = 'Trumpf: ${trumpSuit?.symbol ?? '?'}';
-        col = Colors.amber.shade300;
+        subWidget = _trumpLabel('Trumpf', Colors.amber.shade300);
         break;
       default:
-        sub = '';
-        col = Colors.white54;
+        subWidget = const SizedBox.shrink();
     }
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         _label('Molotof 💣', Colors.deepOrange.shade300),
         const SizedBox(height: 2),
-        _label(sub, col),
+        subWidget,
       ],
     );
   }

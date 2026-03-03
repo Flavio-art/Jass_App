@@ -60,6 +60,22 @@ class Player {
     );
   }
 
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'position': position.name,
+    'hand': hand.map((c) => c.toJson()).toList(),
+    'score': score,
+  };
+
+  static Player fromJson(Map<String, dynamic> j) => Player(
+    id: j['id'] as String,
+    name: j['name'] as String,
+    position: PlayerPosition.values.byName(j['position']),
+    hand: (j['hand'] as List).map((c) => JassCard.fromJson(c as Map<String, dynamic>)).toList(),
+    score: j['score'] as int? ?? 0,
+  );
+
   @override
   String toString() => '$name ($position)';
 }

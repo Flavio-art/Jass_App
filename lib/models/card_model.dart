@@ -96,6 +96,18 @@ class JassCard {
   @override
   String toString() => '$displayValue$displaySuit';
 
+  Map<String, dynamic> toJson() => {
+    'suit': suit.name,
+    'value': value.name,
+    'cardType': cardType.name,
+  };
+
+  static JassCard fromJson(Map<String, dynamic> j) => JassCard(
+    suit: Suit.values.byName(j['suit']),
+    value: CardValue.values.byName(j['value']),
+    cardType: CardType.values.byName(j['cardType']),
+  );
+
   @override
   bool operator ==(Object other) =>
       other is JassCard && suit == other.suit && value == other.value;

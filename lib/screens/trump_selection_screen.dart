@@ -158,7 +158,7 @@ class TrumpSelectionScreen extends StatelessWidget {
                     Expanded(child: Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Expanded(child: _ModeButton(label: 'Slalom', subtitle: 'Oben · Unten · …', emoji: '〰️',
+                        Expanded(child: _ModeButton(label: 'Slalom', subtitle: 'Oben · Unten · …', emoji: '↕️',
                           color: Colors.purple.shade700, isAvailable: available.contains('slalom'),
                           onTap: () => _pickSlalomDirection(context))),
                         if (!isSchieber) ...[
@@ -228,7 +228,7 @@ class TrumpSelectionScreen extends StatelessWidget {
                         Text(
                           canSchiebenTeam
                               ? 'Schieben – Partner wählt'
-                              : 'Passen – Nächster entscheidet',
+                              : 'Schieben – Nächster entscheidet',
                           style: const TextStyle(
                             color: Colors.white70,
                             fontSize: 14,
@@ -358,14 +358,16 @@ class TrumpSelectionScreen extends StatelessWidget {
   void _pickTrumpSuit(
       BuildContext context, List<Suit> suits, CardType cardType, String variantKey) {
     final state = context.read<GameProvider>().state;
-    final isFriseurSolo = state.gameType == GameType.friseur;
     final isTeam1 = state.isTeam1Ansager;
-    // Schieber: nur Trumpf Oben verfügbar (forced=true → Unten deaktiviert)
-    final forced = isFriseurSolo
-        ? null
-        : (state.gameType == GameType.schieber
-            ? true
-            : state.forcedTrumpDirection(isTeam1, variantKey));
+    // Richtung bestimmen:
+    // Schieber: immer Oben
+    // Friseur Solo + Team: erzwungen (1× oben + 1× unten pro Farbgruppe) + Settings
+    final bool? forced;
+    if (state.gameType == GameType.schieber) {
+      forced = true;
+    } else {
+      forced = state.forcedTrumpDirection(isTeam1, variantKey);
+    }
     final human = state.players.firstWhere((p) => p.isHuman);
 
     Suit? selectedSuit;
@@ -544,7 +546,7 @@ class TrumpSelectionScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              '〰️ Slalom',
+              '↕️ Slalom',
               style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 6),
