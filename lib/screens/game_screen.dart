@@ -1221,23 +1221,21 @@ Widget _buildShortVariantLabel(String variant, CardType cardType, TextStyle styl
     final suits = variant == 'trump_ss'
         ? [Suit.schellen, Suit.schilten]
         : [Suit.herzGerman, Suit.eichel];
-    final iconSize = (style.fontSize ?? 12) * 1.4;
-    return SizedBox(
-      height: iconSize + 2,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          for (final s in suits) ...[
-            Image.asset(
-              'assets/suit_icons/${s.name}.png',
-              width: iconSize,
-              height: iconSize,
-            ),
-            const SizedBox(width: 3),
-          ],
+    // Icons gleich gross wie Emojis: Emojis rendern ca. 1.6× fontSize
+    final iconSize = (style.fontSize ?? 12) * 1.6;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        for (int i = 0; i < suits.length; i++) ...[
+          Image.asset(
+            'assets/suit_icons/${suits[i].name}.png',
+            width: iconSize,
+            height: iconSize,
+          ),
+          if (i < suits.length - 1) const SizedBox(width: 4),
         ],
-      ),
+      ],
     );
   }
   // Französische Trump-Symbole farbig darstellen
@@ -1829,12 +1827,12 @@ class _RoundEndOverlay extends StatelessWidget {
           for (final s in suits) ...[
             Image.asset(
               'assets/suit_icons/${s.name}.png',
-              width: 18,
-              height: 18,
+              width: 22,
+              height: 22,
               color: anyPlayed ? null : Colors.white24,
               colorBlendMode: BlendMode.modulate,
             ),
-            const SizedBox(width: 2),
+            const SizedBox(width: 3),
           ],
           const SizedBox(width: 3),
           Flexible(
@@ -3009,7 +3007,7 @@ class _GameOverviewOverlay extends StatelessWidget {
               child: Row(
                 children: [
                   SizedBox(
-                    width: 36,
+                    width: 52,
                     child: _buildShortVariantLabel(
                       r.variantKey,
                       state.cardType,
