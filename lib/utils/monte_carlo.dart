@@ -57,6 +57,21 @@ class MonteCarloAI {
       final trump = state.trumpSuit!;
       final trumpCards = playable.where((c) => c.suit == trump).toList();
       if (trumpCards.isNotEmpty) {
+        // Einziger Spieler mit Trumpf → Trumpf sparen, Nebenfarbe spielen
+        if (_onlyPlayerWithTrump(aiPlayer, state, trump)) {
+          final nonTrump = playable.where((c) => c.suit != trump).toList();
+          if (nonTrump.isNotEmpty) {
+            final safeNonTrump = nonTrump
+                .where((c) => _isHighestRemaining(c, state))
+                .toList();
+            if (safeNonTrump.isNotEmpty) {
+              return _strongest(safeNonTrump, state.effectiveMode, trump);
+            }
+            // Keine sicheren Gewinner → tiefe Karte, Partner kann ggf. gewinnen
+            return _weakest(nonTrump, state.effectiveMode, trump);
+          }
+        }
+
         final hasJass = trumpCards.any((c) => c.value == CardValue.jack);
         final jassGone = _jassPlayed(state);
         final nellGone = _nellPlayed(state);
@@ -99,6 +114,27 @@ class MonteCarloAI {
       }
     }
 
+    // ── Friseur Solo: Ansager spielt Wunschkarten-Farbe an ─────────────────
+    // Wenn der Ansager keine sicheren Gewinner hat, spielt er die Farbe der
+    // Wunschkarte an, damit der Partner mit der Wunschkarte stechen kann.
+    if (state.currentTrickCards.isEmpty &&
+        state.gameType == GameType.friseur &&
+        state.wishCard != null) {
+      final announcerId = state.players[state.ansagerIndex].id;
+      if (aiPlayer.id == announcerId) {
+        final wishSuit = state.wishCard!.suit;
+        final wishSuitCards =
+            playable.where((c) => c.suit == wishSuit).toList();
+        if (wishSuitCards.isNotEmpty) {
+          final hasSafeWinners =
+              playable.any((c) => _isHighestRemaining(c, state));
+          if (!hasSafeWinners) {
+            return _weakest(wishSuitCards, state.effectiveMode, state.trumpSuit);
+          }
+        }
+      }
+    }
+
     final aiIsTeam1 = aiPlayer.position == PlayerPosition.south ||
         aiPlayer.position == PlayerPosition.north;
 
@@ -113,6 +149,11 @@ class MonteCarloAI {
     // Einmalig Fehlfarben aus Stichhistorie berechnen
     final voidSuits = _inferVoidSuits(state);
 
+    // Elefant-Vorphase: Strafpunkte für das Abwerfen wertvoller Karten
+    final isElefantPre = state.gameMode == GameMode.elefant &&
+        state.currentTrickNumber <= 6;
+    final elefantTrick = state.currentTrickNumber;
+
     for (final card in playable) {
       double total = 0.0;
       for (int i = 0; i < simulations; i++) {
@@ -121,7 +162,18 @@ class MonteCarloAI {
         final finalState = _simulate(world, aiPlayer.id, card);
         total += _scoreFor(finalState, aiIsTeam1, aiPlayer.id);
       }
-      final avg = total / simulations;
+      double avg = total / simulations;
+
+      // Elefant: Bauern für Trumpfphase und 6er für Unten-Phase schonen
+      if (isElefantPre) {
+        if (card.value == CardValue.jack) {
+          avg -= 15.0; // Bauer könnte Buur werden (20 Pkt)
+        }
+        if (card.value == CardValue.six && elefantTrick <= 3) {
+          avg -= 8.0; // 6er wertvoll in Unten-Phase (Stiche 4-6)
+        }
+      }
+
       if (avg > bestScore) {
         bestScore = avg;
         bestCard = card;
@@ -154,6 +206,14 @@ class MonteCarloAI {
       }
       // Alle anderen: eigene Punkte maximieren
       return myPoints.toDouble();
+    }
+
+    // ── Differenzler: minimale Abweichung von der Ansage ────────────────────
+    if (finalState.gameType == GameType.differenzler) {
+      final predicted =
+          finalState.differenzlerPredictions[playerId] ?? 0;
+      final actual = finalState.playerScores[playerId] ?? 0;
+      return -(predicted - actual).abs().toDouble();
     }
 
     // ── Standard: Team-Punkte ────────────────────────────────────────────────
@@ -363,12 +423,9 @@ class MonteCarloAI {
         state.gameMode == GameMode.elefant && trickNumber <= 6;
     final molotofPreTrump =
         state.gameMode == GameMode.molotof && state.molotofSubMode == null;
-    final pointMode = state.gameMode == GameMode.slalom
-        ? (state.slalomStartsOben ? GameMode.oben : GameMode.unten)
-        : effectMode;
     final points = (elefantPreTrump || molotofPreTrump)
         ? 0
-        : GameLogic.trickPoints(trickCards, pointMode, newTrump);
+        : GameLogic.trickPoints(trickCards, effectMode, newTrump);
 
     final winnerPlayer = newPlayers.firstWhere((p) => p.id == winnerId);
     final isTeam1 = winnerPlayer.position == PlayerPosition.south ||
@@ -477,6 +534,12 @@ class MonteCarloAI {
         (c) => c.suit == state.trumpSuit && c.value == CardValue.nine);
   }
 
+  /// Ob [player] der einzige Spieler ist der noch Trumpfkarten hat.
+  static bool _onlyPlayerWithTrump(Player player, GameState state, Suit trump) {
+    return !state.players.any((p) =>
+        p.id != player.id && p.hand.any((c) => c.suit == trump));
+  }
+
   /// Ob [card] ein sicherer Stichgewinner ist:
   /// - Keine stärkere Karte der gleichen Farbe bei anderen Spielern, UND
   /// - Kein Trumpf mehr bei Gegnern (sonst wird die Karte gestochen).
@@ -567,6 +630,58 @@ class MonteCarloAI {
           state.gameMode == GameMode.misere ||
           state.gameMode == GameMode.molotof;
       if (wantToLose) return _weakest(playable, effectMode, trump);
+
+      // ── Friseur Solo Wunschkarten-Strategie beim Anspielen ──────────────
+      if (state.gameType == GameType.friseur && state.wishCard != null) {
+        final announcerId = state.players[state.ansagerIndex].id;
+        final wishSuit = state.wishCard!.suit;
+
+        if (player.id == announcerId) {
+          // Ansager: Wunschkarten-Farbe anspielen wenn keine sicheren Gewinner
+          final guaranteed =
+              playable.where((c) => _isHighestRemaining(c, state)).toList();
+          if (guaranteed.isEmpty) {
+            final wishSuitCards =
+                playable.where((c) => c.suit == wishSuit).toList();
+            if (wishSuitCards.isNotEmpty) {
+              return _weakest(wishSuitCards, effectMode, trump);
+            }
+          }
+        } else {
+          // Gegner: Wunschkarten-Farbe beim Anspielen vermeiden
+          final partnerId = _friseurPartnerId(state);
+          if (player.id != partnerId) {
+            final nonWishCards =
+                playable.where((c) => c.suit != wishSuit).toList();
+            if (nonWishCards.isNotEmpty) {
+              final guaranteed = nonWishCards
+                  .where((c) => _isHighestRemaining(c, state))
+                  .toList();
+              if (guaranteed.isNotEmpty) {
+                return _strongest(guaranteed, effectMode, trump);
+              }
+              return _strongest(nonWishCards, effectMode, trump);
+            }
+          }
+        }
+      }
+
+      // Einziger Spieler mit Trumpf → Trumpf sparen, Nebenfarbe spielen
+      if (trump != null &&
+          (effectMode == GameMode.trump ||
+              effectMode == GameMode.trumpUnten) &&
+          _onlyPlayerWithTrump(player, state, trump)) {
+        final nonTrump = playable.where((c) => c.suit != trump).toList();
+        if (nonTrump.isNotEmpty) {
+          final safeNonTrump = nonTrump
+              .where((c) => _isHighestRemaining(c, state))
+              .toList();
+          if (safeNonTrump.isNotEmpty) {
+            return _strongest(safeNonTrump, effectMode, trump);
+          }
+          return _weakest(nonTrump, effectMode, trump);
+        }
+      }
 
       // Garantierter Gewinner: höchste/niedrigste verbliebene Karte der Farbe.
       // Für Oben: höchste verbleibende → sicherer Stich.
