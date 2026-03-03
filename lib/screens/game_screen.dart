@@ -331,9 +331,11 @@ class _GameScreenState extends State<GameScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (ansagerId == north.id)
-                            const _AnsagerBadge(),
-                          if (lochId == north.id)
+                          if (ansagerId == north.id && lochId == north.id)
+                            const _AnsagerLochBadge()
+                          else if (ansagerId == north.id)
+                            const _AnsagerBadge()
+                          else if (lochId == north.id)
                             const _LochBadge(),
                           if (state.wyssDeclarationPending &&
                               state.completedTricks.isEmpty &&
@@ -397,12 +399,17 @@ class _GameScreenState extends State<GameScreen> {
                                             state.phase == GamePhase.playing,
                                     teamColor: teamColors[west.id],
                                   ),
-                                  if (ansagerId == west.id)
+                                  if (ansagerId == west.id && lochId == west.id)
+                                    const Padding(
+                                      padding: EdgeInsets.only(top: 2),
+                                      child: _AnsagerLochBadge(),
+                                    )
+                                  else if (ansagerId == west.id)
                                     const Padding(
                                       padding: EdgeInsets.only(top: 2),
                                       child: _AnsagerBadge(),
-                                    ),
-                                  if (lochId == west.id)
+                                    )
+                                  else if (lochId == west.id)
                                     const Padding(
                                       padding: EdgeInsets.only(top: 2),
                                       child: _LochBadge(),
@@ -479,12 +486,17 @@ class _GameScreenState extends State<GameScreen> {
                                             state.phase == GamePhase.playing,
                                     teamColor: teamColors[east.id],
                                   ),
-                                  if (ansagerId == east.id)
+                                  if (ansagerId == east.id && lochId == east.id)
+                                    const Padding(
+                                      padding: EdgeInsets.only(top: 2),
+                                      child: _AnsagerLochBadge(),
+                                    )
+                                  else if (ansagerId == east.id)
                                     const Padding(
                                       padding: EdgeInsets.only(top: 2),
                                       child: _AnsagerBadge(),
-                                    ),
-                                  if (lochId == east.id)
+                                    )
+                                  else if (lochId == east.id)
                                     const Padding(
                                       padding: EdgeInsets.only(top: 2),
                                       child: _LochBadge(),
@@ -518,15 +530,18 @@ class _GameScreenState extends State<GameScreen> {
                         child: _WonPile(wonByPlayer[PlayerPosition.south]!),
                       ),
 
-                    // ── Ansager-Indikator (South/Human) ─────────────
-                    if (ansagerId == human.id)
+                    // ── Ansager / Loch-Indikator (South/Human) ────────
+                    if (ansagerId == human.id && lochId == human.id)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 4),
+                        child: _AnsagerLochBadge(),
+                      )
+                    else if (ansagerId == human.id)
                       const Padding(
                         padding: EdgeInsets.only(top: 4),
                         child: _AnsagerBadge(),
-                      ),
-
-                    // ── Loch-Spieler Indikator (South/Human) ──────────
-                    if (lochId == human.id)
+                      )
+                    else if (lochId == human.id)
                       const Padding(
                         padding: EdgeInsets.only(top: 4),
                         child: _LochBadge(),
@@ -999,9 +1014,9 @@ class _LochBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: Colors.red.shade900.withValues(alpha: 0.25),
+        color: Colors.red.shade900.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.red.shade300, width: 1),
       ),
@@ -1009,9 +1024,47 @@ class _LochBadge extends StatelessWidget {
         '🕳️ Im Loch',
         style: TextStyle(
           color: Colors.red.shade300,
-          fontSize: 9,
+          fontSize: 10,
           fontWeight: FontWeight.bold,
         ),
+      ),
+    );
+  }
+}
+
+/// Kombinierter Badge wenn Ansager und Loch-Spieler identisch sind.
+class _AnsagerLochBadge extends StatelessWidget {
+  const _AnsagerLochBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.gold.withValues(alpha: 0.25),
+            Colors.red.shade900.withValues(alpha: 0.3),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.gold, width: 1),
+      ),
+      child: Text.rich(
+        TextSpan(children: [
+          const TextSpan(
+            text: '★ ',
+            style: TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.bold),
+          ),
+          TextSpan(
+            text: 'Ansager · ',
+            style: TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.bold),
+          ),
+          TextSpan(
+            text: '🕳️ Im Loch',
+            style: TextStyle(color: Colors.red.shade300, fontSize: 10, fontWeight: FontWeight.bold),
+          ),
+        ]),
       ),
     );
   }
