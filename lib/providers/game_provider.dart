@@ -1236,6 +1236,20 @@ class GameProvider extends ChangeNotifier {
       wyssResolved: false,
     );
     notifyListeners();
+
+    // Sicherheits-Check: Friseur Solo darf nicht ohne Wunschkarte spielen
+    if (nextPhase == GamePhase.playing &&
+        _state.gameType == GameType.friseur &&
+        _state.wishCard == null) {
+      assert(false,
+          'Friseur Solo: Spiel gestartet ohne Wunschkarte! mode=$mode, ansager=${_state.ansagerIndex}');
+      // Fallback: automatisch eine Wunschkarte wählen
+      final selector = _state.players[_state.ansagerIndex];
+      final fallback = _selectKiWishCard(selector, mode, trumpSuit);
+      _state = _state.copyWith(wishCard: fallback);
+      notifyListeners();
+    }
+
     if (nextPhase == GamePhase.playing) {
       _triggerAiIfNeeded();
     }
@@ -1827,8 +1841,12 @@ class GameProvider extends ChangeNotifier {
               trick.cards.values.toList(), state.molotofSubMode!, state.trumpSuit);
         }
       } else if (state.gameMode == GameMode.slalom) {
+        final trickNum = i + 1;
+        final isOben = state.slalomStartsOben
+            ? trickNum % 2 == 1
+            : trickNum % 2 == 0;
         pts = GameLogic.trickPoints(trick.cards.values.toList(),
-            state.slalomStartsOben ? GameMode.oben : GameMode.unten, null);
+            isOben ? GameMode.oben : GameMode.unten, null);
       } else if (state.gameMode == GameMode.misere) {
         pts = GameLogic.trickPoints(
             trick.cards.values.toList(), GameMode.oben, null);
