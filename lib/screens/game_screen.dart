@@ -40,6 +40,23 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
+  /// Ob der menschliche Spieler aktuell schieben darf.
+  bool _canSchieben(GameState state) {
+    final hasSchieben = state.trumpSelectorIndex != null;
+    final isFriseurSolo = state.gameType == GameType.friseur;
+    final forcedTrump = isFriseurSolo &&
+        state.soloSchiebungRounds >= 2 &&
+        !hasSchieben;
+    // Friseur Team / Schieber: nur Ansager kann schieben (einmalig)
+    final canSchiebenTeam =
+        (state.gameType == GameType.friseurTeam ||
+            state.gameType == GameType.schieber) &&
+        !hasSchieben;
+    // Friseur Solo: jeder Spieler kann schieben
+    final canSchiebenSolo = isFriseurSolo && !forcedTrump;
+    return canSchiebenTeam || canSchiebenSolo;
+  }
+
   void _showTrumpSelection() {
     Navigator.push(
       context,
@@ -255,6 +272,13 @@ class _GameScreenState extends State<GameScreen> {
                                 color: Colors.white70),
                             onPressed: () => Navigator.pop(context),
                           ),
+                          // Spieltyp-Indikator (klein, zur Diagnose)
+                          if (state.gameType == GameType.friseur)
+                            const Text('🎴',
+                                style: TextStyle(fontSize: 12))
+                          else if (state.gameType == GameType.friseurTeam)
+                            const Text('✂️',
+                                style: TextStyle(fontSize: 12)),
                           // Score-Anzeige je nach Spielmodus
                           Expanded(
                             child: (state.gameType == GameType.friseur &&
@@ -587,8 +611,9 @@ class _GameScreenState extends State<GameScreen> {
                   ],
                 ),
 
-                // ── Schieben-Kommentar (Friseur Solo) ─────────────────
+                // ── Schieben-Kommentar (Friseur Solo, nur während Trumpfwahl) ──
                 if (state.soloSchiebungComment != null &&
+                    state.phase != GamePhase.roundEnd &&
                     _displayedSchiebungComment != state.soloSchiebungComment) ...[
                   Builder(builder: (ctx) {
                     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -666,12 +691,54 @@ class _GameScreenState extends State<GameScreen> {
                 // ── Trumpf-Auswahl Button (human selector) ────────────
                 if (state.phase == GamePhase.trumpSelection &&
                     state.currentTrumpSelector.isHuman) ...[
-                  // KI entscheidet-Anzeige: zeige wenn ein KI-Spieler
-                  // gerade wartet (nur kurz sichtbar, da KI auto-entscheidet)
+                  // ── Schieben-Button (über Spielmodus wählen) ──────────
+                  if (_canSchieben(state))
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 270,
+                      child: Center(
+                        child: GestureDetector(
+                          onTap: () {
+                            context.read<GameProvider>().schieben();
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 28, vertical: 14),
+                            decoration: BoxDecoration(
+                              color: Colors.blueGrey.shade600,
+                              borderRadius: BorderRadius.circular(30),
+                              boxShadow: const [
+                                BoxShadow(
+                                    color: Colors.black54,
+                                    blurRadius: 8,
+                                    offset: Offset(0, 4)),
+                              ],
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.swap_horiz, color: Colors.white),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Schieben',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  // ── Spielmodus wählen ─────────────────────────────────
                   Positioned(
                     left: 0,
                     right: 0,
-                    bottom: 290,
+                    bottom: 215,
                     child: Center(
                       child: GestureDetector(
                         onTap: _showTrumpSelection,
@@ -819,6 +886,7 @@ class _GameScreenState extends State<GameScreen> {
                               : null,
                           totalTeamScores: state.totalTeamScores,
                           schieberWinTarget: state.schieberWinTarget,
+                          postRoundComment: state.soloSchiebungComment,
                           onNextRound: () => provider.startNewRound(),
                           onHome: () => Navigator.pop(context),
                         ),
@@ -1162,6 +1230,7 @@ class _RoundEndOverlay extends StatelessWidget {
   final Map<String, Map<String, List<int>>>? friseurSoloScores;
   final Map<String, int> totalTeamScores;
   final int schieberWinTarget;
+  final String? postRoundComment;
   final VoidCallback onNextRound;
   final VoidCallback onHome;
 
@@ -1203,6 +1272,7 @@ class _RoundEndOverlay extends StatelessWidget {
     this.friseurSoloScores,
     this.totalTeamScores = const {},
     this.schieberWinTarget = 1500,
+    this.postRoundComment,
     required this.onNextRound,
     required this.onHome,
   });
@@ -1274,6 +1344,27 @@ class _RoundEndOverlay extends StatelessWidget {
                       const SizedBox(height: 8),
                       Text('Partner: $partnerName',
                           style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                      if (postRoundComment != null) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.black38,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.white24),
+                          ),
+                          child: Text(
+                            postRoundComment!,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 13,
+                              fontStyle: FontStyle.italic,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

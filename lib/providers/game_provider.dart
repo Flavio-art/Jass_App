@@ -970,27 +970,42 @@ class GameProvider extends ChangeNotifier {
     }
 
     Future.delayed(const Duration(milliseconds: 800), () {
-      final result = ModeSelectorAI.selectMode(
-        player: selector,
-        state: _state,
-        availableVariants: available,
-      );
+      try {
+        final result = ModeSelectorAI.selectMode(
+          player: selector,
+          state: _state,
+          availableVariants: available,
+        );
 
-      // Schieber: Trumpf Unten ist nicht erlaubt → immer Trumpf Oben wählen
-      final finalMode = (_state.gameType == GameType.schieber &&
-              result.mode == GameMode.trumpUnten)
-          ? GameMode.trump
-          : result.mode;
+        // Schieber: Trumpf Unten ist nicht erlaubt → immer Trumpf Oben wählen
+        final finalMode = (_state.gameType == GameType.schieber &&
+                result.mode == GameMode.trumpUnten)
+            ? GameMode.trump
+            : result.mode;
 
-      JassCard? wishCard;
-      if (_state.gameType == GameType.friseur) {
-        wishCard = _selectKiWishCard(selector, finalMode, result.trumpSuit);
+        JassCard? wishCard;
+        if (_state.gameType == GameType.friseur) {
+          wishCard = _selectKiWishCard(selector, finalMode, result.trumpSuit);
+        }
+
+        selectGameMode(finalMode,
+            trumpSuit: result.trumpSuit,
+            slalomStartsOben: result.slalomStartsOben,
+            wishCard: wishCard);
+      } catch (e) {
+        // Fallback: Trumpf Oben mit Wunschkarte wenn Exception
+        debugPrint('_autoSelectMode Fehler: $e');
+        final fallbackSuit = selector.hand.isNotEmpty
+            ? selector.hand.first.suit
+            : null;
+        JassCard? wishCard;
+        if (_state.gameType == GameType.friseur) {
+          wishCard = _selectKiWishCard(selector, GameMode.trump, fallbackSuit);
+        }
+        selectGameMode(GameMode.trump,
+            trumpSuit: fallbackSuit,
+            wishCard: wishCard);
       }
-
-      selectGameMode(finalMode,
-          trumpSuit: result.trumpSuit,
-          slalomStartsOben: result.slalomStartsOben,
-          wishCard: wishCard);
     });
   }
 
@@ -1178,10 +1193,19 @@ class GameProvider extends ChangeNotifier {
         ? _state.trumpSelectorIndex!
         : _state.ansagerIndex;
 
-    // Friseur Solo + menschlicher effektiver Ansager → Wunschkarte auswählen
-    final needsWishCard = _state.gameType == GameType.friseur &&
-        _state.players[effectiveAnsagerIndex].isHuman &&
-        wishCard == null;
+    // ── Friseur Solo: Wunschkarte GARANTIEREN ─────────────────────────────
+    // Menschlicher Ansager → WishCardSelection-Phase (wählt manuell)
+    // KI-Ansager → automatisch generieren wenn nicht mitgeliefert
+    bool needsWishCard = false;
+    if (_state.gameType == GameType.friseur && wishCard == null) {
+      if (_state.players[effectiveAnsagerIndex].isHuman) {
+        needsWishCard = true;
+      } else {
+        // KI-Ansager ohne Wunschkarte → automatisch eine generieren
+        wishCard = _selectKiWishCard(
+            _state.players[effectiveAnsagerIndex], mode, trumpSuit);
+      }
+    }
 
     // Merken ob diese Runde nach 2× Schieben gestartet wird (Im Loch)
     // Der Loch-Spieler ist erzwungen wenn soloSchiebungRounds >= 2 und
@@ -1236,20 +1260,6 @@ class GameProvider extends ChangeNotifier {
       wyssResolved: false,
     );
     notifyListeners();
-
-    // Sicherheits-Check: Friseur Solo darf nicht ohne Wunschkarte spielen
-    if (nextPhase == GamePhase.playing &&
-        _state.gameType == GameType.friseur &&
-        _state.wishCard == null) {
-      assert(false,
-          'Friseur Solo: Spiel gestartet ohne Wunschkarte! mode=$mode, ansager=${_state.ansagerIndex}');
-      // Fallback: automatisch eine Wunschkarte wählen
-      final selector = _state.players[_state.ansagerIndex];
-      final fallback = _selectKiWishCard(selector, mode, trumpSuit);
-      _state = _state.copyWith(wishCard: fallback);
-      notifyListeners();
-    }
-
     if (nextPhase == GamePhase.playing) {
       _triggerAiIfNeeded();
     }
