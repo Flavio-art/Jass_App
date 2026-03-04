@@ -11,6 +11,7 @@ import '../models/player.dart';
 import '../utils/game_logic.dart';
 import '../utils/monte_carlo.dart';
 import '../utils/mode_selector.dart';
+import '../utils/nn_tuning.dart';
 import '../utils/nn_model.dart';
 
 class GameProvider extends ChangeNotifier {
@@ -685,19 +686,19 @@ class GameProvider extends ChangeNotifier {
   }
 
   /// Dynamischer NN-Schwellenwert für Schieben im Friseur Solo.
-  /// Range: 0.80 (letzte Varianten) bis 0.96 (alles noch offen).
   double _friseurNNThreshold(List<String> available) {
     const maxVariants = 10;
     final ratio = (available.length / maxVariants).clamp(0.0, 1.0);
-    return 0.80 + 0.16 * ratio; // 0.80 → 0.96
+    return NNTuning.friseurSchiebenNNMin +
+        (NNTuning.friseurSchiebenNNMax - NNTuning.friseurSchiebenNNMin) * ratio;
   }
 
   /// Dynamischer Heuristik-Schwellenwert für Schieben im Friseur Solo.
-  /// Range: 100 (letzte Varianten) bis 135 (alles noch offen).
   double _friseurHeuristicThreshold(List<String> available) {
     const maxVariants = 10;
     final ratio = (available.length / maxVariants).clamp(0.0, 1.0);
-    return 100.0 + 35.0 * ratio; // 100 → 135
+    return NNTuning.friseurSchiebenHeuMin +
+        (NNTuning.friseurSchiebenHeuMax - NNTuning.friseurSchiebenHeuMin) * ratio;
   }
 
   /// KI entscheidet ob sie schieben oder spielen will.
@@ -1070,10 +1071,8 @@ class GameProvider extends ChangeNotifier {
             ? GameMode.trump
             : result.mode;
 
-        JassCard? wishCard;
-        if (_state.gameType == GameType.friseur) {
-          wishCard = _selectKiWishCard(selector, finalMode, result.trumpSuit);
-        }
+        // Friseur Solo: Wunschkarte kommt direkt aus ModeSelectorAI
+        final wishCard = result.wishCard;
 
         selectGameMode(finalMode,
             trumpSuit: result.trumpSuit,

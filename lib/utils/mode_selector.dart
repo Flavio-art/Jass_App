@@ -1,7 +1,9 @@
 import '../models/card_model.dart';
+import '../models/deck.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
 import 'nn_model.dart';
+import 'nn_tuning.dart';
 
 /// Hand-Evaluations-KI für die Spielmoduswahl.
 ///
@@ -9,7 +11,8 @@ import 'nn_model.dart';
 /// verwendet. Andernfalls fällt die KI auf die regelbasierte Heuristik zurück.
 class ModeSelectorAI {
   /// Gibt den besten Spielmodus + Trumpffarbe + Slalom-Richtung für [player] zurück.
-  static ({GameMode mode, Suit? trumpSuit, bool slalomStartsOben}) selectMode({
+  /// Bei Friseur Solo wird zusätzlich die ideale [wishCard] bestimmt.
+  static ({GameMode mode, Suit? trumpSuit, bool slalomStartsOben, JassCard? wishCard}) selectMode({
     required Player player,
     required GameState state,
     List<String>? availableVariants,
@@ -21,9 +24,15 @@ class ModeSelectorAI {
 
     // ── Elefant-Sofortentscheid ──────────────────────────────────────────
     // 3 sichere Oben-Stiche (Asse) + 3 sichere Unten-Stiche (6er) → Elefant
-    if (available.contains('elefant')) {
+    // (nicht für Friseur Solo – dort wird Elefant als Kandidat evaluiert)
+    if (available.contains('elefant') && state.gameType != GameType.friseur) {
       final result = _checkElefantGuaranteed(hand);
       if (result != null) return result;
+    }
+
+    // ── Friseur Solo: Wunschkarte in Modusbewertung integriert ──────────
+    if (state.gameType == GameType.friseur) {
+      return _selectForFriseurSolo(hand, state, available, isTeam1);
     }
 
     // ── Neural Network (wenn geladen) ─────────────────────────────────────
@@ -51,14 +60,14 @@ class ModeSelectorAI {
     double mult(String vk) {
       if (!isSchieber) return 1.0;
       var m = switch (vk) {
-        'trump_ss'   => 1.6,
-        'trump_re'   => 1.6,
-        'oben'       => 2.3,
-        'unten'      => 2.3,
-        'slalom'     => 4.6,
+        'trump_ss'   => NNTuning.schieberMultTrump,
+        'trump_re'   => NNTuning.schieberMultTrump,
+        'oben'       => NNTuning.schieberMultOben,
+        'unten'      => NNTuning.schieberMultUnten,
+        'slalom'     => NNTuning.schieberMultSlalom,
         _            => 1.0,
       };
-      if (vk == 'slalom' && partnerHatGeschoben) m *= 0.5;
+      if (vk == 'slalom' && partnerHatGeschoben) m *= NNTuning.schiebenSlalomPenalty;
       return m;
     }
 
@@ -109,7 +118,7 @@ class ModeSelectorAI {
     }
 
     if (rawEntries.isEmpty) {
-      return (mode: GameMode.oben, trumpSuit: null, slalomStartsOben: true);
+      return (mode: GameMode.oben, trumpSuit: null, slalomStartsOben: true, wishCard: null);
     }
 
     // ── Schritt 2: Mittelwert berechnen und Delta-Amplifikation anwenden ─
@@ -127,7 +136,7 @@ class ModeSelectorAI {
       }
     }
 
-    return (mode: bestMode, trumpSuit: bestTrump, slalomStartsOben: bestSlalomStartsOben);
+    return (mode: bestMode, trumpSuit: bestTrump, slalomStartsOben: bestSlalomStartsOben, wishCard: null);
   }
 
   // ─── Neural Network Auswahl ──────────────────────────────────────────────
@@ -137,7 +146,7 @@ class ModeSelectorAI {
   //   4-7  Trump Unten (gleiche Reihenfolge)
   //   8=Obenabe  9=Undenufe  10=Slalom  11=Misere  12=AllTrumpf  13=Elefant
 
-  static ({GameMode mode, Suit? trumpSuit, bool slalomStartsOben}) _selectWithNN(
+  static ({GameMode mode, Suit? trumpSuit, bool slalomStartsOben, JassCard? wishCard}) _selectWithNN(
     List<double> scores,
     List<JassCard> hand,
     GameState state,
@@ -153,14 +162,16 @@ class ModeSelectorAI {
     // ── Score-Korrekturen ─────────────────────────────────────────────────
     // Das NN hat systematische Biases die wir korrigieren:
     final cs = List<double>.from(scores);
-    // 1) Slalom (10): NN gibt ~0.78, viel zu hoch. Ersetzen durch Durchschnitt
-    //    von Oben (8) + Unten (9). Slalom wird nur gewählt wenn BEIDE gut sind.
-    if (cs.length > 10) cs[10] = (cs[8] + cs[9]) / 2;
-    // 2) Unten (9): NN gibt ~0.12 tiefere Scores als Oben → Training-Bias.
-    if (cs.length > 9) cs[9] += 0.10;
+    // 1) Unten-Bias: NN gibt systematisch tiefere Scores für alle Unten-Modi.
+    //    Undenufe (9) und Trump Unten (4-7) korrigieren.
+    if (cs.length > 9) cs[9] += NNTuning.untenBias;
+    for (int i = 4; i < 8 && i < cs.length; i++) cs[i] += NNTuning.trumpUntenBias;
+    // 2) Slalom (10): NN gibt ~0.78, viel zu hoch. Ersetzen durch Durchschnitt
+    //    von korrigiertem Oben (8) + Unten (9). Slalom braucht beides.
+    if (NNTuning.slalomFromObenUnten && cs.length > 10) cs[10] = (cs[8] + cs[9]) / 2;
     // 3) Misère (11) / Molotof (14): nur als Notlösung (im Loch).
-    if (cs.length > 11) cs[11] *= 0.6;
-    if (cs.length > 14) cs[14] *= 0.6;
+    if (cs.length > 11) cs[11] *= NNTuning.misereDampening;
+    if (cs.length > 14) cs[14] *= NNTuning.molotofDampening;
 
     // Mittelwert der korrigierten Scores als Baseline für Delta-Verstärkung.
     // Formel: adjusted = mean + (raw - mean) × mult
@@ -181,14 +192,14 @@ class ModeSelectorAI {
     double mult(String vk) {
       if (!isSchieber) return 1.0;
       var m = switch (vk) {
-        'trump_ss'   => 1.6, // Scoring ×1 → Auswahl ×1.6
-        'trump_re'   => 1.6, // Scoring ×2 → Auswahl ×1.6
-        'oben'       => 2.3, // Scoring ×3 → Auswahl ×2.3
-        'unten'      => 2.3, // Scoring ×3 → Auswahl ×2.3
-        'slalom'     => 4.6, // Scoring ×3 → Auswahl ×4.6 (Score=(Oben+Unten)/2 braucht Boost)
+        'trump_ss'   => NNTuning.schieberMultTrump,
+        'trump_re'   => NNTuning.schieberMultTrump,
+        'oben'       => NNTuning.schieberMultOben,
+        'unten'      => NNTuning.schieberMultUnten,
+        'slalom'     => NNTuning.schieberMultSlalom, // Score=(Oben+Unten)/2 braucht Boost
         _            => 1.0, // Misère, Molotof, etc.: nur als Notlösung
       };
-      if (vk == 'slalom' && partnerHatGeschoben) m *= 0.5;
+      if (vk == 'slalom' && partnerHatGeschoben) m *= NNTuning.schiebenSlalomPenalty;
       return m;
     }
 
@@ -256,7 +267,7 @@ class ModeSelectorAI {
       }
     }
 
-    return (mode: bestMode, trumpSuit: bestTrump, slalomStartsOben: bestSlalomStartsOben);
+    return (mode: bestMode, trumpSuit: bestTrump, slalomStartsOben: bestSlalomStartsOben, wishCard: null);
   }
 
   static int _variantToNNIdx(String variant) => switch (variant) {
@@ -272,6 +283,13 @@ class ModeSelectorAI {
   static Suit _suitForIndex(int idx, CardType type) => type == CardType.french
       ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs][idx]
       : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten][idx];
+
+  static int _suitToIndex(Suit suit, CardType type) {
+    final suits = type == CardType.french
+        ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
+        : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
+    return suits.indexOf(suit);
+  }
 
   // ─── Schieben-Entscheidung: Heuristik-Score der besten Variante ─────────
 
@@ -312,6 +330,445 @@ class ModeSelectorAI {
       }
     }
     return best;
+  }
+
+  // ─── Friseur Solo: Wunschkarte + 9-Karten-Bewertung ────────────────────
+
+  /// Evaluiert jeden Modus-Kandidat mit idealer Wunschkarte und den besten
+  /// 9 Karten (Hand + Wunschkarte − schwächste Karte).
+  static ({GameMode mode, Suit? trumpSuit, bool slalomStartsOben, JassCard? wishCard})
+      _selectForFriseurSolo(
+    List<JassCard> hand,
+    GameState state,
+    List<String> available,
+    bool isTeam1,
+  ) {
+    final nn = JassNNModel.instance;
+    final cardType = state.cardType;
+
+    double bestScore = double.negativeInfinity;
+    GameMode bestMode = GameMode.oben;
+    Suit? bestTrump;
+    bool bestSlalomStartsOben = true;
+    JassCard? bestWishCard;
+
+    // Alle Kandidaten sammeln (Modus + evtl. Trumpffarbe)
+    final candidates = <({GameMode mode, Suit? trump, String variant})>[];
+
+    for (final variant in available) {
+      if (variant == 'trump_ss' || variant == 'trump_re') {
+        final forced = state.forcedTrumpDirection(isTeam1, variant);
+        final suitIdxs = variant == 'trump_ss' ? [0, 3] : [1, 2];
+        for (final si in suitIdxs) {
+          final suit = _suitForIndex(si, cardType);
+          if (forced == null || forced == true) {
+            candidates.add((mode: GameMode.trump, trump: suit, variant: variant));
+          }
+          if (forced == null || forced == false) {
+            candidates.add((mode: GameMode.trumpUnten, trump: suit, variant: variant));
+          }
+        }
+      } else if (variant == 'schafkopf') {
+        final suits = cardType == CardType.french
+            ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
+            : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
+        for (final suit in suits) {
+          candidates.add((mode: GameMode.schafkopf, trump: suit, variant: variant));
+        }
+      } else {
+        final mode = GameMode.values.firstWhere((m) => m.name == variant,
+            orElse: () => GameMode.oben);
+        candidates.add((mode: mode, trump: null, variant: variant));
+      }
+    }
+
+    // ── Pass 1: Raw-Scores für jeden Kandidaten sammeln ────────────────
+    final rawEntries = <({double raw, double mult, GameMode mode, Suit? trump,
+        bool slalomOben, JassCard wish})>[];
+
+    for (final cand in candidates) {
+      // 1. Ideale Wunschkarte für diesen Modus
+      final wish = _bestWishCard(hand, cand.mode, cand.trump, cardType);
+
+      // 2. Pool = Hand + Wunschkarte → 10 Karten
+      final pool = [...hand, wish];
+
+      // 3. Schwächste Karte entfernen → beste 9
+      final weakest = _weakestCard(pool, cand.mode, cand.trump);
+      final best9 = [...pool]..remove(weakest);
+
+      // 4. Bewertung mit best9
+      double score;
+      List<double> nnScores = const [];
+      final nnResult = nn.predict(best9, cardType);
+      if (nnResult.isNotEmpty) {
+        nnScores = nnResult;
+        // NN-Scores mit Bias-Korrekturen (ohne Misère/Molotof-Dampening,
+        // da die Friseur-Multiplikatoren die Gewichtung übernehmen)
+        final cs = List<double>.from(nnScores);
+        if (cs.length > 9) cs[9] += NNTuning.untenBias;
+        for (int i = 4; i < 8 && i < cs.length; i++) cs[i] += NNTuning.trumpUntenBias;
+        if (NNTuning.slalomFromObenUnten && cs.length > 10) cs[10] = (cs[8] + cs[9]) / 2;
+
+        score = _extractNNScore(cs, cand.mode, cand.trump, cardType);
+      } else {
+        // Heuristik-Score
+        score = _scoreForMode(best9, cand.mode, cand.trump);
+      }
+
+      // Slalom-Richtung bestimmen
+      var slalomOben = true;
+      if (cand.mode == GameMode.slalom) {
+        if (nnScores.isNotEmpty && nnScores.length > 9) {
+          slalomOben = nnScores[8] >= nnScores[9];
+        } else {
+          slalomOben = _scoreOben(best9) >= _scoreUnten(best9);
+        }
+      }
+
+      // Multiplikator: Trumpf dämpfen, Nicht-Trump boosten
+      // Im Loch: Misère/Molotof als Fallback stärker gewichten
+      final m = _friseurMult(cand.mode, isImLoch: state.roundWasImLoch);
+
+      rawEntries.add((raw: score, mult: m, mode: cand.mode, trump: cand.trump,
+          slalomOben: slalomOben, wish: wish));
+    }
+
+    if (rawEntries.isEmpty) {
+      return (mode: GameMode.oben, trumpSuit: null, slalomStartsOben: true, wishCard: null);
+    }
+
+    // ── Pass 2: Direkte Multiplikation und besten Kandidaten wählen ───
+    // adjusted = raw × mult
+    // Einfacher als Delta-Amplifikation: Trumpf (mult<1) wird gedämpft,
+    // Nicht-Trump (mult>1) wird proportional geboosted.
+    // Funktioniert auch für Modi die typischerweise unter dem Schnitt liegen
+    // (Misère, Molotof), da kein Mean-Effekt die Richtung umkehrt.
+
+    for (final e in rawEntries) {
+      final adjusted = e.raw * e.mult;
+      if (adjusted > bestScore) {
+        bestScore = adjusted;
+        bestMode = e.mode;
+        bestTrump = e.trump;
+        bestSlalomStartsOben = e.slalomOben;
+        bestWishCard = e.wish;
+      }
+    }
+
+    return (mode: bestMode, trumpSuit: bestTrump, slalomStartsOben: bestSlalomStartsOben, wishCard: bestWishCard);
+  }
+
+  /// Extrahiert den NN-Score für einen bestimmten Modus aus den korrigierten Scores.
+  static double _extractNNScore(List<double> cs, GameMode mode, Suit? trump, CardType cardType) {
+    switch (mode) {
+      case GameMode.trump:
+        return cs[_suitToIndex(trump!, cardType)];
+      case GameMode.trumpUnten:
+        return cs[_suitToIndex(trump!, cardType) + 4];
+      case GameMode.oben:
+        return cs.length > 8 ? cs[8] : 0;
+      case GameMode.unten:
+        return cs.length > 9 ? cs[9] : 0;
+      case GameMode.slalom:
+        return cs.length > 10 ? cs[10] : 0;
+      case GameMode.misere:
+        return cs.length > 11 ? cs[11] : 0;
+      case GameMode.allesTrumpf:
+        return cs.length > 12 ? cs[12] : 0;
+      case GameMode.elefant:
+        return cs.length > 13 ? cs[13] : 0;
+      case GameMode.molotof:
+        return cs.length > 14 ? cs[14] : 0;
+      case GameMode.schafkopf:
+        final idx = 15 + _suitToIndex(trump!, cardType);
+        return idx < cs.length ? cs[idx] : 0;
+    }
+  }
+
+  /// Friseur Solo Multiplikator: Trumpf dämpfen, Nicht-Trump boosten.
+  /// Im Loch: Misère/Molotof bekommen extra Boost als Fallback.
+  static double _friseurMult(GameMode mode, {bool isImLoch = false}) {
+    var m = switch (mode) {
+      GameMode.trump       => NNTuning.friseurMultTrumpOben,
+      GameMode.trumpUnten  => NNTuning.friseurMultTrumpUnten,
+      GameMode.allesTrumpf => NNTuning.friseurMultAllesTrumpf,
+      GameMode.oben        => NNTuning.friseurMultOben,
+      GameMode.unten       => NNTuning.friseurMultUnten,
+      GameMode.slalom      => NNTuning.friseurMultSlalom,
+      GameMode.schafkopf   => NNTuning.friseurMultSchafkopf,
+      GameMode.misere      => NNTuning.friseurMultMisere,
+      GameMode.molotof     => NNTuning.friseurMultMolotof,
+      GameMode.elefant     => NNTuning.friseurMultElefant,
+    };
+    if (isImLoch) {
+      if (mode == GameMode.misere) m *= NNTuning.friseurLochBoostMisere;
+      if (mode == GameMode.molotof) m *= NNTuning.friseurLochBoostMolotof;
+    }
+    return m;
+  }
+
+  /// Bewertet eine Hand für einen bestimmten Modus (Heuristik).
+  static double _scoreForMode(List<JassCard> hand, GameMode mode, Suit? trump) {
+    switch (mode) {
+      case GameMode.trump:
+        return _scoreTrump(hand, trump!, oben: true);
+      case GameMode.trumpUnten:
+        return _scoreTrump(hand, trump!, oben: false);
+      case GameMode.oben:
+        return _scoreOben(hand);
+      case GameMode.unten:
+        return _scoreUnten(hand);
+      case GameMode.slalom:
+        return (_scoreOben(hand) + _scoreUnten(hand)) / 2;
+      case GameMode.elefant:
+        return (_scoreOben(hand) + _scoreUnten(hand)) / 2 + 5;
+      case GameMode.misere:
+        return _scoreMisere(hand);
+      case GameMode.allesTrumpf:
+        return _scoreAllesTrumpf(hand);
+      case GameMode.schafkopf:
+        return _scoreSchafkopf(hand, trump!);
+      case GameMode.molotof:
+        return _scoreMolotof(hand);
+    }
+  }
+
+  /// Bestimmt die schwächste Karte im Pool für einen bestimmten Modus.
+  /// Entfernt wird die Karte, deren Abwesenheit den Score am wenigsten reduziert.
+  static JassCard _weakestCard(List<JassCard> pool, GameMode mode, Suit? trump) {
+    JassCard? weakest;
+    double bestRemaining = double.negativeInfinity;
+
+    for (int i = 0; i < pool.length; i++) {
+      final remaining = [...pool]..removeAt(i);
+      final score = _scoreForMode(remaining, mode, trump);
+      if (score > bestRemaining) {
+        bestRemaining = score;
+        weakest = pool[i];
+      }
+    }
+    return weakest ?? pool.last;
+  }
+
+  /// Bestimmt die ideale Wunschkarte für einen bestimmten Modus.
+  static JassCard _bestWishCard(
+      List<JassCard> hand, GameMode mode, Suit? trumpSuit, CardType cardType) {
+    final allCards = Deck.allCards(cardType);
+    final handSet = hand.toSet();
+    final available = allCards.where((c) => !handSet.contains(c)).toList();
+    if (available.isEmpty) return allCards.first;
+
+    // Bei Trumpf-Modi: Buur wünschen – ausser man hat Buur+Näll bereits
+    if ((mode == GameMode.trump || mode == GameMode.trumpUnten) && trumpSuit != null) {
+      final hasBuur = hand.any((c) => c.suit == trumpSuit && c.value == CardValue.jack);
+      final hasNaell = hand.any((c) => c.suit == trumpSuit && c.value == CardValue.nine);
+
+      if (hasBuur && hasNaell) {
+        if (mode == GameMode.trump) {
+          // Trumpf Oben: Ass → Zehner → König einer anderen Farbe
+          for (final val in [CardValue.ace, CardValue.ten, CardValue.king]) {
+            final c = available.firstWhere(
+              (c) => c.value == val && c.suit != trumpSuit,
+              orElse: () => available.firstWhere(
+                (c) => c.value == val,
+                orElse: () => available.first,
+              ),
+            );
+            if (c.value == val) return c;
+          }
+          return available.first;
+        } else {
+          // Trumpf Unten: Sechs → Sieben → Acht einer anderen Farbe
+          for (final val in [CardValue.six, CardValue.seven, CardValue.eight]) {
+            final c = available.firstWhere(
+              (c) => c.value == val && c.suit != trumpSuit,
+              orElse: () => available.firstWhere(
+                (c) => c.value == val,
+                orElse: () => available.first,
+              ),
+            );
+            if (c.value == val) return c;
+          }
+          return available.first;
+        }
+      }
+
+      // Normal: Buur wünschen, Näll als Fallback
+      return available.firstWhere(
+        (c) => c.suit == trumpSuit && c.value == CardValue.jack,
+        orElse: () => available.firstWhere(
+          (c) => c.suit == trumpSuit && c.value == CardValue.nine,
+          orElse: () => available.first,
+        ),
+      );
+    }
+
+    // Bei Obenabe: Ass wünschen
+    if (mode == GameMode.oben) {
+      return available.firstWhere(
+        (c) => c.value == CardValue.ace,
+        orElse: () => available.first,
+      );
+    }
+
+    // Bei Undenufe: Sechs wünschen
+    if (mode == GameMode.unten) {
+      return available.firstWhere(
+        (c) => c.value == CardValue.six,
+        orElse: () => available.first,
+      );
+    }
+
+    // Slalom: Ass oder Sechs der längsten Farbe
+    if (mode == GameMode.slalom) {
+      final allSuits = cardType == CardType.french
+          ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
+          : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
+      final counts = {for (final s in allSuits) s: 0};
+      for (final c in hand) counts[c.suit] = (counts[c.suit] ?? 0) + 1;
+      final sortedSuits = [...allSuits]..sort((a, b) => counts[b]!.compareTo(counts[a]!));
+      for (final suit in sortedSuits) {
+        for (final val in [CardValue.ace, CardValue.six]) {
+          final card = available.firstWhere(
+            (c) => c.suit == suit && c.value == val,
+            orElse: () => available[0],
+          );
+          if (card.suit == suit && card.value == val) return card;
+        }
+      }
+      return available.first;
+    }
+
+    // Schafkopf: Dame/8 in Stärke-Reihenfolge
+    if (mode == GameMode.schafkopf) {
+      final isFrench = cardType == CardType.french;
+      final suitOrder = isFrench
+          ? [Suit.clubs, Suit.spades, Suit.hearts, Suit.diamonds]
+          : [Suit.eichel, Suit.schilten, Suit.herzGerman, Suit.schellen];
+      for (final val in [CardValue.queen, CardValue.eight]) {
+        for (final suit in suitOrder) {
+          final card = available.firstWhere(
+            (c) => c.suit == suit && c.value == val,
+            orElse: () => available[0],
+          );
+          if (card.suit == suit && card.value == val) return card;
+        }
+      }
+      return available.first;
+    }
+
+    // Misère: 6/7 einer fehlenden Farbe
+    if (mode == GameMode.misere) {
+      final handSuits = hand.map((c) => c.suit).toSet();
+      final missingSuits = Suit.values.where((s) => !handSuits.contains(s)).toList();
+      for (final val in [CardValue.six, CardValue.seven]) {
+        for (final suit in missingSuits) {
+          final card = available.firstWhere(
+            (c) => c.suit == suit && c.value == val,
+            orElse: () => available[0],
+          );
+          if (card.suit == suit && card.value == val) return card;
+        }
+      }
+      for (final val in [CardValue.six, CardValue.seven]) {
+        final card = available.firstWhere(
+          (c) => c.value == val,
+          orElse: () => available[0],
+        );
+        if (card.value == val) return card;
+      }
+      return available.first;
+    }
+
+    // Alles Trumpf: Buur (Jack) → Näll (9)
+    if (mode == GameMode.allesTrumpf) {
+      for (final val in [CardValue.jack, CardValue.nine]) {
+        final card = available.firstWhere(
+          (c) => c.value == val,
+          orElse: () => available[0],
+        );
+        if (card.value == val) return card;
+      }
+      return available.first;
+    }
+
+    // Molotof: 7/8 (wenig Punkte)
+    if (mode == GameMode.molotof) {
+      for (final val in [CardValue.seven, CardValue.eight]) {
+        final card = available.firstWhere(
+          (c) => c.value == val,
+          orElse: () => available[0],
+        );
+        if (card.value == val) return card;
+      }
+      return available.first;
+    }
+
+    // Elefant: 3× Oben + 3× Trumpf + 3× Unten
+    // Wunschkarte soll die schwächste Seite verstärken:
+    //   Oben schwach → Ass wünschen
+    //   Unten schwach → 6 wünschen
+    //   Beides ok → Buur/Nell für Trumpf
+    if (mode == GameMode.elefant) {
+      final obenScore = _scoreOben(hand);
+      final untenScore = _scoreUnten(hand);
+
+      if (obenScore < untenScore) {
+        // Oben ist schwächer → Ass wünschen (bevorzugt Farbe mit König)
+        final hasKing = <Suit>{};
+        for (final c in hand) {
+          if (c.value == CardValue.king) hasKing.add(c.suit);
+        }
+        final aceCard = available.firstWhere(
+          (c) => c.value == CardValue.ace && hasKing.contains(c.suit),
+          orElse: () => available.firstWhere(
+            (c) => c.value == CardValue.ace,
+            orElse: () => available.first,
+          ),
+        );
+        if (aceCard.value == CardValue.ace) return aceCard;
+      } else if (untenScore < obenScore) {
+        // Unten ist schwächer → 6 wünschen (bevorzugt Farbe mit 7)
+        final hasSeven = <Suit>{};
+        for (final c in hand) {
+          if (c.value == CardValue.seven) hasSeven.add(c.suit);
+        }
+        final sixCard = available.firstWhere(
+          (c) => c.value == CardValue.six && hasSeven.contains(c.suit),
+          orElse: () => available.firstWhere(
+            (c) => c.value == CardValue.six,
+            orElse: () => available.first,
+          ),
+        );
+        if (sixCard.value == CardValue.six) return sixCard;
+      }
+
+      // Oben und Unten ausgeglichen → Buur/Nell für Trumpf
+      final rest = hand.where((c) =>
+          c.value != CardValue.ace && c.value != CardValue.six).toList();
+      final suitCounts = <Suit, int>{};
+      for (final c in rest) suitCounts[c.suit] = (suitCounts[c.suit] ?? 0) + 1;
+      Suit? trumpSuitForWish;
+      int bestWishScore = -1;
+      for (final entry in suitCounts.entries) {
+        int score = entry.value * 10;
+        if (rest.any((c) => c.suit == entry.key && c.value == CardValue.jack)) score += 100;
+        if (rest.any((c) => c.suit == entry.key && c.value == CardValue.nine)) score += 50;
+        if (score > bestWishScore) { bestWishScore = score; trumpSuitForWish = entry.key; }
+      }
+      trumpSuitForWish ??= hand.first.suit;
+      for (final val in [CardValue.jack, CardValue.nine]) {
+        final card = available.firstWhere(
+          (c) => c.suit == trumpSuitForWish && c.value == val,
+          orElse: () => available[0],
+        );
+        if (card.suit == trumpSuitForWish && card.value == val) return card;
+      }
+      return available.first;
+    }
+
+    return available.first;
   }
 
   // ─── Trumpf Oben / Unten ────────────────────────────────────────────────
@@ -566,7 +1023,7 @@ class ModeSelectorAI {
   /// Prüft ob die Hand 3 sichere Oben-Stiche (Asse verschiedener Farben) und
   /// 3 sichere Unten-Stiche (6er verschiedener Farben) hat.
   /// Falls ja: Elefant sofort wählen, Trumpffarbe = Farbe der restlichen 3 Karten.
-  static ({GameMode mode, Suit? trumpSuit, bool slalomStartsOben})?
+  static ({GameMode mode, Suit? trumpSuit, bool slalomStartsOben, JassCard? wishCard})?
       _checkElefantGuaranteed(List<JassCard> hand) {
     final aces = hand.where((c) => c.value == CardValue.ace).toList();
     final sixes = hand.where((c) => c.value == CardValue.six).toList();
@@ -601,6 +1058,6 @@ class ModeSelectorAI {
     // Wenn keine Rest-Karten (6 Asse + 6er bei 9-Karten-Hand → 3 Rest-Karten immer vorhanden)
     bestSuit ??= hand.first.suit;
 
-    return (mode: GameMode.elefant, trumpSuit: bestSuit, slalomStartsOben: true);
+    return (mode: GameMode.elefant, trumpSuit: bestSuit, slalomStartsOben: true, wishCard: null);
   }
 }
