@@ -2,6 +2,12 @@
 
 Eine Flutter-App für das Schweizer Kartenspiel **Jass** – spielbar auf Android.
 
+> **Android 8.0+** · APK öffnen, einmalig „Unbekannte Quelle" erlauben, fertig.
+
+---
+
+## Download
+
 <p align="center">
   <a href="https://github.com/Flavio-art/Jass_App/releases/latest/download/app-release.apk">
     <img src="https://img.shields.io/badge/⬇️%20APK%20herunterladen-latest-brightgreen?style=for-the-badge" alt="APK herunterladen"/>
@@ -11,12 +17,6 @@ Eine Flutter-App für das Schweizer Kartenspiel **Jass** – spielbar auf Androi
     <img src="https://img.shields.io/github/v/release/Flavio-art/Jass_App?style=for-the-badge&label=Release" alt="Neueste Version"/>
   </a>
 </p>
-
-> **Android 8.0+** · APK öffnen, einmalig „Unbekannte Quelle" erlauben, fertig.
-
----
-
-## Download
 
 | Link | Beschreibung |
 |------|-------------|
@@ -83,9 +83,13 @@ Solo-Variante über 20–40 Runden.
 
 - **Zwei Kartensets**: Französisch (♠️♣️♥️♦️) und Deutsch (Schellen · Rosen · Eichel · Schilten)
 - **KI-Gegner** mit Monte-Carlo-Simulation + neuronales Netz für Modus-Wahl
+- **KI-Moduswahl mit Wunschkarte**: Im Friseur Solo bewertet die KI jeden Modus mit idealer Wunschkarte + besten 9 Karten
+- **Im-Loch-Boost**: Misère/Molotof werden bei schlechten Händen (2× geschoben) häufiger gewählt als Fallback
+- **Dynamisches Schieben**: KI schiebt ~80% am Anfang, ~60% am Ende; in Runde 2 sagen ~10% trotzdem an
+- **Zentrale KI-Tuning-Config** (`nn_tuning.dart`): Alle Multiplikatoren und Schwellenwerte an einem Ort
 - **Weisen (Wys)**: Kombinationen werden angesagt und automatisch ausgewertet
 - **Spielübersicht** 📊: Rundenhistorie und Punktetabelle jederzeit über Topbar abrufbar
-- **Schieben-Kommentare**: 50+ verschiedene Sprüche wenn KI in der 2. Schieben-Runde passt
+- **Schieben-Kommentare**: 50+ lustige Sprüche wenn KI passt, Mitleids-Kommentare bei Runde-2-Ansage, Cadeller-Sprüche bei Glück nach Im Loch
 - **Im-Loch-Indikator** 🕳️: Zeigt welcher Spieler nach 2× Schieben spielen muss
 - **Vollständiges Regelwerk** direkt in der App (eigener Tab pro Spielmodus)
 - **Farbenpflicht** korrekt umgesetzt (inkl. Schafkopf-Sonderregeln)
@@ -149,7 +153,8 @@ lib/
     ├── game_logic.dart          # Stichgewinner, Farbenpflicht, Punkte
     ├── monte_carlo.dart         # KI Monte-Carlo
     ├── mode_selector.dart       # KI Modus-Wahl (NN + Heuristik)
-    └── nn_model.dart            # Neuronales Netz
+    ├── nn_model.dart            # Neuronales Netz
+    └── nn_tuning.dart           # Zentrale KI-Tuning-Konstanten
 ```
 
 ## Setup & Build
@@ -158,6 +163,7 @@ lib/
 flutter pub get
 flutter run                          # Debug auf verbundenem Gerät
 flutter build apk --release          # Release-APK erstellen
+flutter test test/simulate_modes_test.dart  # KI-Moduswahl simulieren
 ```
 
 ---
