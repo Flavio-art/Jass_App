@@ -10,10 +10,6 @@ Eine Flutter-App für das Schweizer Kartenspiel **Jass** – spielbar auf Androi
   <a href="https://github.com/Flavio-art/Jass_App/releases/latest/download/app-release.apk">
     <img src="https://img.shields.io/badge/⬇️%20APK%20herunterladen-latest-brightgreen?style=for-the-badge" alt="APK herunterladen"/>
   </a>
-  &nbsp;
-  <a href="https://github.com/Flavio-art/Jass_App/releases/latest">
-    <img src="https://img.shields.io/github/v/release/Flavio-art/Jass_App?style=for-the-badge&label=Release" alt="Neueste Version"/>
-  </a>
 </p>
 
 > **Android 8.0+** · APK öffnen, einmalig „Unbekannte Quelle" erlauben, fertig.
