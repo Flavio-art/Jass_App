@@ -2,7 +2,28 @@
 ///
 /// ⚠️  NACH JEDEM NN-RETRAINING PRÜFEN UND ANPASSEN!
 ///     Simulation: flutter test test/simulate_modes_test.dart
-///     Ziel Schieber: ~20% Oben, ~20% Unten, ~30% Slalom, ~30% Trumpf
+///
+/// ── Aktuelle Zielverteilungen (Stand 2026-03-04) ──────────────
+///
+/// SCHIEBER (1000 Deals):
+///   Slalom    ~34%  |  Obenabe   ~19%  |  Undenufe  ~19%
+///   Trump ↑   ~17%  |  Trump ↓   ~11%
+///
+/// SCHIEBER NACH SCHIEBEN (1000 Deals):
+///   Obenabe   ~28%  |  Undenufe  ~24%  |  Slalom    ~17%
+///   Trump ↑   ~20%  |  Trump ↓   ~11%
+///
+/// FRISEUR SOLO (1000 Deals, alle Varianten):
+///   Slalom    ~14%  |  Obenabe   ~12%  |  Schafkopf ~26% (4 Farben)
+///   Trump ↑   ~22%  |  Trump ↓   ~13%  |  Undenufe   ~7%
+///   Alles Tr.  ~3%  |  Elefant    ~3%  |  Misère     ~1%  |  Molotof  ~0%
+///   Schieben: ~81% (10 Varianten offen) → ~61% (3 Varianten offen)
+///
+/// FRISEUR IM LOCH (nur schlechte Hände, 2× geschoben):
+///   Misère    ~17%  |  Molotof   ~14%  ← Fallback-Modi
+///   Slalom    ~11%  |  Obenabe    ~9%  |  Schafkopf ~19%
+///   Trump ↑   ~14%  |  Trump ↓    ~5%  |  Undenufe   ~4%
+///   Alles Tr.  ~2%  |  Elefant    ~1%
 class NNTuning {
   // ── NN Score-Korrekturen (Bias-Fixes) ──────────────────
   static const double untenBias = 0.12; // Index 9: Undenufe
@@ -40,6 +61,8 @@ class NNTuning {
   static const double friseurLochBoostMolotof = 1.35;
 
   // ── Friseur Solo Schiebe-Schwellenwerte ────────────────
+  // 2. Schiebe-Runde: Schwelle leicht senken, damit ~5-10% trotzdem ansagen.
+  static const double friseurSchiebenRound2Factor = 0.97;
   // NN-Score auf Original-Hand (ohne Wunschkarte).
   // Dynamisch: Schwelle = min + (max − min) × (offeneVarianten / 10)
   // Mehr Varianten offen → wählerischer (aufsparen lohnt sich)
