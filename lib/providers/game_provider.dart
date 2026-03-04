@@ -1727,8 +1727,12 @@ class GameProvider extends ChangeNotifier {
         final threshold = 80 + Random().nextInt(51); // 80–130
         if (finalTeam1 > threshold) {
           final announcerName = _state.players[_state.ansagerIndex].name;
+          final partnerId = _state.friseurPartnerIndex != null
+              ? _state.players[_state.friseurPartnerIndex!].id : null;
           final aiOpponents = _state.players
-              .where((p) => !p.isHuman && p.id != _state.players[_state.ansagerIndex].id)
+              .where((p) => !p.isHuman &&
+                  p.id != _state.players[_state.ansagerIndex].id &&
+                  p.id != partnerId)
               .toList();
           if (aiOpponents.isNotEmpty) {
             final commentor = aiOpponents[Random().nextInt(aiOpponents.length)];
