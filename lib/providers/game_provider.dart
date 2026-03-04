@@ -279,6 +279,89 @@ class GameProvider extends ChangeNotifier {
     return 1;
   }
 
+  /// Prüft ob ein Team im Schieber das Punktelimit mit den aktuellen
+  /// Rundenpunkten (×Multiplikator) erreicht hat. Setzt schieberLimitReachedBy
+  /// falls noch nicht gesetzt.
+  void _checkSchieberLimitMidRound() {
+    if (_state.gameType != GameType.schieber) return;
+    if (_state.schieberLimitReachedBy != null) return; // bereits erkannt
+
+    final mult = _schieberMultiplier(_state.gameMode, _state.trumpSuit);
+    final raw1 = _state.teamScores['team1'] ?? 0;
+    final raw2 = _state.teamScores['team2'] ?? 0;
+    final live1 = (_state.totalTeamScores['team1'] ?? 0) + raw1 * mult;
+    final live2 = (_state.totalTeamScores['team2'] ?? 0) + raw2 * mult;
+
+    String? winner;
+    if (live1 >= _state.schieberWinTarget && live2 >= _state.schieberWinTarget) {
+      // Beide über dem Limit → höherer Wert gewinnt, bei Gleichstand Team das diesen Stich gewann
+      winner = live1 >= live2 ? 'team1' : 'team2';
+    } else if (live1 >= _state.schieberWinTarget) {
+      winner = 'team1';
+    } else if (live2 >= _state.schieberWinTarget) {
+      winner = 'team2';
+    }
+
+    if (winner != null) {
+      _state = _state.copyWith(schieberLimitReachedBy: winner);
+      notifyListeners();
+    }
+  }
+
+  /// Spieler entscheidet: Runde sofort beenden (Limit erreicht).
+  /// Berechnet die Endpunkte und geht zu gameEnd.
+  void endGameFromSchieberLimit() {
+    if (_state.schieberLimitReachedBy == null) return;
+    final mult = _schieberMultiplier(_state.gameMode, _state.trumpSuit);
+    final raw1 = _state.teamScores['team1'] ?? 0;
+    final raw2 = _state.teamScores['team2'] ?? 0;
+    final wyssBonus1 = _state.wyssWinnerTeam == 'team1' ? _totalWyssPoints() : 0;
+    final wyssBonus2 = _state.wyssWinnerTeam == 'team2' ? _totalWyssPoints() : 0;
+    final stocke1 = _state.stockeRoundPoints['team1'] ?? 0;
+    final stocke2 = _state.stockeRoundPoints['team2'] ?? 0;
+    final pureRaw1 = raw1 - stocke1;
+    final pureRaw2 = raw2 - stocke2;
+    final finalTeam1 = ((pureRaw1 == 157 ? 257 : pureRaw1) + wyssBonus1 + stocke1) * mult;
+    final finalTeam2 = ((pureRaw2 == 157 ? 257 : pureRaw2) + wyssBonus2 + stocke2) * mult;
+
+    final varKey = _state.variantKey(_state.gameMode, trumpSuit: _state.trumpSuit);
+    final partnerIdx = (_state.ansagerIndex + 2) % 4;
+    final result = RoundResult(
+      roundNumber: _state.roundNumber,
+      variantKey: varKey,
+      trumpSuit: _state.trumpSuit,
+      isTeam1Ansager: _state.isTeam1Ansager,
+      team1Score: finalTeam1,
+      team2Score: finalTeam2,
+      rawTeam1Score: raw1,
+      rawTeam2Score: raw2,
+      announcerName: _state.players[_state.ansagerIndex].name,
+      partnerName: _state.players[partnerIdx].name,
+      wyssPoints1: (wyssBonus1 + stocke1) * mult,
+      wyssPoints2: (wyssBonus2 + stocke2) * mult,
+    );
+    final newHistory = [..._state.roundHistory, result];
+    final newTotal = {
+      'team1': (_state.totalTeamScores['team1'] ?? 0) + finalTeam1,
+      'team2': (_state.totalTeamScores['team2'] ?? 0) + finalTeam2,
+    };
+    _state = _state.copyWith(
+      totalTeamScores: newTotal,
+      roundHistory: newHistory,
+      phase: GamePhase.gameEnd,
+    );
+    _archiveGame();
+    notifyListeners();
+  }
+
+  /// Spieler entscheidet: Runde zu Ende spielen (Limit bereits erreicht).
+  /// Gewinner ist bereits in schieberLimitReachedBy gesperrt.
+  void continuePlayingAfterLimit() {
+    // Nichts zu tun – schieberLimitReachedBy bleibt gesetzt.
+    // Das Spiel läuft normal weiter, am Rundenende wird der gesperrte Gewinner verwendet.
+    notifyListeners();
+  }
+
   /// Wählt einen zufälligen Trumpf basierend auf dem Kartentyp.
   Suit _pickRandomTrumpSuit(CardType cardType) {
     final random = DateTime.now().microsecondsSinceEpoch;
@@ -533,9 +616,20 @@ class GameProvider extends ChangeNotifier {
     // totalTeamScores wurde bereits in clearTrick() aktualisiert – kein nochmaliges Hinzufügen.
     final newTotal = Map<String, int>.from(currentState.totalTeamScores);
 
-    // Spielende: eines der Teams hat das Ziel erreicht
-    if ((newTotal['team1'] ?? 0) >= currentState.schieberWinTarget ||
-        (newTotal['team2'] ?? 0) >= currentState.schieberWinTarget) {
+    // Spielende: Limit wurde mid-round erreicht (gesperrter Gewinner) oder normaler Check
+    final limitWinner = currentState.schieberLimitReachedBy;
+    final team1Over = (newTotal['team1'] ?? 0) >= currentState.schieberWinTarget;
+    final team2Over = (newTotal['team2'] ?? 0) >= currentState.schieberWinTarget;
+    if (limitWinner != null || team1Over || team2Over) {
+      // Bei gesperrtem Gewinner: sicherstellen dass dessen Punkte >= Ziel
+      // (kann durch Weiterspielen über das tatsächliche Limit hinausgehen)
+      if (limitWinner != null) {
+        // Gewinner-Punkte mindestens auf Ziel setzen (für korrekte Anzeige)
+        final winnerScore = newTotal[limitWinner] ?? 0;
+        if (winnerScore < currentState.schieberWinTarget) {
+          newTotal[limitWinner] = currentState.schieberWinTarget;
+        }
+      }
       _state = _state.copyWith(
         totalTeamScores: newTotal,
         phase: GamePhase.gameEnd,
@@ -576,6 +670,7 @@ class GameProvider extends ChangeNotifier {
       slalomStartsOben: true,
       stockeComment: null,
       stockeRoundPoints: const {'team1': 0, 'team2': 0},
+      clearSchieberLimitReachedBy: true,
       playerScores: {for (final p in updatedPlayers) p.id: 0},
     );
     notifyListeners();
@@ -1190,6 +1285,21 @@ class GameProvider extends ChangeNotifier {
     }
     if (available.isEmpty) return;
 
+    // Schieber / Friseur Team: KI kann einmal zum Partner schieben
+    if ((_state.gameType == GameType.schieber || _state.gameType == GameType.friseurTeam) &&
+        _state.trumpSelectorIndex == null) {
+      const schiebenThreshold = 105.0;
+      final score = ModeSelectorAI.bestHeuristicScore(
+        hand: selector.hand,
+        state: _state,
+        available: available,
+      );
+      if (score < schiebenThreshold) {
+        schieben();
+        return;
+      }
+    }
+
     // Friseur Solo: KI als Ursprungs-Ansager kann schieben wenn Hand schlecht.
     // Dynamischer Schwellenwert: je mehr Varianten noch offen, desto wählerischer.
     if (_state.gameType == GameType.friseur &&
@@ -1538,6 +1648,40 @@ class GameProvider extends ChangeNotifier {
       wyssResolved: false,
     );
     notifyListeners();
+
+    // ── Stöcke-Spezialfall: Sofortiges Spielende ───────────────────────────
+    // Wenn ein Spieler König+Dame von Trumpf hat UND die Stöcke-Punkte
+    // (×Multiplikator) das Punktelimit überschreiten → sofortiger Sieg.
+    if (_state.gameType == GameType.schieber &&
+        trumpSuit != null &&
+        (mode == GameMode.trump || mode == GameMode.trumpUnten ||
+         (mode == GameMode.elefant))) {
+      final mult = _schieberMultiplier(mode, trumpSuit);
+      for (final p in _state.players) {
+        final hasKing = p.hand.any((c) => c.suit == trumpSuit && c.value == CardValue.king);
+        final hasQueen = p.hand.any((c) => c.suit == trumpSuit && c.value == CardValue.queen);
+        if (hasKing && hasQueen) {
+          final isTeam1 = _isAnnouncingTeam(p);
+          final teamKey = isTeam1 ? 'team1' : 'team2';
+          final currentTotal = _state.totalTeamScores[teamKey] ?? 0;
+          final stockePoints = 20 * mult;
+          if (currentTotal + stockePoints >= _state.schieberWinTarget) {
+            // Stöcke reichen für den Sieg → sofort Spielende
+            final newTotal = Map<String, int>.from(_state.totalTeamScores);
+            newTotal[teamKey] = currentTotal + stockePoints;
+            _state = _state.copyWith(
+              totalTeamScores: newTotal,
+              phase: GamePhase.gameEnd,
+              stockeComment: '${p.name}: Stöcke! +$stockePoints → Sieg!',
+            );
+            _archiveGame();
+            notifyListeners();
+            return;
+          }
+        }
+      }
+    }
+
     if (nextPhase == GamePhase.playing) {
       _triggerAiIfNeeded();
     }
@@ -1547,6 +1691,31 @@ class GameProvider extends ChangeNotifier {
   void acknowledgeWyssReveal() {
     if (!_state.wyssDeclarationPending) return;
     _state = _state.copyWith(wyssDeclarationPending: false, wyssResolved: true);
+
+    // Prüfe ob Wyss-Punkte das Limit überschreiten
+    if (_state.gameType == GameType.schieber && _state.schieberLimitReachedBy == null) {
+      final mult = _schieberMultiplier(_state.gameMode, _state.trumpSuit);
+      final wyssTotal = _totalWyssPoints();
+      final stocke1 = _state.stockeRoundPoints['team1'] ?? 0;
+      final stocke2 = _state.stockeRoundPoints['team2'] ?? 0;
+      final wyssTeam = _state.wyssWinnerTeam;
+      final wyss1 = (wyssTeam == 'team1' ? wyssTotal : 0) + stocke1;
+      final wyss2 = (wyssTeam == 'team2' ? wyssTotal : 0) + stocke2;
+      final raw1 = _state.teamScores['team1'] ?? 0;
+      final raw2 = _state.teamScores['team2'] ?? 0;
+      final live1 = (_state.totalTeamScores['team1'] ?? 0) + (raw1 + wyss1) * mult;
+      final live2 = (_state.totalTeamScores['team2'] ?? 0) + (raw2 + wyss2) * mult;
+
+      String? winner;
+      if (live1 >= _state.schieberWinTarget) winner = 'team1';
+      if (live2 >= _state.schieberWinTarget) {
+        winner = (winner != null && live1 >= live2) ? 'team1' : 'team2';
+      }
+      if (winner != null) {
+        _state = _state.copyWith(schieberLimitReachedBy: winner);
+      }
+    }
+
     notifyListeners();
     // Bleibt in trickClearPending – Spieler tippt Stichbereich zum Weitermachen.
   }
@@ -2010,6 +2179,7 @@ class GameProvider extends ChangeNotifier {
           stockeRoundPoints: newStockeRound,
           stockeComment: '$stockeName: Stöcke! +20',
         );
+        _checkSchieberLimitMidRound();
         notifyListeners();
       }
     }
@@ -2119,6 +2289,10 @@ class GameProvider extends ChangeNotifier {
       phase: GamePhase.trickClearPending,
       playerScores: newPlayerScores,
     );
+
+    // Prüfe ob Stichpunkte das Schieber-Limit überschreiten
+    _checkSchieberLimitMidRound();
+
     notifyListeners();
 
     // Wyss-Overlay nach dem 1. Stich: kein Auto-Clear, damit das Overlay

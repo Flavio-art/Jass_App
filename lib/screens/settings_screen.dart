@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_colors.dart';
@@ -100,14 +101,25 @@ class _SettingsScreenState extends State<SettingsScreen>
     super.dispose();
   }
 
-  SettingsResult _buildResult() => SettingsResult(
-        cardType: _cardType,
-        playerName: _playerName,
-        schieberMultipliers: Map.from(_schieberMultipliers),
-        schieberWinTarget: _schieberWinTarget,
-        enabledVariants: Set.from(_enabledVariants),
-        differenzlerRounds: _differenzlerRounds,
-      );
+  SettingsResult _buildResult() {
+    _saveGameSettings();
+    return SettingsResult(
+      cardType: _cardType,
+      playerName: _playerName,
+      schieberMultipliers: Map.from(_schieberMultipliers),
+      schieberWinTarget: _schieberWinTarget,
+      enabledVariants: Set.from(_enabledVariants),
+      differenzlerRounds: _differenzlerRounds,
+    );
+  }
+
+  void _saveGameSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('schieber_win_target', _schieberWinTarget);
+    await prefs.setString('schieber_multipliers', jsonEncode(_schieberMultipliers));
+    await prefs.setStringList('enabled_variants', _enabledVariants.toList());
+    await prefs.setInt('differenzler_rounds', _differenzlerRounds);
+  }
 
   void _setCardType(CardType type) async {
     setState(() => _cardType = type);
@@ -224,13 +236,19 @@ class _SettingsScreenState extends State<SettingsScreen>
                       IconButton(
                         icon: const Text('✂️', style: TextStyle(fontSize: 16)),
                         tooltip: 'Regeln Friseur',
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        constraints: const BoxConstraints(),
                         onPressed: () => _openRules(GameType.friseurTeam),
                       ),
+                      const SizedBox(width: 4),
                       IconButton(
                         icon: const Text('🎴', style: TextStyle(fontSize: 16)),
                         tooltip: 'Regeln Wunschkarte',
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        constraints: const BoxConstraints(),
                         onPressed: () => _openRules(GameType.friseur),
                       ),
+                      const SizedBox(width: 8),
                     ],
                   );
                 }
@@ -519,7 +537,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           ),
           const SizedBox(height: 4),
           Text(
-            'Friseur ≈ ${_effectiveVariantCount * 2} Runden  ·  Wunschkarte ≈ ${_effectiveVariantCount * 2}–${_effectiveVariantCount * 4} Runden',
+            'Friseur = ${_effectiveVariantCount * 2} Runden  ·  Wunschkarte ≈ ${_effectiveVariantCount * 2}–${_effectiveVariantCount * 4} Runden',
             style: const TextStyle(color: Colors.white54, fontSize: 11),
           ),
           const SizedBox(height: 12),

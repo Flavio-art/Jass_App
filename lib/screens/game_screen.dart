@@ -26,6 +26,8 @@ class _GameScreenState extends State<GameScreen> {
   String? _displayedSchiebungComment;
   bool _overviewShowing = false;
   bool _showWishCardDetail = false;
+  String? _lastLimitReachedBy; // Tracking für Schieber-Limit-Popup
+  bool _limitDialogShowing = false;
 
   static WyssEntry? _bestWyssFor(GameState state, String playerId) {
     final entries = state.playerWyss[playerId] ?? [];
@@ -55,6 +57,64 @@ class _GameScreenState extends State<GameScreen> {
     // Friseur Solo: jeder Spieler kann schieben
     final canSchiebenSolo = isFriseurSolo && !forcedTrump;
     return canSchiebenTeam || canSchiebenSolo;
+  }
+
+  void _showSchieberLimitDialog(BuildContext ctx, GameProvider provider, GameState state) {
+    final winner = state.schieberLimitReachedBy;
+    final winnerLabel = winner == 'team1' ? 'Ihr' : 'Gegner';
+    final mult = _schieberMultiplier(state);
+    final raw1 = state.teamScores['team1'] ?? 0;
+    final raw2 = state.teamScores['team2'] ?? 0;
+    final live1 = (state.totalTeamScores['team1'] ?? 0) + raw1 * mult;
+    final live2 = (state.totalTeamScores['team2'] ?? 0) + raw2 * mult;
+
+    showDialog<bool>(
+      context: ctx,
+      barrierDismissible: false,
+      builder: (dCtx) => AlertDialog(
+        backgroundColor: const Color(0xFF1B4D2E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          '$winnerLabel hat ${state.schieberWinTarget} erreicht!',
+          style: const TextStyle(color: AppColors.gold, fontSize: 18),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Ihr: $live1  –  Gegner: $live2',
+              style: const TextStyle(color: Colors.white, fontSize: 16),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Runde zu Ende spielen?\nDer Gewinner ändert sich nicht mehr.',
+              style: TextStyle(color: Colors.white70, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dCtx, false);
+              _limitDialogShowing = false;
+              provider.endGameFromSchieberLimit();
+            },
+            child: const Text('Beenden',
+                style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dCtx, true);
+              _limitDialogShowing = false;
+              provider.continuePlayingAfterLimit();
+            },
+            child: const Text('Weiterspielen',
+                style: TextStyle(color: AppColors.gold)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showTrumpSelection() {
@@ -212,6 +272,18 @@ class _GameScreenState extends State<GameScreen> {
             final east = state.players
                 .firstWhere((p) => p.position == PlayerPosition.east);
 
+            // Schieber-Limit-Popup: wenn schieberLimitReachedBy gerade gesetzt wurde
+            if (state.schieberLimitReachedBy != null &&
+                _lastLimitReachedBy == null &&
+                !_limitDialogShowing &&
+                state.phase != GamePhase.gameEnd) {
+              _limitDialogShowing = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _showSchieberLimitDialog(context, provider, state);
+              });
+            }
+            _lastLimitReachedBy = state.schieberLimitReachedBy;
+
             final isClearPending =
                 state.phase == GamePhase.trickClearPending;
             final displayTrickNumber = isClearPending
@@ -311,6 +383,7 @@ class _GameScreenState extends State<GameScreen> {
                                               roundNumber: state.roundNumber,
                                               winTarget: state.schieberWinTarget,
                                               isRoundEnd: state.phase == GamePhase.roundEnd,
+                                              multiplier: _schieberMultiplier(state),
                                             ),
                                           )
                                         : Center(
@@ -3102,12 +3175,28 @@ class _GameOverviewOverlay extends StatelessWidget {
 
 // ── Schieber Score-Anzeige (Gesamtstand → Zielpunkte) ────────────────────────
 
+int _schieberMultiplier(GameState state) {
+  final m = state.schieberMultipliers;
+  final mode = state.gameMode;
+  final trumpSuit = state.trumpSuit;
+  if (mode == GameMode.slalom) return m['slalom'] ?? 4;
+  if (mode == GameMode.oben) return m['oben'] ?? 3;
+  if (mode == GameMode.unten) return m['unten'] ?? 3;
+  if (mode == GameMode.trump && trumpSuit != null) {
+    final isSchwarz = trumpSuit == Suit.spades || trumpSuit == Suit.clubs ||
+        trumpSuit == Suit.schellen || trumpSuit == Suit.schilten;
+    return isSchwarz ? (m['trump_ss'] ?? 1) : (m['trump_re'] ?? 2);
+  }
+  return 1;
+}
+
 class _SchieberScoreBar extends StatelessWidget {
   final Map<String, int> totalTeamScores;
   final Map<String, int> teamScores;
   final int roundNumber;
   final int winTarget;
   final bool isRoundEnd;
+  final int multiplier;
 
   const _SchieberScoreBar({
     required this.totalTeamScores,
@@ -3115,6 +3204,7 @@ class _SchieberScoreBar extends StatelessWidget {
     required this.roundNumber,
     required this.winTarget,
     this.isRoundEnd = false,
+    this.multiplier = 1,
   });
 
   @override
@@ -3123,8 +3213,9 @@ class _SchieberScoreBar extends StatelessWidget {
     final prev2 = totalTeamScores['team2'] ?? 0;
     // Bei Rundenende: totalTeamScores enthält bereits die Rundenpunkte (mit Multiplikator)
     // → teamScores NICHT addieren, sonst Doppelzählung
-    final cur1 = isRoundEnd ? 0 : (teamScores['team1'] ?? 0);
-    final cur2 = isRoundEnd ? 0 : (teamScores['team2'] ?? 0);
+    // Während der Runde: Rohpunkte × Multiplikator anzeigen
+    final cur1 = isRoundEnd ? 0 : (teamScores['team1'] ?? 0) * multiplier;
+    final cur2 = isRoundEnd ? 0 : (teamScores['team2'] ?? 0) * multiplier;
     // Live total: kumulierte Gesamtpunkte inkl. aktueller Rundenfortschritt
     final live1 = prev1 + cur1;
     final live2 = prev2 + cur2;

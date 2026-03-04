@@ -219,15 +219,32 @@ class MonteCarloAI {
         state.currentTrickNumber <= 6;
     final elefantTrick = state.currentTrickNumber;
 
+    // Match-Verfolgung: Prüfen ob das eigene Team bisher ALLE Stiche gewonnen hat
+    final team1Positions = {PlayerPosition.south, PlayerPosition.north};
+    bool myTeamHasAllTricks = state.completedTricks.isNotEmpty &&
+        state.completedTricks.every((t) {
+          if (t.winnerId == null) return false;
+          final winner = state.players.firstWhere((p) => p.id == t.winnerId);
+          final winnerIsTeam1 = team1Positions.contains(winner.position);
+          return winnerIsTeam1 == aiIsTeam1;
+        });
+    // Auch bei 0 Stichen (Rundenbeginn) Match verfolgen wenn starke Hand
+    if (state.completedTricks.isEmpty) myTeamHasAllTricks = true;
+
+    // Budget: ~200 Gesamt-Simulationen, verteilt auf alle Karten
+    // Bei Match-Verfolgung mehr Simulationen für bessere Entscheidungen
+    final baseBudget = myTeamHasAllTricks ? 300 : 200;
+    final simsPerCard = math.max(10, baseBudget ~/ playable.length);
+
     for (final card in playable) {
       double total = 0.0;
-      for (int i = 0; i < simulations; i++) {
+      for (int i = 0; i < simsPerCard; i++) {
         // Neue Welt: eigene Hand bleibt, andere Spieler kriegen zufällige Karten
         final world = _sampleWorld(state, aiPlayer.id, voidSuits);
         final finalState = _simulate(world, aiPlayer.id, card);
         total += _scoreFor(finalState, aiIsTeam1, aiPlayer.id);
       }
-      double avg = total / simulations;
+      double avg = total / simsPerCard;
 
       // Elefant: Bauern für Trumpfphase und 6er für Unten-Phase schonen
       if (isElefantPre) {
@@ -276,14 +293,20 @@ class MonteCarloAI {
       final announcerId = finalState.players[finalState.ansagerIndex].id;
       final myPoints = finalState.playerScores[playerId] ?? 0;
 
+      // Match-Bonus (kleiner als bei Trumpf, da 170 statt 257)
+      final othersZero = finalState.playerScores.entries
+          .where((e) => e.key != playerId)
+          .every((e) => e.value == 0);
+      final soloMatchBonus = (othersZero && myPoints > 0) ? 20.0 : 0.0;
+
       // Partner kennt seine Rolle → maximiert eigene + Ansager-Punkte
       final partnerId = _friseurPartnerId(finalState);
       if (partnerId != null && playerId == partnerId) {
         return (myPoints + (finalState.playerScores[announcerId] ?? 0))
-            .toDouble();
+            .toDouble() + soloMatchBonus;
       }
       // Alle anderen: eigene Punkte maximieren
-      return myPoints.toDouble();
+      return myPoints.toDouble() + soloMatchBonus;
     }
 
     // ── Differenzler: minimale Abweichung von der Ansage ────────────────────
@@ -299,6 +322,12 @@ class MonteCarloAI {
     final my = (aiIsTeam1 ? scores['team1'] : scores['team2']) ?? 0;
     final opp = (aiIsTeam1 ? scores['team2'] : scores['team1']) ?? 0;
 
+    // Match-Bonus: Alle 9 Stiche gewonnen → extra Anreiz
+    // (Der 257-Bonus ist zwar schon im Score, aber wir verstärken den Anreiz
+    //  damit die AI aktiv versucht alle Stiche zu gewinnen)
+    final isMatch = opp == 0 && my > 0;
+    final matchBonus = isMatch ? 50.0 : 0.0;
+
     switch (finalState.gameMode) {
       case GameMode.misere:
         final iAmAnnouncer = aiIsTeam1 == finalState.isTeam1Ansager;
@@ -306,7 +335,7 @@ class MonteCarloAI {
       case GameMode.molotof:
         return -my.toDouble();
       default:
-        return my.toDouble();
+        return my.toDouble() + matchBonus;
     }
   }
 

@@ -118,7 +118,15 @@ class _SplashScreenState extends State<SplashScreen>
       _selectedCardType == CardType.german ? 'german' : 'french',
     );
     if (!mounted) return;
-    _navigateHome();
+    // Splash-Screen mit "Built von Flavio" anzeigen
+    setState(() {
+      _playerName = saveName;
+      _isFirstTime = false;
+      _fanCards = _buildFanCards(_selectedCardType);
+    });
+    _anim.reset();
+    _anim.forward();
+    Timer(const Duration(milliseconds: 3500), _navigateHome);
   }
 
   void _navigateHome() {

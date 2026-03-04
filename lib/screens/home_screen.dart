@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -64,6 +65,24 @@ class _HomeScreenState extends State<HomeScreen> {
       final name = prefs.getString('player_name');
       if (name != null && name.trim().isNotEmpty) {
         _playerName = name.trim();
+      }
+      // Spieleinstellungen laden
+      final winTarget = prefs.getInt('schieber_win_target');
+      if (winTarget != null) _schieberWinTarget = winTarget;
+      final diffRounds = prefs.getInt('differenzler_rounds');
+      if (diffRounds != null) _differenzlerRounds = diffRounds;
+      final multipliersJson = prefs.getString('schieber_multipliers');
+      if (multipliersJson != null) {
+        final decoded = jsonDecode(multipliersJson) as Map<String, dynamic>;
+        _schieberMultipliers
+          ..clear()
+          ..addAll(decoded.map((k, v) => MapEntry(k, v as int)));
+      }
+      final variants = prefs.getStringList('enabled_variants');
+      if (variants != null) {
+        _enabledVariants
+          ..clear()
+          ..addAll(variants);
       }
       _savedGameTypes = saved;
     });
@@ -147,19 +166,14 @@ class _HomeScreenState extends State<HomeScreen> {
       body: SafeArea(
         maintainBottomViewPadding: true,
         child: LayoutBuilder(
-          builder: (context, constraints) => SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minHeight: constraints.maxHeight,
-                minWidth: constraints.maxWidth,
-                maxWidth: constraints.maxWidth,
-              ),
+          builder: (context, constraints) => SizedBox(
+              height: constraints.maxHeight,
+              width: constraints.maxWidth,
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.start,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   // Oberer Abstand
-                  SizedBox(height: constraints.maxHeight * 0.12),
+                  const Spacer(flex: 3),
 
                   // ── 1. JASS Titel ──────────────────────────────────────
                   const Text(
@@ -171,7 +185,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       letterSpacing: 14,
                     ),
                   ),
-                  SizedBox(height: constraints.maxHeight * 0.06),
+                  const Spacer(flex: 3),
 
                   // ── 2. Spielmodus wählen + 2×2 Grid ────────────────────
                   Container(
@@ -256,7 +270,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
 
-                  SizedBox(height: constraints.maxHeight * 0.03),
+                  const Spacer(flex: 1),
 
                   // ── 3. SPIELEN Button ─────────────────────────────────
                   ElevatedButton(
@@ -273,7 +287,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: const Text('SPIELEN'),
                   ),
 
-                  SizedBox(height: constraints.maxHeight * 0.04),
+                  const Spacer(flex: 1),
 
                   // ── 4-6. Einstellungen / Statistik / Regeln ───────────
                   TextButton(
@@ -295,10 +309,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: const Text('Regeln',
                         style: TextStyle(color: Colors.white38, fontSize: 15)),
                   ),
+                  SizedBox(height: constraints.maxHeight * 0.02),
                 ],
               ),
             ),
-          ),
         ),
       ),
     );
