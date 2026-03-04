@@ -9,6 +9,7 @@ import '../widgets/card_widget.dart';
 import 'game_screen.dart';
 import 'rules_screen.dart';
 import 'settings_screen.dart';
+import 'stats_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,6 +22,7 @@ class _HomeScreenState extends State<HomeScreen> {
   CardType _selectedCardType = CardType.french;
   GameType _selectedGameType = GameType.friseurTeam;
   int _schieberWinTarget = 2500;
+  int _differenzlerRounds = 4;
   String _playerName = 'Du';
 
   /// Welche Spielmodi haben ein gespeichertes Spiel?
@@ -68,10 +70,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openSettings() async {
-    final initialTab = (_selectedGameType == GameType.friseurTeam ||
-            _selectedGameType == GameType.friseur)
-        ? 1
-        : 0;
+    final initialTab = switch (_selectedGameType) {
+      GameType.differenzler => 1,
+      GameType.friseurTeam || GameType.friseur => 2,
+      _ => 0,
+    };
 
     final result = await Navigator.push<SettingsResult>(
       context,
@@ -82,6 +85,7 @@ class _HomeScreenState extends State<HomeScreen> {
           schieberMultipliers: Map.from(_schieberMultipliers),
           schieberWinTarget: _schieberWinTarget,
           enabledVariants: Set.from(_enabledVariants),
+          differenzlerRounds: _differenzlerRounds,
           initialTab: initialTab,
         ),
       ),
@@ -100,6 +104,12 @@ class _HomeScreenState extends State<HomeScreen> {
       if ((multipliersChanged || result.schieberWinTarget != _schieberWinTarget)
           && _savedGameTypes.contains(GameType.schieber)) {
         affectedTypes.add(GameType.schieber);
+      }
+
+      // Differenzler-Runden geändert → Differenzler betroffen
+      if (result.differenzlerRounds != _differenzlerRounds
+          && _savedGameTypes.contains(GameType.differenzler)) {
+        affectedTypes.add(GameType.differenzler);
       }
 
       // Varianten geändert → Friseur Team + Wunschkarte betroffen
@@ -125,6 +135,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _enabledVariants
           ..clear()
           ..addAll(result.enabledVariants);
+        _differenzlerRounds = result.differenzlerRounds;
       });
     }
   }
@@ -144,20 +155,23 @@ class _HomeScreenState extends State<HomeScreen> {
                 maxWidth: constraints.maxWidth,
               ),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.start,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
+                  // Oberer Abstand
+                  SizedBox(height: constraints.maxHeight * 0.12),
+
                   // ── 1. JASS Titel ──────────────────────────────────────
                   const Text(
                     'JASS',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 52,
+                      fontSize: 56,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: 12,
+                      letterSpacing: 14,
                     ),
                   ),
-                  const SizedBox(height: 28),
+                  SizedBox(height: constraints.maxHeight * 0.06),
 
                   // ── 2. Spielmodus wählen + 2×2 Grid ────────────────────
                   Container(
@@ -201,7 +215,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               const SizedBox(width: 10),
                               _GameTypeButton(
                                 label: 'Differenzler',
-                                subtitle: '4 Runden',
+                                subtitle: '$_differenzlerRounds Runden',
                                 details: const ['Vorhersage', 'Differenz'],
                                 emoji: '🎯',
                                 selected: _selectedGameType == GameType.differenzler,
@@ -219,7 +233,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             children: [
                               _GameTypeButton(
                                 label: 'Friseur',
-                                subtitle: 'Team',
                                 details: const ['Feste Teams', 'Schieben'],
                                 emoji: '✂️',
                                 selected: _selectedGameType == GameType.friseurTeam,
@@ -243,70 +256,45 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: 28),
+                  SizedBox(height: constraints.maxHeight * 0.03),
 
-                  // ── 3. Buttons: FORTSETZEN + NEUES SPIEL ─────────────
-                  if (_hasCurrentSavedGame) ...[
-                    ElevatedButton(
-                      onPressed: _resumeGame,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.gold,
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30)),
-                        textStyle: const TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.bold),
-                      ),
-                      child: const Text('FORTSETZEN'),
+                  // ── 3. SPIELEN Button ─────────────────────────────────
+                  ElevatedButton(
+                    onPressed: _enabledVariants.isEmpty ? null : _onPlayPressed,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.gold,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30)),
+                      textStyle: const TextStyle(
+                          fontSize: 20, fontWeight: FontWeight.bold),
                     ),
-                    const SizedBox(height: 12),
-                    OutlinedButton(
-                      onPressed: _enabledVariants.isEmpty ? null : _startGame,
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: AppColors.gold),
-                        padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30)),
-                      ),
-                      child: const Text('NEUES SPIEL',
-                          style: TextStyle(
-                              color: AppColors.gold,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold)),
-                    ),
-                  ] else
-                    ElevatedButton(
-                      onPressed: _enabledVariants.isEmpty ? null : _startGame,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.gold,
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30)),
-                        textStyle: const TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.bold),
-                      ),
-                      child: const Text('SPIELEN'),
-                    ),
+                    child: const Text('SPIELEN'),
+                  ),
 
-                  const SizedBox(height: 16),
+                  SizedBox(height: constraints.maxHeight * 0.04),
 
-                  // ── 4. Einstellungen ───────────────────────────────────
+                  // ── 4-6. Einstellungen / Statistik / Regeln ───────────
                   TextButton(
                     onPressed: _openSettings,
                     child: const Text('Einstellungen',
                         style: TextStyle(color: Colors.white38, fontSize: 15)),
                   ),
-
-                  // ── 5. Regeln ──────────────────────────────────────────
+                  TextButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const StatsScreen()),
+                    ),
+                    icon: const Icon(Icons.bar_chart, color: Colors.white38, size: 18),
+                    label: const Text('Statistik',
+                        style: TextStyle(color: Colors.white38, fontSize: 15)),
+                  ),
                   TextButton(
                     onPressed: () => _showRules(context),
                     child: const Text('Regeln',
                         style: TextStyle(color: Colors.white38, fontSize: 15)),
                   ),
-
-                  const SizedBox(height: 8),
                 ],
               ),
             ),
@@ -316,12 +304,46 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _startGame() async {
-    // Warnung wenn ein gespeichertes Spiel für diesen Modus existiert
+  void _onPlayPressed() async {
     if (_hasCurrentSavedGame) {
-      final ok = await _confirmOverwriteGame();
-      if (!ok) return;
+      final choice = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1B4D2E),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text('${_gameTypeName(_selectedGameType)} fortsetzen?',
+              style: const TextStyle(color: Colors.white)),
+          content: const Text(
+              'Du hast ein offenes Spiel in diesem Modus.',
+              style: TextStyle(color: Colors.white70)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'new'),
+              child: const Text('Neues Spiel',
+                  style: TextStyle(color: Colors.white54)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'resume'),
+              child: const Text('Fortsetzen',
+                  style: TextStyle(color: AppColors.gold)),
+            ),
+          ],
+        ),
+      );
+      if (!mounted || choice == null) return;
+      if (choice == 'resume') {
+        _resumeGame();
+      } else {
+        await GameProvider.clearSavedGame(_selectedGameType);
+        if (mounted) setState(() => _savedGameTypes.remove(_selectedGameType));
+        _startGame();
+      }
+    } else {
+      _startGame();
     }
+  }
+
+  void _startGame() async {
     if (!mounted) return;
     final provider = context.read<GameProvider>();
     provider.startNewGame(
@@ -332,6 +354,7 @@ class _HomeScreenState extends State<HomeScreen> {
       enabledVariants: (_selectedGameType == GameType.friseurTeam || _selectedGameType == GameType.friseur)
           ? Set.from(_enabledVariants)
           : null,
+      differenzlerMaxRounds: _differenzlerRounds,
     );
     await Navigator.push(
       context,
@@ -361,40 +384,6 @@ class _HomeScreenState extends State<HomeScreen> {
       if (await GameProvider.hasSavedGame(type)) saved.add(type);
     }
     if (mounted) setState(() => _savedGameTypes = saved);
-  }
-
-  /// Warndialog: "Gespeichertes Spiel überschreiben?"
-  Future<bool> _confirmOverwriteGame() async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1B4D2E),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Neues Spiel starten?',
-            style: TextStyle(color: Colors.white)),
-        content: const Text(
-            'Dein gespeichertes Spiel wird überschrieben.',
-            style: TextStyle(color: Colors.white70)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Abbrechen',
-                style: TextStyle(color: Colors.white54)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Neues Spiel',
-                style: TextStyle(color: AppColors.gold)),
-          ),
-        ],
-      ),
-    );
-    if (result == true) {
-      await GameProvider.clearSavedGame(_selectedGameType);
-      if (mounted) setState(() => _savedGameTypes.remove(_selectedGameType));
-      return true;
-    }
-    return false;
   }
 
   /// Warndialog wenn Einstellungsänderungen gespeicherte Spiele betreffen.
@@ -554,13 +543,15 @@ class _GameTypeButton extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: AppColors.gold.withValues(alpha: 0.2),
+                  color: selected
+                      ? AppColors.gold.withValues(alpha: 0.2)
+                      : Colors.white.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: const Text(
+                child: Text(
                   'Offenes Spiel',
                   style: TextStyle(
-                    color: AppColors.gold,
+                    color: selected ? AppColors.gold : Colors.white38,
                     fontSize: 9,
                     fontWeight: FontWeight.bold,
                   ),

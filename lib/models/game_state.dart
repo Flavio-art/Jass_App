@@ -276,6 +276,8 @@ class GameState {
   final Map<String, int> stockeRoundPoints;
 
   // ─── Differenzler ──────────────────────────────────────────────────────────
+  /// Maximale Rundenanzahl für Differenzler (Standard: 4).
+  final int differenzlerMaxRounds;
   /// {playerId: vorhergesagte Punkte} – Vorhersagen für aktuelle Runde (-1 = noch nicht vorhergesagt).
   final Map<String, int> differenzlerPredictions;
   /// {playerId: kumulierte Strafe} – aufsummierte Strafen über alle Runden.
@@ -353,6 +355,7 @@ class GameState {
     this.schieberWinTarget = 1500,
     this.schieberMultipliers = const {'trump_ss': 1, 'trump_re': 2, 'oben': 3, 'unten': 3, 'slalom': 3},
     this.stockeRoundPoints = const {'team1': 0, 'team2': 0},
+    this.differenzlerMaxRounds = 4,
     this.differenzlerPredictions = const {},
     this.differenzlerPenalties = const {},
     this.enabledVariants = const {'trump_oben', 'trump_unten', 'oben', 'unten', 'slalom', 'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof'},
@@ -558,6 +561,7 @@ class GameState {
     'schieberWinTarget': schieberWinTarget,
     'schieberMultipliers': schieberMultipliers,
     'stockeRoundPoints': stockeRoundPoints,
+    'differenzlerMaxRounds': differenzlerMaxRounds,
     'differenzlerPredictions': differenzlerPredictions,
     'differenzlerPenalties': differenzlerPenalties,
     'enabledVariants': enabledVariants.toList(),
@@ -621,6 +625,7 @@ class GameState {
       schieberWinTarget: j['schieberWinTarget'] as int? ?? 1500,
       schieberMultipliers: Map<String, int>.from(j['schieberMultipliers'] as Map? ?? {'trump_ss': 1, 'trump_re': 2, 'oben': 3, 'unten': 3, 'slalom': 4}),
       stockeRoundPoints: Map<String, int>.from(j['stockeRoundPoints'] as Map? ?? {'team1': 0, 'team2': 0}),
+      differenzlerMaxRounds: j['differenzlerMaxRounds'] as int? ?? 4,
       differenzlerPredictions: Map<String, int>.from(j['differenzlerPredictions'] as Map? ?? {}),
       differenzlerPenalties: Map<String, int>.from(j['differenzlerPenalties'] as Map? ?? {}),
       enabledVariants: _migrateEnabledVariants(j['enabledVariants'] as List?),
@@ -699,6 +704,7 @@ class GameState {
     int? schieberWinTarget,
     Map<String, int>? schieberMultipliers,
     Map<String, int>? stockeRoundPoints,
+    int? differenzlerMaxRounds,
     Map<String, int>? differenzlerPredictions,
     Map<String, int>? differenzlerPenalties,
     Set<String>? enabledVariants,
@@ -763,6 +769,7 @@ class GameState {
       schieberWinTarget: schieberWinTarget ?? this.schieberWinTarget,
       schieberMultipliers: schieberMultipliers ?? this.schieberMultipliers,
       stockeRoundPoints: stockeRoundPoints ?? this.stockeRoundPoints,
+      differenzlerMaxRounds: differenzlerMaxRounds ?? this.differenzlerMaxRounds,
       differenzlerPredictions: differenzlerPredictions ?? this.differenzlerPredictions,
       differenzlerPenalties: differenzlerPenalties ?? this.differenzlerPenalties,
       enabledVariants: enabledVariants ?? this.enabledVariants,
