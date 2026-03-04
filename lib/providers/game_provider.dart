@@ -1225,9 +1225,39 @@ class GameProvider extends ChangeNotifier {
       return available.first;
     }
 
-    // Slalom & Elefant: Ass oder Sechs der Farbe mit den meisten Karten auf der Hand
-    // → wir können diese Farbe anspielen und der Partner gewinnt / deckt ab.
-    if (mode == GameMode.slalom || mode == GameMode.elefant) {
+    // Elefant: Buur (Jack) oder Nell (9) der geplanten Trumpffarbe wünschen.
+    // Trumpffarbe = Farbe der restlichen Karten (nach Assen und 6ern).
+    if (mode == GameMode.elefant) {
+      // Trumpffarbe bestimmen (gleiche Logik wie ModeSelectorAI._checkElefantGuaranteed)
+      final rest = selector.hand.where((c) =>
+          c.value != CardValue.ace && c.value != CardValue.six).toList();
+      final suitCounts = <Suit, int>{};
+      for (final c in rest) {
+        suitCounts[c.suit] = (suitCounts[c.suit] ?? 0) + 1;
+      }
+      Suit? trumpSuitForWish;
+      int bestWishScore = -1;
+      for (final entry in suitCounts.entries) {
+        int score = entry.value * 10;
+        if (rest.any((c) => c.suit == entry.key && c.value == CardValue.jack)) score += 100;
+        if (rest.any((c) => c.suit == entry.key && c.value == CardValue.nine)) score += 50;
+        if (score > bestWishScore) { bestWishScore = score; trumpSuitForWish = entry.key; }
+      }
+      trumpSuitForWish ??= selector.hand.first.suit;
+      // Buur oder Nell der Trumpffarbe wünschen
+      for (final val in [CardValue.jack, CardValue.nine]) {
+        final card = available.firstWhere(
+          (c) => c.suit == trumpSuitForWish && c.value == val,
+          orElse: () => available[0],
+        );
+        if (card.suit == trumpSuitForWish && card.value == val) return card;
+      }
+      available.shuffle();
+      return available.first;
+    }
+
+    // Slalom: Ass oder Sechs der Farbe mit den meisten Karten auf der Hand
+    if (mode == GameMode.slalom) {
       final allSuits = selector.hand.first.cardType == CardType.french
           ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
           : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
@@ -1235,7 +1265,6 @@ class GameProvider extends ChangeNotifier {
       for (final c in selector.hand) {
         counts[c.suit] = (counts[c.suit] ?? 0) + 1;
       }
-      // Farben mit den meisten Karten zuerst
       final sortedSuits = [...allSuits]
         ..sort((a, b) => counts[b]!.compareTo(counts[a]!));
       for (final suit in sortedSuits) {
