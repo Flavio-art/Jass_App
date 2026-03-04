@@ -19,6 +19,13 @@ class ModeSelectorAI {
         player.position == PlayerPosition.north;
     final available = availableVariants ?? state.availableVariants(isTeam1);
 
+    // ── Elefant-Sofortentscheid ──────────────────────────────────────────
+    // 3 sichere Oben-Stiche (Asse) + 3 sichere Unten-Stiche (6er) → Elefant
+    if (available.contains('elefant')) {
+      final result = _checkElefantGuaranteed(hand);
+      if (result != null) return result;
+    }
+
     // ── Neural Network (wenn geladen) ─────────────────────────────────────
     final nn     = JassNNModel.instance;
     final scores = nn.predict(hand, state.cardType);
@@ -42,8 +49,16 @@ class ModeSelectorAI {
     // Wenn Partner geschoben hat, ist Slalom riskant (Partner hat schlechte Hand)
     final partnerHatGeschoben = isSchieber && state.trumpSelectorIndex != null;
     double mult(String vk) {
-      final m = isSchieber ? (state.schieberMultipliers[vk] ?? 1).toDouble() : 1.0;
-      if (vk == 'slalom' && partnerHatGeschoben) return m * 0.5;
+      if (!isSchieber) return 1.0;
+      var m = switch (vk) {
+        'trump_ss'   => 1.6,
+        'trump_re'   => 1.6,
+        'oben'       => 2.3,
+        'unten'      => 2.3,
+        'slalom'     => 4.6,
+        _            => 1.0,
+      };
+      if (vk == 'slalom' && partnerHatGeschoben) m *= 0.5;
       return m;
     }
 
@@ -135,26 +150,45 @@ class ModeSelectorAI {
     Suit? bestTrump;
     bool bestSlalomStartsOben = true;
 
-    // Mittelwert der NN-Scores als Baseline für Delta-Verstärkung.
+    // ── Score-Korrekturen ─────────────────────────────────────────────────
+    // Das NN hat systematische Biases die wir korrigieren:
+    final cs = List<double>.from(scores);
+    // 1) Slalom (10): NN gibt ~0.78, viel zu hoch. Ersetzen durch Durchschnitt
+    //    von Oben (8) + Unten (9). Slalom wird nur gewählt wenn BEIDE gut sind.
+    if (cs.length > 10) cs[10] = (cs[8] + cs[9]) / 2;
+    // 2) Unten (9): NN gibt ~0.12 tiefere Scores als Oben → Training-Bias.
+    if (cs.length > 9) cs[9] += 0.10;
+    // 3) Misère (11) / Molotof (14): nur als Notlösung (im Loch).
+    if (cs.length > 11) cs[11] *= 0.6;
+    if (cs.length > 14) cs[14] *= 0.6;
+
+    // Mittelwert der korrigierten Scores als Baseline für Delta-Verstärkung.
     // Formel: adjusted = mean + (raw - mean) × mult
     // Damit verstärkt ein Multiplikator nur den Vorteil ÜBER dem Durchschnitt,
-    // nicht den Absolutwert. Slalom ×3 mit Durchschnittsscore gewinnt nicht mehr
-    // gegen Trump ×1 mit nur leicht überdurchschnittlichem Score.
-    final nnMean = scores.reduce((a, b) => a + b) / scores.length;
+    // nicht den Absolutwert.
+    final nnMean = cs.reduce((a, b) => a + b) / cs.length;
     double adj(double raw, double m) => nnMean + (raw - nnMean) * m;
 
     // NN-Score-Bereich für Normalisierung von Heuristik-Fallbacks.
-    final nnMin = scores.fold(double.infinity,  (a, b) => a < b ? a : b);
-    final nnMax = scores.fold(double.negativeInfinity, (a, b) => a > b ? a : b);
+    final nnMin = cs.fold(double.infinity,  (a, b) => a < b ? a : b);
+    final nnMax = cs.fold(double.negativeInfinity, (a, b) => a > b ? a : b);
     final nnRange = nnMax > nnMin ? nnMax - nnMin : 1.0;
 
-    // Multiplikator für Schieber einrechnen (×1/×2/×3 je nach Variante)
+    // Moduswahl-Multiplikatoren (unabhängig von Scoring-Multiplikatoren).
+    // Ziel: ~20% Oben, ~20% Unten, ~30% Slalom, ~30% Trumpf
     final isSchieber = state.gameType == GameType.schieber;
-    // Wenn Partner geschoben hat, ist Slalom riskant (Partner hat schlechte Hand)
     final partnerHatGeschoben = isSchieber && state.trumpSelectorIndex != null;
     double mult(String vk) {
-      final m = isSchieber ? (state.schieberMultipliers[vk] ?? 1).toDouble() : 1.0;
-      if (vk == 'slalom' && partnerHatGeschoben) return m * 0.5;
+      if (!isSchieber) return 1.0;
+      var m = switch (vk) {
+        'trump_ss'   => 1.6, // Scoring ×1 → Auswahl ×1.6
+        'trump_re'   => 1.6, // Scoring ×2 → Auswahl ×1.6
+        'oben'       => 2.3, // Scoring ×3 → Auswahl ×2.3
+        'unten'      => 2.3, // Scoring ×3 → Auswahl ×2.3
+        'slalom'     => 4.6, // Scoring ×3 → Auswahl ×4.6 (Score=(Oben+Unten)/2 braucht Boost)
+        _            => 1.0, // Misère, Molotof, etc.: nur als Notlösung
+      };
+      if (vk == 'slalom' && partnerHatGeschoben) m *= 0.5;
       return m;
     }
 
@@ -168,11 +202,11 @@ class ModeSelectorAI {
         for (final si in suitIdxs) {
           final suit = _suitForIndex(si, state.cardType);
           if (forced == null || forced == true) {
-            final s = adj(scores[si], m); // trump oben
+            final s = adj(cs[si], m); // trump oben
             if (s > bestScore) { bestScore = s; bestMode = GameMode.trump; bestTrump = suit; }
           }
           if (forced == null || forced == false) {
-            final s = adj(scores[si + 4], m); // trump unten
+            final s = adj(cs[si + 4], m); // trump unten
             if (s > bestScore) { bestScore = s; bestMode = GameMode.trumpUnten; bestTrump = suit; }
           }
         }
@@ -183,8 +217,8 @@ class ModeSelectorAI {
             : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
         for (int si = 0; si < 4; si++) {
           final nnIdx = 15 + si;
-          if (nnIdx < scores.length) {
-            final s = adj(scores[nnIdx], mult(variant));
+          if (nnIdx < cs.length) {
+            final s = adj(cs[nnIdx], mult(variant));
             if (s > bestScore) { bestScore = s; bestMode = GameMode.schafkopf; bestTrump = suitList[si]; }
           } else {
             // Fallback Heuristik falls NN noch altes Format (14 Outputs)
@@ -195,8 +229,8 @@ class ModeSelectorAI {
         }
       } else if (variant == 'molotof') {
         // NN-Index 14: Molotof
-        if (14 < scores.length) {
-          final s = adj(scores[14], mult(variant));
+        if (14 < cs.length) {
+          final s = adj(cs[14], mult(variant));
           if (s > bestScore) { bestScore = s; bestMode = GameMode.molotof; bestTrump = null; }
         } else {
           // Fallback Heuristik falls NN noch altes Format (14 Outputs)
@@ -206,15 +240,15 @@ class ModeSelectorAI {
         }
       } else {
         final nnIdx = _variantToNNIdx(variant);
-        if (nnIdx >= 0 && nnIdx < scores.length) {
-          var s = adj(scores[nnIdx], mult(variant));
+        if (nnIdx >= 0 && nnIdx < cs.length) {
+          var s = adj(cs[nnIdx], mult(variant));
           if (s > bestScore) {
             bestScore = s;
             bestMode  = GameMode.values.firstWhere((m) => m.name == variant,
                 orElse: () => GameMode.oben);
             bestTrump = null;
             if (variant == 'slalom') {
-              // Richtung: oben-Score (8) vs. unten-Score (9)
+              // Richtung: Raw-Scores (ohne Korrektur) für Startrichtung
               bestSlalomStartsOben = scores[8] >= scores[9];
             }
           }
@@ -525,5 +559,48 @@ class ModeSelectorAI {
       }
     }
     return score;
+  }
+
+  // ─── Elefant-Sofortentscheid ──────────────────────────────────────────────
+
+  /// Prüft ob die Hand 3 sichere Oben-Stiche (Asse verschiedener Farben) und
+  /// 3 sichere Unten-Stiche (6er verschiedener Farben) hat.
+  /// Falls ja: Elefant sofort wählen, Trumpffarbe = Farbe der restlichen 3 Karten.
+  static ({GameMode mode, Suit? trumpSuit, bool slalomStartsOben})?
+      _checkElefantGuaranteed(List<JassCard> hand) {
+    final aces = hand.where((c) => c.value == CardValue.ace).toList();
+    final sixes = hand.where((c) => c.value == CardValue.six).toList();
+    if (aces.length < 3 || sixes.length < 3) return null;
+
+    // Restliche Karten (weder Ass noch 6) → werden zu Trumpf
+    final rest = hand.where((c) =>
+        c.value != CardValue.ace && c.value != CardValue.six).toList();
+
+    // Beste Trumpffarbe: Farbe mit den meisten restlichen Karten
+    final suitCounts = <Suit, int>{};
+    for (final c in rest) {
+      suitCounts[c.suit] = (suitCounts[c.suit] ?? 0) + 1;
+    }
+    // Bevorzuge Farbe mit Buur (Jack) oder Nell (9)
+    Suit? bestSuit;
+    int bestScore = -1;
+    for (final entry in suitCounts.entries) {
+      int score = entry.value * 10; // Anzahl Karten
+      if (rest.any((c) => c.suit == entry.key && c.value == CardValue.jack)) {
+        score += 100; // Buur
+      }
+      if (rest.any((c) => c.suit == entry.key && c.value == CardValue.nine)) {
+        score += 50; // Nell
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        bestSuit = entry.key;
+      }
+    }
+
+    // Wenn keine Rest-Karten (6 Asse + 6er bei 9-Karten-Hand → 3 Rest-Karten immer vorhanden)
+    bestSuit ??= hand.first.suit;
+
+    return (mode: GameMode.elefant, trumpSuit: bestSuit, slalomStartsOben: true);
   }
 }
