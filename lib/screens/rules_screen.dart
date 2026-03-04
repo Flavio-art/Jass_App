@@ -106,12 +106,12 @@ class _RulesScreenState extends State<RulesScreen>
               'Der Partner muss dann wählen.'),
           _Rule('Der Ansager wechselt jede Runde: Süd → Ost → Nord → West → Süd → …'),
           _Rule('Gespielt wird bis das erste Team das vereinbarte Punktelimit '
-              '(1500 / 2500 / 3500) erreicht hat.'),
+              '(1000–5000, einstellbar) erreicht hat.'),
         ]),
 
         _Section('Spielvarianten & Multiplikatoren', [
-          _Rule('Nur 5 Varianten sind verfügbar. Jede hat einen Multiplikator '
-              'der auf beide Team-Punkte angewendet wird:'),
+          _Rule('Nur 5 Varianten sind verfügbar. Jede hat einen einstellbaren Multiplikator '
+              'der auf beide Team-Punkte angewendet wird (Standard-Werte):'),
         ]),
         if (isGerman) ...[
           _MultCard('', '1×',
@@ -141,8 +141,9 @@ class _RulesScreenState extends State<RulesScreen>
             'Vierfache Punkte.'),
 
         _Section('Wertung', [
-          _Rule('Beide Teams erhalten ihre Stichpunkte × Multiplikator – unabhängig davon, wer angesagt hat.'),
+          _Rule('Beide Teams erhalten ihre Spielpunkte (Stichpunkte) × Multiplikator – unabhängig davon, wer angesagt hat.'),
           _Rule('Gesamtpunkte pro Runde: 157 × Multiplikator (152 Kartenwerte + 5 Bonus für letzten Stich).'),
+          _Rule('In der Rundenübersicht werden Spielpunkte und Wys-Punkte getrennt angezeigt.'),
           _Rule('Match: Gewinnt ein Team alle 9 Stiche, erhält es 257 × Multiplikator Punkte. '
               'Das andere Team erhält 0.'),
           _Rule('Punkte werden aufsummiert. Das erste Team das das Limit erreicht oder überschreitet gewinnt sofort.'),
@@ -185,7 +186,7 @@ class _RulesScreenState extends State<RulesScreen>
   List<Widget> _buildDifferenzlerContent() => [
         _Section('Spielstruktur – Differenzler', [
           _Rule('Kein festes Team – alle 4 Spieler spielen für sich.'),
-          _Rule('Gespielt werden 4 Runden. Am Ende gewinnt, wer die '
+          _Rule('Gespielt werden standardmässig 4 Runden (einstellbar, 1–12). Am Ende gewinnt, wer die '
               'geringste Gesamtstrafe angesammelt hat.'),
           _Rule('Jede Runde wird ein zufälliger Trumpf bestimmt. '
               'Kein Schieben, keine Modusauswahl.'),
@@ -204,10 +205,10 @@ class _RulesScreenState extends State<RulesScreen>
           _Rule('Nach jeder Runde: Strafe = |Vorhersage − tatsächliche Stichpunkte|.'),
           _Rule('Je genauer die Vorhersage, desto kleiner die Strafe. '
               'Eine perfekte Vorhersage ergibt 0 Strafe.'),
-          _Rule('Die Rundenstraf-Punkte werden über alle 4 Runden aufsummiert.'),
+          _Rule('Die Rundenstraf-Punkte werden über alle Runden aufsummiert.'),
           _Rule('Nach jeder Runde erscheint eine Übersicht aller Spieler:\n'
               'Vorhersage (Ziel) · Ist-Punkte · Differenz diese Runde · Gesamtstrafe.'),
-          _Rule('Nach der 4. Runde gewinnt der Spieler mit der kleinsten Gesamtstrafe.'),
+          _Rule('Nach der letzten Runde gewinnt der Spieler mit der kleinsten Gesamtstrafe.'),
         ]),
 
         _Section('Kartenwerte – Trumpfspiel', [

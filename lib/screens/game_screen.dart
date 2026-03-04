@@ -310,6 +310,7 @@ class _GameScreenState extends State<GameScreen> {
                                               teamScores: state.teamScores,
                                               roundNumber: state.roundNumber,
                                               winTarget: state.schieberWinTarget,
+                                              isRoundEnd: state.phase == GamePhase.roundEnd,
                                             ),
                                           )
                                         : Center(
@@ -876,6 +877,7 @@ class _GameScreenState extends State<GameScreen> {
                           roundNumber: state.roundHistory.isNotEmpty
                               ? state.roundHistory.last.roundNumber
                               : state.roundNumber,
+                          maxRounds: state.differenzlerMaxRounds,
                           predictions: state.differenzlerPredictions,
                           playerScores: state.playerScores,
                           penalties: state.differenzlerPenalties,
@@ -1473,24 +1475,16 @@ class _RoundEndOverlay extends StatelessWidget {
                 const Divider(color: Colors.white24, height: 1),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      TextButton(
-                        onPressed: onHome,
-                        child: const Text('Menü',
-                            style: TextStyle(color: Colors.white54)),
+                  child: Center(
+                    child: ElevatedButton(
+                      onPressed: onNextRound,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.gold,
+                        foregroundColor: Colors.black,
                       ),
-                      ElevatedButton(
-                        onPressed: onNextRound,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.gold,
-                          foregroundColor: Colors.black,
-                        ),
-                        child: const Text('Nächste Runde',
-                            style: TextStyle(fontWeight: FontWeight.bold)),
-                      ),
-                    ],
+                      child: const Text('Nächste Runde',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
                   ),
                 ),
               ],
@@ -1533,11 +1527,12 @@ class _RoundEndOverlay extends StatelessWidget {
                           _variantLongName(lastResult.variantKey, lastResult.trumpSuit, cardType),
                           style: const TextStyle(color: Colors.white70, fontSize: 13)),
                       const SizedBox(height: 12),
+                      // Diese Runde: Spielpunkte + Weisen aufgeschlüsselt
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          _resultBadge('Ihr (diese Runde)', lastResult.team1Score),
-                          _resultBadge('Gegner (diese Runde)', lastResult.team2Score),
+                          _schieberRoundDetail('Ihr', lastResult.team1Score, lastResult.wyssPoints1),
+                          _schieberRoundDetail('Gegner', lastResult.team2Score, lastResult.wyssPoints2),
                         ],
                       ),
                       const SizedBox(height: 12),
@@ -1553,17 +1548,6 @@ class _RoundEndOverlay extends StatelessWidget {
                           _resultBadge('Gegner gesamt', total2),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      // Fortschrittsbalken
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: (total1 / schieberWinTarget).clamp(0.0, 1.0),
-                          backgroundColor: Colors.red.shade900,
-                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.gold),
-                          minHeight: 8,
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -1571,24 +1555,16 @@ class _RoundEndOverlay extends StatelessWidget {
                 const Divider(color: Colors.white24, height: 1),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      TextButton(
-                        onPressed: onHome,
-                        child: const Text('Menü',
-                            style: TextStyle(color: Colors.white54)),
+                  child: Center(
+                    child: ElevatedButton(
+                      onPressed: onNextRound,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.gold,
+                        foregroundColor: Colors.black,
                       ),
-                      ElevatedButton(
-                        onPressed: onNextRound,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.gold,
-                          foregroundColor: Colors.black,
-                        ),
-                        child: const Text('Nächste Runde',
-                            style: TextStyle(fontWeight: FontWeight.bold)),
-                      ),
-                    ],
+                      child: const Text('Nächste Runde',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
                   ),
                 ),
               ],
@@ -1696,26 +1672,18 @@ class _RoundEndOverlay extends StatelessWidget {
               const Divider(color: Colors.white24, height: 1),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    TextButton(
-                      onPressed: onHome,
-                      child: const Text('Menü',
-                          style: TextStyle(color: Colors.white54)),
+                child: Center(
+                  child: ElevatedButton(
+                    onPressed: onNextRound,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.gold,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 10),
                     ),
-                    ElevatedButton(
-                      onPressed: onNextRound,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.gold,
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 24, vertical: 10),
-                      ),
-                      child: const Text('Nächste Runde',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
-                    ),
-                  ],
+                    child: const Text('Nächste Runde',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
                 ),
               ),
             ],
@@ -1918,6 +1886,29 @@ class _RoundEndOverlay extends StatelessWidget {
             style: TextStyle(
                 color: color, fontSize: 15, fontWeight: FontWeight.bold)),
       );
+
+  static Widget _schieberRoundDetail(String label, int totalScore, int wyssPoints) {
+    final spielPunkte = totalScore - wyssPoints;
+    return Column(
+      children: [
+        Text(label,
+            style: const TextStyle(color: Colors.white54, fontSize: 11)),
+        const SizedBox(height: 4),
+        Text('$totalScore',
+            style: TextStyle(
+                color: totalScore >= 100 ? AppColors.gold : Colors.white70,
+                fontSize: 28,
+                fontWeight: FontWeight.bold)),
+        const SizedBox(height: 2),
+        Text(
+          wyssPoints > 0
+              ? '$spielPunkte Spiel + $wyssPoints Wys'
+              : '$spielPunkte Spielpunkte',
+          style: const TextStyle(color: Colors.white38, fontSize: 10),
+        ),
+      ],
+    );
+  }
 
   static Widget _resultBadge(String label, int score) => Column(
         children: [
@@ -3116,20 +3107,24 @@ class _SchieberScoreBar extends StatelessWidget {
   final Map<String, int> teamScores;
   final int roundNumber;
   final int winTarget;
+  final bool isRoundEnd;
 
   const _SchieberScoreBar({
     required this.totalTeamScores,
     required this.teamScores,
     required this.roundNumber,
     required this.winTarget,
+    this.isRoundEnd = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final prev1 = totalTeamScores['team1'] ?? 0;
     final prev2 = totalTeamScores['team2'] ?? 0;
-    final cur1 = teamScores['team1'] ?? 0;
-    final cur2 = teamScores['team2'] ?? 0;
+    // Bei Rundenende: totalTeamScores enthält bereits die Rundenpunkte (mit Multiplikator)
+    // → teamScores NICHT addieren, sonst Doppelzählung
+    final cur1 = isRoundEnd ? 0 : (teamScores['team1'] ?? 0);
+    final cur2 = isRoundEnd ? 0 : (teamScores['team2'] ?? 0);
     // Live total: kumulierte Gesamtpunkte inkl. aktueller Rundenfortschritt
     final live1 = prev1 + cur1;
     final live2 = prev2 + cur2;
@@ -3371,6 +3366,7 @@ class _DifferenzlerPredictionOverlayState
 class _DifferenzlerRoundEndOverlay extends StatelessWidget {
   final List<Player> players;
   final int roundNumber;
+  final int maxRounds;
   final Map<String, int> predictions;
   final Map<String, int> playerScores; // actual scores this round
   final Map<String, int> penalties;    // cumulative penalties (already includes this round)
@@ -3380,6 +3376,7 @@ class _DifferenzlerRoundEndOverlay extends StatelessWidget {
   const _DifferenzlerRoundEndOverlay({
     required this.players,
     required this.roundNumber,
+    this.maxRounds = 4,
     required this.predictions,
     required this.playerScores,
     required this.penalties,
@@ -3440,26 +3437,18 @@ class _DifferenzlerRoundEndOverlay extends StatelessWidget {
               const Divider(color: Colors.white24, height: 1),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    TextButton(
-                      onPressed: onHome,
-                      child: const Text('Menü',
-                          style: TextStyle(color: Colors.white54)),
+                child: Center(
+                  child: ElevatedButton(
+                    onPressed: onNextRound,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.gold,
+                      foregroundColor: Colors.black,
                     ),
-                    ElevatedButton(
-                      onPressed: onNextRound,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.gold,
-                        foregroundColor: Colors.black,
-                      ),
-                      child: Text(
-                        roundNumber >= 4 ? 'Ergebnis' : 'Nächste Runde',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
+                    child: Text(
+                      roundNumber >= maxRounds ? 'Ergebnis' : 'Nächste Runde',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                  ],
+                  ),
                 ),
               ),
             ],

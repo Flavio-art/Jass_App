@@ -11,6 +11,7 @@ class SettingsResult {
   final Map<String, int> schieberMultipliers;
   final int schieberWinTarget;
   final Set<String> enabledVariants;
+  final int differenzlerRounds;
 
   const SettingsResult({
     required this.cardType,
@@ -18,6 +19,7 @@ class SettingsResult {
     required this.schieberMultipliers,
     required this.schieberWinTarget,
     required this.enabledVariants,
+    required this.differenzlerRounds,
   });
 }
 
@@ -27,6 +29,7 @@ class SettingsScreen extends StatefulWidget {
   final Map<String, int> schieberMultipliers;
   final int schieberWinTarget;
   final Set<String> enabledVariants;
+  final int differenzlerRounds;
   final int initialTab;
 
   const SettingsScreen({
@@ -36,6 +39,7 @@ class SettingsScreen extends StatefulWidget {
     required this.schieberMultipliers,
     required this.schieberWinTarget,
     required this.enabledVariants,
+    this.differenzlerRounds = 4,
     this.initialTab = 0,
   });
 
@@ -51,6 +55,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   late Map<String, int> _schieberMultipliers;
   late int _schieberWinTarget;
   late Set<String> _enabledVariants;
+  late int _differenzlerRounds;
 
   static const _modeKeys = ['trump_ss', 'trump_re', 'oben', 'unten', 'slalom'];
 
@@ -77,7 +82,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   void initState() {
     super.initState();
     _tabController = TabController(
-      length: 2,
+      length: 3,
       vsync: this,
       initialIndex: widget.initialTab,
     );
@@ -86,6 +91,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     _schieberMultipliers = Map.from(widget.schieberMultipliers);
     _schieberWinTarget = widget.schieberWinTarget;
     _enabledVariants = Set.from(widget.enabledVariants);
+    _differenzlerRounds = widget.differenzlerRounds;
   }
 
   @override
@@ -100,6 +106,7 @@ class _SettingsScreenState extends State<SettingsScreen>
         schieberMultipliers: Map.from(_schieberMultipliers),
         schieberWinTarget: _schieberWinTarget,
         enabledVariants: Set.from(_enabledVariants),
+        differenzlerRounds: _differenzlerRounds,
       );
 
   void _setCardType(CardType type) async {
@@ -165,6 +172,18 @@ class _SettingsScreenState extends State<SettingsScreen>
     }
   }
 
+  void _openRules(GameType gameType) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RulesScreen(
+          initialGameType: gameType,
+          cardType: _cardType,
+        ),
+      ),
+    );
+  }
+
   void _editMultiplier(String key, String label) async {
     final result = await showDialog<int>(
       context: context,
@@ -193,15 +212,52 @@ class _SettingsScreenState extends State<SettingsScreen>
             icon: const Icon(Icons.arrow_back),
             onPressed: () => Navigator.pop(context, _buildResult()),
           ),
+          actions: [
+            ListenableBuilder(
+              listenable: _tabController,
+              builder: (context, _) {
+                // Friseur/WK Tab: 2 Buch-Icons
+                if (_tabController.index == 2) {
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Text('✂️', style: TextStyle(fontSize: 16)),
+                        tooltip: 'Regeln Friseur',
+                        onPressed: () => _openRules(GameType.friseurTeam),
+                      ),
+                      IconButton(
+                        icon: const Text('🎴', style: TextStyle(fontSize: 16)),
+                        tooltip: 'Regeln Wunschkarte',
+                        onPressed: () => _openRules(GameType.friseur),
+                      ),
+                    ],
+                  );
+                }
+                final gameType = _tabController.index == 0
+                    ? GameType.schieber
+                    : GameType.differenzler;
+                return IconButton(
+                  icon: const Icon(Icons.menu_book, color: Colors.white54),
+                  tooltip: 'Regeln',
+                  onPressed: () => _openRules(gameType),
+                );
+              },
+            ),
+          ],
           bottom: TabBar(
             controller: _tabController,
             indicatorColor: AppColors.gold,
             labelColor: AppColors.gold,
             unselectedLabelColor: Colors.white54,
             dividerColor: Colors.white12,
+            labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+            labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            unselectedLabelStyle: const TextStyle(fontSize: 13),
             tabs: const [
               Tab(text: 'Schieber'),
-              Tab(text: 'Friseur / Wunschkarte'),
+              Tab(text: 'Differenzler'),
+              Tab(text: 'Friseur / WK'),
             ],
           ),
         ),
@@ -283,30 +339,12 @@ class _SettingsScreenState extends State<SettingsScreen>
                 controller: _tabController,
                 children: [
                   _buildSchieberTab(),
+                  _buildDifferenzlerTab(),
                   _buildFriseurTab(),
                 ],
               ),
             ),
 
-            // ── Regeln Link ──────────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: TextButton(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => RulesScreen(
-                      initialGameType: _tabController.index == 0
-                          ? GameType.schieber
-                          : GameType.friseurTeam,
-                      cardType: _cardType,
-                    ),
-                  ),
-                ),
-                child: const Text('Regeln',
-                    style: TextStyle(color: Colors.white38)),
-              ),
-            ),
           ],
         ),
       ),
@@ -363,7 +401,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   Widget _buildSchieberTab() {
     final icons = _modeIconWidgets();
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(12, 16, 12, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -375,17 +413,20 @@ class _SettingsScreenState extends State<SettingsScreen>
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: Row(
                 children: [
-                  SizedBox(width: 36, child: Center(child: icons[i])),
+                  SizedBox(width: 36, child: FittedBox(fit: BoxFit.scaleDown, child: icons[i])),
                   const SizedBox(width: 8),
-                  Text(
-                    _modeNames[i],
-                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                  Expanded(
+                    child: Text(
+                      _modeNames[i],
+                      style: const TextStyle(color: Colors.white70, fontSize: 13),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 8),
                   GestureDetector(
                     onTap: () => _editMultiplier(_modeKeys[i], _modeNames[i]),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: AppColors.gold.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(8),
@@ -459,8 +500,9 @@ class _SettingsScreenState extends State<SettingsScreen>
   // ── Friseur / Wunschkarte Tab ──────────────────────────────────────────────
 
   Widget _buildFriseurTab() {
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomPadding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -482,7 +524,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           ),
           const SizedBox(height: 12),
           _buildVariantGrid(),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton(
@@ -504,6 +546,56 @@ class _SettingsScreenState extends State<SettingsScreen>
               child: const Text('Alle zurücksetzen',
                   style: TextStyle(fontSize: 14)),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Differenzler Tab ─────────────────────────────────────────────────────────
+
+  Widget _buildDifferenzlerTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('Anzahl Runden',
+                  style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600)),
+              const Spacer(),
+              Text(
+                '$_differenzlerRounds',
+                style: const TextStyle(color: AppColors.gold, fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          SliderTheme(
+            data: SliderThemeData(
+              activeTrackColor: AppColors.gold,
+              inactiveTrackColor: Colors.white12,
+              thumbColor: AppColors.gold,
+              overlayColor: AppColors.gold.withValues(alpha: 0.2),
+              valueIndicatorColor: AppColors.gold,
+              valueIndicatorTextStyle: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+            ),
+            child: Slider(
+              value: _differenzlerRounds.toDouble(),
+              min: 1,
+              max: 12,
+              divisions: 11,
+              label: '$_differenzlerRounds',
+              onChanged: (v) => setState(() => _differenzlerRounds = v.round()),
+            ),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: const [
+              Text('1', style: TextStyle(color: Colors.white24, fontSize: 11)),
+              Text('12', style: TextStyle(color: Colors.white24, fontSize: 11)),
+            ],
           ),
         ],
       ),
@@ -632,7 +724,7 @@ class _VariantTile extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
         decoration: BoxDecoration(
           color: active
               ? AppColors.gold.withValues(alpha: 0.15)

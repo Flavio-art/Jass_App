@@ -8,6 +8,8 @@ import '../models/card_model.dart';
 import '../models/deck.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
+import '../models/game_record.dart';
+import '../services/stats_service.dart';
 import '../utils/game_logic.dart';
 import '../utils/monte_carlo.dart';
 import '../utils/mode_selector.dart';
@@ -100,6 +102,74 @@ class GameProvider extends ChangeNotifier {
         winner.position == PlayerPosition.north;
   }
 
+  // ─── Spiel archivieren ──────────────────────────────────────────────────
+
+  void _archiveGame() {
+    final s = _state;
+
+    // Spieler-Punkte / Gegner-Punkte bestimmen
+    int playerScore;
+    int opponentScore;
+    bool playerWon;
+    int? playerPlacement;
+
+    if (s.gameType == GameType.differenzler) {
+      // Differenzler: niedrigste Strafe gewinnt; Spieler = p1
+      final myPenalty = s.differenzlerPenalties['p1'] ?? 0;
+      final bestPenalty = s.differenzlerPenalties.values.reduce(min);
+      playerWon = myPenalty <= bestPenalty;
+      playerScore = myPenalty;
+      opponentScore = bestPenalty;
+      // Platzierung berechnen
+      final sorted = s.differenzlerPenalties.values.toList()..sort();
+      playerPlacement = sorted.indexOf(myPenalty) + 1;
+    } else if (s.gameType == GameType.friseur) {
+      // Friseur Solo: Gesamtpunkte pro Spieler
+      final playerTotals = <String, int>{};
+      for (final entry in s.friseurSoloScores.entries) {
+        playerTotals[entry.key] = entry.value.values.fold<int>(0, (a, list) => a + list.fold(0, (x, y) => x + y));
+      }
+      final myTotal = playerTotals['p1'] ?? 0;
+      int bestOther = 0;
+      for (final entry in playerTotals.entries) {
+        if (entry.key == 'p1') continue;
+        if (entry.value > bestOther) bestOther = entry.value;
+      }
+      playerWon = myTotal >= bestOther;
+      playerScore = myTotal;
+      opponentScore = bestOther;
+      // Platzierung berechnen (hoechste Punkte = 1.)
+      final sorted = playerTotals.values.toList()..sort((a, b) => b.compareTo(a));
+      playerPlacement = sorted.indexOf(myTotal) + 1;
+    } else {
+      // Team-Spiele (Schieber, Friseur Team): Team 1 = Spieler
+      playerScore = s.totalTeamScores['team1'] ?? 0;
+      opponentScore = s.totalTeamScores['team2'] ?? 0;
+      playerWon = playerScore > opponentScore;
+    }
+
+    // Runden-Details aus roundHistory extrahieren
+    final rounds = s.roundHistory.map((r) => RoundRecord(
+      variantKey: r.variantKey,
+      ownScore: r.rawTeam1Score,
+      opponentScore: r.rawTeam2Score,
+      wasAnnouncer: r.isTeam1Ansager,
+    )).toList();
+
+    final record = GameRecord(
+      date: DateTime.now(),
+      gameType: s.gameType,
+      cardType: s.cardType,
+      playerWon: playerWon,
+      playerScore: playerScore,
+      opponentScore: opponentScore,
+      roundCount: s.roundHistory.length,
+      rounds: rounds,
+      playerPlacement: playerPlacement,
+    );
+    StatsService.saveGameRecord(record);
+  }
+
   // ─── Spiel starten ───────────────────────────────────────────────────────
 
   void startNewGame({
@@ -108,6 +178,7 @@ class GameProvider extends ChangeNotifier {
     int schieberWinTarget = 1500,
     Map<String, int> schieberMultipliers = const {'trump_ss': 1, 'trump_re': 2, 'oben': 3, 'unten': 3, 'slalom': 4},
     Set<String>? enabledVariants,
+    int differenzlerMaxRounds = 4,
   }) {
     _aiRunning = false;
     final deck = Deck(cardType: cardType);
@@ -160,6 +231,7 @@ class GameProvider extends ChangeNotifier {
         ansagerIndex: initialAnsager,
         totalTeamScores: const {'team1': 0, 'team2': 0},
         playerScores: {for (final p in players) p.id: 0},
+        differenzlerMaxRounds: differenzlerMaxRounds,
         differenzlerPredictions: {for (final p in players) p.id: -1},
         differenzlerPenalties: differenzlerPenalties,
       );
@@ -277,6 +349,7 @@ class GameProvider extends ChangeNotifier {
         usedVariantsTeam2: newUsed2,
         phase: GamePhase.gameEnd,
       );
+      _archiveGame();
       notifyListeners();
       return;
     }
@@ -389,6 +462,7 @@ class GameProvider extends ChangeNotifier {
         trumpPlayedUntenPerPlayer: newUntenPP,
         phase: GamePhase.gameEnd,
       );
+      _archiveGame();
       notifyListeners();
       return;
     }
@@ -466,6 +540,7 @@ class GameProvider extends ChangeNotifier {
         totalTeamScores: newTotal,
         phase: GamePhase.gameEnd,
       );
+      _archiveGame();
       notifyListeners();
       return;
     }
@@ -511,9 +586,10 @@ class GameProvider extends ChangeNotifier {
   }
 
   void _startNewRoundDifferenzler(GameState currentState) {
-    // Spielende nach 4 Runden
-    if (currentState.roundNumber >= 4) {
+    // Spielende nach N Runden
+    if (currentState.roundNumber >= currentState.differenzlerMaxRounds) {
       _state = _state.copyWith(phase: GamePhase.gameEnd);
+      _archiveGame();
       notifyListeners();
       return;
     }
