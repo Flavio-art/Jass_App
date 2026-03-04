@@ -172,6 +172,25 @@ void main() {
     print('  Schieben ( 3 Varianten offen): $schiebenLate/$n ($latePct%)');
     print('  Schwelle: ${NNTuning.friseurSchiebenNNMin}–${NNTuning.friseurSchiebenNNMax}');
 
+    // Runde 2: Wie viele würden in der 2. Runde trotzdem ansagen?
+    int round2Play = 0;
+    for (int i = 0; i < n; i++) {
+      final allCards = Deck.allCards(CardType.french)..shuffle(Random(i + 7777));
+      final hand = allCards.sublist(0, 9);
+      final nnScores = JassNNModel.instance.predict(hand, CardType.french);
+      if (nnScores.isNotEmpty) {
+        final bestNN = nnScores.reduce((a, b) => a > b ? a : b);
+        final ratio = (10.0 / maxVariants).clamp(0.0, 1.0);
+        final thresholdR1 = NNTuning.friseurSchiebenNNMin +
+            (NNTuning.friseurSchiebenNNMax - NNTuning.friseurSchiebenNNMin) * ratio;
+        final thresholdR2 = thresholdR1 * NNTuning.friseurSchiebenRound2Factor;
+        // Hätte in Runde 1 geschoben, spielt aber in Runde 2
+        if (bestNN < thresholdR1 && bestNN >= thresholdR2) round2Play++;
+      }
+    }
+    final r2Pct = (round2Play / n * 100).toStringAsFixed(0);
+    print('  Runde 2 ansagen statt schieben: $round2Play/$n ($r2Pct%)');
+
     // ── Im Loch: 2× geschoben → nur schlechte Hände, welche Modi? ────
     print('\n═══ FRISEUR IM LOCH (nur Hände die geschoben würden) ═══');
     final lochCounts = <String, int>{};

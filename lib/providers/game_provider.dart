@@ -607,19 +607,26 @@ class GameProvider extends ChangeNotifier {
     _state = _state.copyWith(
       trumpSelectorIndex: newTrumpSelectorIndex,
       soloSchiebungRounds: newRounds,
-      soloSchiebungComment: skipComment,
+      // Kommentar nur setzen wenn vorhanden, nicht mit null überschreiben
+      soloSchiebungComment: skipComment ?? _state.soloSchiebungComment,
     );
     notifyListeners();
 
     // Nächsten Spieler zur Entscheidung auffordern
+    // Bei Kommentar: längere Pause damit die UI den Snackbar anzeigen kann
+    final delay = skipComment != null
+        ? const Duration(milliseconds: 2500)
+        : const Duration(milliseconds: 0);
     final nextPlayer = _state.currentTrumpSelector;
     if (!nextPlayer.isHuman) {
-      if (newRounds >= 2 && newTrumpSelectorIndex == null) {
-        // Loch-Spieler (KI) ist erzwungen – muss Trumpf wählen
-        _autoSelectMode();
-      } else {
-        _kiDecideSchieben();
-      }
+      Future.delayed(delay, () {
+        if (newRounds >= 2 && newTrumpSelectorIndex == null) {
+          // Loch-Spieler (KI) ist erzwungen – muss Trumpf wählen
+          _autoSelectMode();
+        } else {
+          _kiDecideSchieben();
+        }
+      });
     }
   }
 
@@ -715,21 +722,36 @@ class GameProvider extends ChangeNotifier {
         return;
       }
 
-      final nnThreshold = _friseurNNThreshold(available);
+      // 2. Runde: Schwelle leicht senken → ~5-10% sagen trotzdem an
+      final r2 = _state.soloSchiebungRounds >= 1
+          ? NNTuning.friseurSchiebenRound2Factor : 1.0;
+      final nnThreshold = _friseurNNThreshold(available) * r2;
       final play = _shouldPlay(
         player: selector,
         available: available,
         nnPlayThreshold:    nnThreshold,
-        heuristicThreshold: _friseurHeuristicThreshold(available),
+        heuristicThreshold: _friseurHeuristicThreshold(available) * r2,
       );
 
       if (play) {
+        // Runde 2: Mitleids-Kommentar wenn trotzdem angesagt wird
+        if (_state.soloSchiebungRounds >= 1) {
+          _state = _state.copyWith(
+            soloSchiebungComment: _pityComment(selector.name),
+          );
+          notifyListeners();
+        }
         _autoSelectMode();
       } else {
         String? annoyedComment;
-        // Loch-Spieler kommentiert nicht – nur die anderen
+        // Loch-Spieler kommentiert nicht – nur die anderen.
+        // Nur ein Computer pro Schiebe-Runde kommentiert (~33% Chance),
+        // und nur wenn noch kein Kommentar in dieser Runde kam.
         final isLochPlayer = _state.players.indexOf(selector) == _state.lochPlayerIndex;
-        if (_state.soloSchiebungRounds >= 1 && !isLochPlayer) {
+        if (_state.soloSchiebungRounds >= 1 &&
+            !isLochPlayer &&
+            _state.soloSchiebungComment == null &&
+            Random().nextInt(3) == 0) {
           annoyedComment = _annoyedComment(selector.name);
         }
         _schiebenSolo(comment: annoyedComment);
@@ -740,78 +762,133 @@ class GameProvider extends ChangeNotifier {
   /// Zufälliger Genervtheit-Kommentar für den angegebenen Spieler.
   String _annoyedComment(String playerName) {
     final comments = [
-      '$playerName: "Schon wieder?! Ich passe trotzdem."',
-      '$playerName: "Das gibt es doch nicht... Passe."',
-      '$playerName: "Bitte nicht schon wieder! Passe."',
-      '$playerName: "Unglaublich. Ich passe auch."',
-      '$playerName: "So eine Frechheit! Passe."',
-      '$playerName: "Ich glaub ich spinne. Passe."',
-      '$playerName: "Danke für gar nichts. Passe."',
-      '$playerName: "Immer ich... Passe."',
-      '$playerName: "Ich bin doch nicht dein persönlicher Trumpfwähler! Passe."',
-      '$playerName: "Was soll das? Passe."',
-      '$playerName: "Meine Geduld hat Grenzen. Passe."',
-      '$playerName: "Typisch. Ich passe natürlich."',
-      '$playerName: "Wenn das so weitergeht... Passe."',
-      '$playerName: "Ich hab auch keine guten Karten! Passe."',
-      '$playerName: "Weiterleiten ist keine Strategie. Passe."',
-      '$playerName: "Na wunderbar. Passe."',
-      '$playerName: "Herzlichen Glückwunsch zu deiner tollen Hand. Passe."',
-      '$playerName: "Du scherzt wohl. Passe."',
-      '$playerName: "Ich kann auch nicht. Passe."',
-      '$playerName: "Sehr witzig. Passe."',
-      '$playerName: "Das ist doch kein Jass mehr... Passe."',
-      '$playerName: "Schönen Dank auch. Passe."',
-      '$playerName: "Jetzt reicht\'s aber. Passe."',
-      '$playerName: "Ich muss das nicht mitmachen. Passe."',
-      '$playerName: "Schieben ist keine Antwort. Passe."',
-      '$playerName: "Du fragst NOCHMAL? Also: Passe."',
-      '$playerName: "Ach, ich bin wieder dran? Passe."',
-      '$playerName: "Das ist meine endgültige Antwort: Passe."',
+      '$playerName: "Schon wieder?! Vergiss es."',
+      '$playerName: "Hast du meine Karten gesehen? Nein? Ich auch nicht gerne."',
+      '$playerName: "Ich würde ja spielen, aber meine Karten haben gekündigt."',
+      '$playerName: "Meine Hand sieht aus wie ein Unfall im Kartenlager."',
+      '$playerName: "Das Beste an meinen Karten ist die Rückseite."',
+      '$playerName: "Ich hab nachgezählt – null brauchbare Karten."',
+      '$playerName: "Sorry, ich bin nur der Briefträger. Weiterleiten!"',
+      '$playerName: "Selbst der Kartengeber schämt sich für mein Blatt."',
+      '$playerName: "Ich bin doch nicht dein persönlicher Trumpfwähler!"',
+      '$playerName: "Wenn Schieben ein Trumpf wäre, hätte ich gewonnen."',
+      '$playerName: "Meine Karten weinen leise."',
+      '$playerName: "Das ist keine Hand, das ist eine Fussnote."',
+      '$playerName: "Ich hab bessere Karten beim Uno gesehen."',
+      '$playerName: "Willst du meine Karten sehen? Nein, willst du nicht."',
+      '$playerName: "Mein Blatt gehört ins Museum – unter \'Tragödien\'."',
+      '$playerName: "Ich passe schneller als du \'Schieben\' sagen kannst."',
+      '$playerName: "Herzlichen Glückwunsch zu deiner tollen Hand."',
+      '$playerName: "Meine Strategie? Überleben."',
+      '$playerName: "Ich glaube meine Karten sind von einem anderen Spiel."',
+      '$playerName: "Falls jemand fragt: Ich war nie hier."',
+      '$playerName: "Das ist kein Jass, das ist Gruppentherapie."',
+      '$playerName: "Wenigstens bin ich konsequent."',
+      '$playerName: "Ich hatte Zeit zum Nachdenken. Ergebnis: Nope."',
       '$playerName: "Meine Karten sind schlechter als deine Ideen. Passe."',
-      '$playerName: "Du bist unverbesserlich. Passe."',
-      '$playerName: "Wenigstens bin ich konsequent: Passe."',
-      '$playerName: "Ich hatte Zeit zum Nachdenken. Ergebnis: Passe."',
-      '$playerName: "Nein, nein und nochmals nein. Passe."',
-      '$playerName: "Ich hab\'s mir überlegt – und: Passe."',
-      '$playerName: "Nicht in diesem Leben. Passe."',
-      '$playerName: "Noch eine Chance? Nein danke. Passe."',
-      '$playerName: "Du hast mich falsch eingeschätzt. Passe!"',
-      '$playerName: "Ist das ein Test? Passe."',
-      '$playerName: "Respekt für die Dreistigkeit. Passe."',
-      '$playerName: "Ich passe. Und zwar gerne."',
-      '$playerName: "Du schmeichelst mir. Trotzdem: Passe."',
-      '$playerName: "Ich passe schneller, als du geschoben hast."',
-      '$playerName: "Nächstes Mal frage ich dich auch zweimal. Passe."',
-      '$playerName: "Mit Freude: Passe."',
-      '$playerName: "Zweimal fragt man mich nicht ohne Konsequenzen. Passe."',
-      '$playerName: "Das war meine letzte Chance zu passen. Genutzt."',
-      '$playerName: "Ich passe, und ich bin stolz darauf."',
-      '$playerName: "Du machst das extra, oder? Passe."',
-      '$playerName: "Ich dachte wir sind Freunde. Trotzdem: Passe."',
-      '$playerName: "Stell dir vor: Passe."',
-      '$playerName: "Wer hat eigentlich diese Regeln erfunden? Passe."',
-      '$playerName: "Zweite Runde, gleiche Antwort: Passe."',
+      '$playerName: "Mit diesen Karten gewinnt man höchstens Mitleid."',
+      '$playerName: "Ich dachte wir sind Freunde?!"',
+      '$playerName: "Wer hat eigentlich diese Regeln erfunden?"',
+      '$playerName: "Ist das Candid Camera? Wo ist die Kamera?"',
+      '$playerName: "Mein Therapeut wird davon hören."',
+      '$playerName: "Schieben ist auch eine Art von Spielen, oder?"',
+      '$playerName: "Respekt für die Dreistigkeit, mir sowas zu geben."',
+      '$playerName: "Ich würde lieber Steuererklärung machen als das spielen."',
+      '$playerName: "So schlecht war mein Blatt seit der Grundschule nicht."',
+      '$playerName: "Das nächste Mal mische ich selber."',
+      '$playerName: "Meine Grossmutter hätte bessere Karten verteilt."',
+      '$playerName: "Du machst das extra, oder?"',
+      '$playerName: "Das Kartenglück hasst mich persönlich."',
+      '$playerName: "Ich brauche nach dem Spiel einen Drink."',
+      '$playerName: "Wenn das eine Prüfung wäre, hätte ich nicht bestanden."',
+      '$playerName: "Plot Twist: Ich habe nichts Brauchbares."',
+      '$playerName: "Meine Karten spielen gegen mich."',
+      '$playerName: "Ich schiebe mit Stolz und ohne Reue."',
+      '$playerName: "Danke für gar nichts, Kartendeck."',
+      '$playerName: "Soll ich meine Karten vorlesen? Lieber nicht."',
+      '$playerName: "Zweite Runde, gleiche Antwort: Nein danke."',
+      '$playerName: "Das einzige was hier trumpft ist meine Enttäuschung."',
+      '$playerName: "Ich hab ein déjà-vu – und es ist genauso schlimm."',
+      '$playerName: "Memo an mich: Beim nächsten Mal krank melden."',
+      '$playerName: "Selbst mit einer Wunschkarte wäre das hoffnungslos."',
+      '$playerName: "Ich fühle mich persönlich angegriffen von diesen Karten."',
     ];
     final rng = Random().nextInt(comments.length);
     return comments[rng];
+  }
+
+  /// Mitleids-Kommentar wenn ein Spieler in Runde 2 trotzdem ansagt.
+  String _pityComment(String playerName) {
+    final comments = [
+      '$playerName: "Aus Mitleid mache ich halt jetzt trotzdem."',
+      '$playerName: "Na gut, einer muss ja... Ich mach\'s."',
+      '$playerName: "Bevor wir hier ewig sitzen – ich übernehme."',
+      '$playerName: "Ihr tut mir leid. Ich sage an."',
+      '$playerName: "Okay, okay. Ich opfere mich."',
+      '$playerName: "Meine Karten sind schlecht, aber euer Gejammer ist schlimmer."',
+      '$playerName: "Irgendjemand muss den Karren aus dem Dreck ziehen."',
+      '$playerName: "Ich bin halt der Held, den niemand verdient."',
+      '$playerName: "Gut, ich mache das. Aber freiwillig ist anders."',
+      '$playerName: "Schlimmer als Schieben ist Warten. Ich spiele."',
+      '$playerName: "Selbst mit diesen Karten bin ich mutig genug."',
+      '$playerName: "Wenigstens einer hier hat Rückgrat."',
+      '$playerName: "Ich rette uns alle. Keine Ursache."',
+      '$playerName: "Ach was soll\'s, ich wage es."',
+      '$playerName: "Besser schlecht gespielt als gar nicht gespielt."',
+      '$playerName: "Für das Team! ...auch wenn meine Karten dagegen sind."',
+      '$playerName: "Ich mache das jetzt. Beschwerden bitte schriftlich."',
+      '$playerName: "Wenn sonst keiner will... bitteschön."',
+      '$playerName: "Ich bin nicht feige. Nur schlecht aufgestellt."',
+      '$playerName: "Mein Herz sagt spielen, meine Karten sagen rennen."',
+      '$playerName: "Augen zu und durch."',
+      '$playerName: "Hold my beer. Ich sage an."',
+      '$playerName: "Wird schon schief gehen. Ich spiele."',
+      '$playerName: "Ich nehm\'s auf mich. Dankt mir später."',
+      '$playerName: "Tapferkeit ist, wenn man trotzdem spielt."',
+      '$playerName: "Habt ihr alle Angst? Na dann halt ich."',
+      '$playerName: "Das Universum hat mich auserwählt. Leider."',
+      '$playerName: "Plan B: Einfach machen und hoffen."',
+      '$playerName: "Wer nichts wagt, gewinnt auch nichts."',
+      '$playerName: "Ich bin nicht der Held den ihr wollt, aber der den ihr braucht."',
+      '$playerName: "Bevor wir alle einschlafen – ich spiele."',
+      '$playerName: "Mitleid mit euch, nicht mit mir."',
+      '$playerName: "Einer muss den Anfang machen."',
+      '$playerName: "Lieber schlecht gespielt als feige geschoben."',
+      '$playerName: "Meine Karten weinen, aber ich lächle."',
+      '$playerName: "Das wird legendär. Oder katastrophal."',
+      '$playerName: "Ich bin der Dumme. Wie immer."',
+      '$playerName: "Nicht perfekt, aber besser als nichts."',
+      '$playerName: "Ich habe ein gutes Gefühl. Nein, Spass. Aber ich spiele."',
+      '$playerName: "Yolo. Ich sage an."',
+      '$playerName: "Mit Gottvertrauen und schlechten Karten."',
+      '$playerName: "Drückt mir die Daumen. Ich brauche sie."',
+      '$playerName: "Mein Ehrgeiz ist grösser als mein Blatt."',
+      '$playerName: "Ich mach das jetzt, bevor ich es mir anders überlege."',
+      '$playerName: "Irgendwer muss ja den Kopf hinhalten."',
+      '$playerName: "Nächstes Mal seid ihr dran. Versprochen."',
+      '$playerName: "Challenge accepted. Leider."',
+      '$playerName: "Ich tue es für die Ehre. Nicht für die Punkte."',
+      '$playerName: "Es gibt schlimmeres. Zum Beispiel nochmal schieben."',
+      '$playerName: "Gut, ich bin so nett und sage an."',
+    ];
+    return comments[Random().nextInt(comments.length)];
   }
 
   /// Kommentar eines Gegners nach einer "Im Loch" Runde mit vielen Punkten.
   String _postImLochComment(String announcerName, int score, String commentPlayerName) {
     final comments = [
       '$commentPlayerName: "Du hast ja gute Karten, warum hast du 2× geschoben?"',
-      '$commentPlayerName: "So viel Glück möchte ich auch mal haben."',
+      '$commentPlayerName: "Cadeller!!!"',
       '$commentPlayerName: "$announcerName, mit solchen Karten hätte ich nicht gezögert."',
       '$commentPlayerName: "$score Punkte... Und vorhin wolltest du nicht spielen?"',
       '$commentPlayerName: "Zwei Mal passen und dann $score Punkte. Klassisch."',
-      '$commentPlayerName: "War das ein Test? Wenn ja, nicht bestanden."',
+      '$commentPlayerName: "Ah, klassisches Cadeller-Glück!!"',
       '$commentPlayerName: "$announcerName, du hättest von Anfang an spielen sollen."',
       '$commentPlayerName: "Die Karten waren gut, die Entscheidung weniger."',
       '$commentPlayerName: "$score Punkte nach 2× Passen. Ich fasse es nicht."',
-      '$commentPlayerName: "Wenn das Strategie war, verstehe ich sie nicht."',
+      '$commentPlayerName: "Cadeller hat wiedermal zugeschlagen."',
       '$commentPlayerName: "Du hättest direkt spielen können – alle wären glücklicher gewesen."',
-      '$commentPlayerName: "Na toll. Nächste Runde bin ich Ansager."',
+      '$commentPlayerName: "Das ist kein Können, das ist reines Cadeller."',
       '$commentPlayerName: "Das nächste Mal bitte gleich spielen!"',
       '$commentPlayerName: "Aha, $score Punkte. Und vorhin wollte $announcerName nicht spielen..."',
       '$commentPlayerName: "Mit solchen Karten hätte ich sofort gespielt."',
@@ -819,15 +896,15 @@ class GameProvider extends ChangeNotifier {
       '$commentPlayerName: "Zwei Mal geschoben... und dann das. Unglaublich."',
       '$commentPlayerName: "Wann schaust du dir endlich deine Karten an, $announcerName?"',
       '$commentPlayerName: "Ich dachte du hast schlechte Karten?"',
-      '$commentPlayerName: "So läuft das hier? Dreist."',
+      '$commentPlayerName: "$score Punkte?! Cadeller in Reinform."',
       '$commentPlayerName: "Nächstes Mal spielst du gleich. Versprochen?"',
       '$commentPlayerName: "$announcerName, ich schäme mich ein bisschen für dich."',
-      '$commentPlayerName: "Lustig. Weiter so."',
+      '$commentPlayerName: "2× geschoben und dann Cadeller. Natürlich."',
       '$commentPlayerName: "Mich hättest du nicht abwimmeln müssen."',
       '$commentPlayerName: "Zwei Runden Zögern und dann voller Einsatz. Chapeau."',
       '$commentPlayerName: "Nur zur Klarheit: 2× gepasst, $score Punkte geholt. Okay."',
       '$commentPlayerName: "Demnächst frage ich auch 2× ob du mitspielen willst."',
-      '$commentPlayerName: "Ich staune. Und ich staune selten."',
+      '$commentPlayerName: "Cadeller-Alarm! $announcerName hat wieder Glück."',
       '$commentPlayerName: "Zum Glück hat das niemand gesehen. Oh wait."',
       '$commentPlayerName: "$score Punkte für jemanden ohne gute Karten. Sehr überzeugend."',
       '$commentPlayerName: "Wenigstens bist du ehrlich. Ehm... nein eigentlich nicht."',
@@ -837,14 +914,14 @@ class GameProvider extends ChangeNotifier {
       '$commentPlayerName: "Ich warte noch auf deine Entschuldigung."',
       '$commentPlayerName: "2× Nein und dann $score Punkte. Das Buch schreibe ich selbst."',
       '$commentPlayerName: "War das Absicht? Falls ja: Hut ab. Falls nein: auch Hut ab."',
-      '$commentPlayerName: "Du bist entweder sehr gut oder sehr mutig. Beides wohl."',
+      '$commentPlayerName: "Können oder Cadeller? Bei $announcerName ist es immer Cadeller."',
       '$commentPlayerName: "Ah ja. Natürlich. $score Punkte. Logisch."',
       '$commentPlayerName: "Ich werde das nie vergessen, $announcerName."',
       '$commentPlayerName: "Schöne Karten, schlechtes Gewissen? Passe nächste Runde nicht."',
-      '$commentPlayerName: "Das war Poker, kein Jass. Aber okay."',
+      '$commentPlayerName: "Cadeller vom Feinsten. Chapeau, $announcerName."',
       '$commentPlayerName: "Du hattest schlechte Karten. Und trotzdem $score Punkte. Aha."',
       '$commentPlayerName: "Nächste Runde bin ich derjenige mit den schlechten Karten."',
-      '$commentPlayerName: "Ich bin beeindruckt und ein bisschen sauer. Beides."',
+      '$commentPlayerName: "Manche nennen es Glück, ich nenne es Cadeller."',
       '$commentPlayerName: "So baut man Spannung auf. Chapeau, $announcerName."',
       '$commentPlayerName: "Niemand glaubt dir mehr, wenn du sagst du hast schlechte Karten."',
       '$commentPlayerName: "Nächstes Mal einfach gleich spielen – für uns alle."',
@@ -1042,18 +1119,28 @@ class GameProvider extends ChangeNotifier {
     if (_state.gameType == GameType.friseur &&
         _state.soloSchiebungRounds < 2 &&
         _state.trumpSelectorIndex == null) {
-      final nnThreshold = _friseurNNThreshold(available);
+      // 2. Runde: Schwelle leicht senken → ~5-10% sagen trotzdem an
+      final r2 = _state.soloSchiebungRounds >= 1
+          ? NNTuning.friseurSchiebenRound2Factor : 1.0;
+      final nnThreshold = _friseurNNThreshold(available) * r2;
       final shouldPlay = _shouldPlay(
         player: selector,
         available: available,
         nnPlayThreshold: nnThreshold,
-        heuristicThreshold: _friseurHeuristicThreshold(available),
+        heuristicThreshold: _friseurHeuristicThreshold(available) * r2,
       );
       if (!shouldPlay) {
         Future.delayed(const Duration(milliseconds: 700), () {
           _schiebenSolo();
         });
         return;
+      }
+      // Runde 2: Mitleids-Kommentar wenn Ansager trotzdem ansagt
+      if (_state.soloSchiebungRounds >= 1) {
+        _state = _state.copyWith(
+          soloSchiebungComment: _pityComment(selector.name),
+        );
+        notifyListeners();
       }
     }
 
@@ -1637,7 +1724,7 @@ class GameProvider extends ChangeNotifier {
 
       // Post-Runde "Im Loch" Kommentar: Gegner kommentieren wenn Score > Schwelle
       if (_state.gameType == GameType.friseur && _state.roundWasImLoch) {
-        final threshold = 80 + Random().nextInt(41); // 80–120
+        final threshold = 80 + Random().nextInt(51); // 80–130
         if (finalTeam1 > threshold) {
           final announcerName = _state.players[_state.ansagerIndex].name;
           final aiOpponents = _state.players
