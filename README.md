@@ -29,7 +29,7 @@ Klassischer Schweizer Schieber für 2 Teams (Süd+Nord vs. West+Ost).
 
 - 5 Varianten wählbar: Trumpf Schwarz (×1), Trumpf Rot (×2), Obenabe (×3), Undenufe (×3), Slalom (×4)
 - Multiplikatoren konfigurierbar im Hauptmenü
-- Zielpunkte wählbar: 1500 / 2500 / 3500
+- Zielpunkte wählbar: 1000 – 5000
 - Schieben zum Partner einmalig möglich
 
 ### 🎯 Differenzler
