@@ -454,9 +454,18 @@ class GameState {
     return result;
   }
 
+  /// Schieber: nur Trump, Oben, Unten, Slalom erlaubt.
+  static const _schieberVariants = {
+    'trump_ss', 'trump_re', 'oben', 'unten', 'slalom',
+  };
+
   List<String> availableVariants(bool isTeam1) {
     final used = isTeam1 ? usedVariantsTeam1 : usedVariantsTeam2;
-    return _allVariants().where((v) => !used.contains(v)).toList();
+    var variants = _allVariants().where((v) => !used.contains(v));
+    if (gameType == GameType.schieber) {
+      variants = variants.where((v) => _schieberVariants.contains(v));
+    }
+    return variants.toList();
   }
 
   /// Friseur Solo: Noch nicht angesagte Varianten für einen bestimmten Spieler.
