@@ -22,6 +22,9 @@ class GameProvider extends ChangeNotifier {
   Timer? _clearTrickTimer;
   // Molotof: Spieler-ID der Person die Oben/Unten bestimmt hat (gewinnt den Stich)
   String? _molotofDeterminerForTrick;
+  // Weisen: Human muss noch entscheiden ob er weisen will (wird gesetzt wenn
+  // Human Wyss hat, aber erst angezeigt wenn er an der Reihe ist)
+  bool _humanWyssDecisionPending = false;
   static String _cachedPlayerName = 'Du';
   Timer? _saveDebounce;
 
@@ -181,6 +184,7 @@ class GameProvider extends ChangeNotifier {
     int differenzlerMaxRounds = 4,
   }) {
     _aiRunning = false;
+    _humanWyssDecisionPending = false;
     final deck = Deck(cardType: cardType);
     final hands = deck.deal(4);
 
@@ -1618,10 +1622,18 @@ class GameProvider extends ChangeNotifier {
       if (playerWyss.isEmpty) {
         nextPhase = GamePhase.playing;
       } else {
-        // Weisen vorhanden: sofort spielen, Blasen+Auswertung im Spiel
-        wyssWinner = _computeWyssWinner(playerWyss, mode);
-        nextPhase = GamePhase.playing;
-        newWyssDeclarationPending = true;
+        // Prüfen ob der menschliche Spieler Weisen hat
+        final humanId = _state.players.firstWhere((p) => p.isHuman).id;
+        if (playerWyss.containsKey(humanId)) {
+          // Human hat Weisen → Entscheidung wenn er dran ist
+          _humanWyssDecisionPending = true;
+          nextPhase = GamePhase.playing;
+        } else {
+          // Nur KI weist → direkt spielen
+          wyssWinner = _computeWyssWinner(playerWyss, mode);
+          nextPhase = GamePhase.playing;
+          newWyssDeclarationPending = true;
+        }
       }
     } else {
       nextPhase = GamePhase.playing;
@@ -1733,10 +1745,11 @@ class GameProvider extends ChangeNotifier {
     }
 
     if (updatedWyss.isEmpty) {
-      // Niemand weist → direkt spielen
+      // Niemand weist → direkt spielen ohne Weisen
       _state = _state.copyWith(
         playerWyss: updatedWyss,
         wyssWinnerTeam: null,
+        wyssDeclarationPending: false,
         phase: GamePhase.playing,
       );
       notifyListeners();
@@ -1744,13 +1757,16 @@ class GameProvider extends ChangeNotifier {
       return;
     }
 
+    // Weisen vorhanden → Winner berechnen, direkt spielen mit Pending
     final winner = _computeWyssWinner(updatedWyss, _state.gameMode);
     _state = _state.copyWith(
       playerWyss: updatedWyss,
       wyssWinnerTeam: winner,
-      phase: GamePhase.wyss,
+      wyssDeclarationPending: true,
+      phase: GamePhase.playing,
     );
     notifyListeners();
+    _triggerAiIfNeeded();
   }
 
   /// Friseur Solo: Wunschkarten-Auswahl abbrechen → zurück zur Spielmodus-Wahl.
@@ -2380,6 +2396,16 @@ class GameProvider extends ChangeNotifier {
   void _triggerAiIfNeeded() {
     if (_aiRunning) return;
     if (_state.phase != GamePhase.playing) return;
+    // Human ist dran und muss noch über Weisen entscheiden (nur im 1. Stich)
+    if (_state.currentPlayer.isHuman && _humanWyssDecisionPending) {
+      _humanWyssDecisionPending = false;
+      if (_state.completedTricks.isEmpty) {
+        _state = _state.copyWith(phase: GamePhase.wyssDeclaration);
+        notifyListeners();
+        return;
+      }
+      // Nach dem 1. Stich: zu spät → Weisen verfallen
+    }
     if (_state.currentPlayer.isHuman) return;
     _runAiLoop();
   }
@@ -2410,6 +2436,7 @@ class GameProvider extends ChangeNotifier {
     _clearTrickTimer?.cancel();
     _clearTrickTimer = null;
     _aiRunning = false;
+    _humanWyssDecisionPending = false;
     _state = GameState.initial(cardType: _state.cardType);
     notifyListeners();
   }

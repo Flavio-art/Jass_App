@@ -65,6 +65,8 @@ class ModeSelectorAI {
         'oben'       => NNTuning.schieberMultOben,
         'unten'      => NNTuning.schieberMultUnten,
         'slalom'     => NNTuning.schieberMultSlalom,
+        'misere'     => NNTuning.schieberMultMisere,
+        'molotof'    => NNTuning.schieberMultMolotof,
         _            => 1.0,
       };
       if (vk == 'slalom' && partnerHatGeschoben) m *= NNTuning.schiebenSlalomPenalty;
@@ -197,7 +199,9 @@ class ModeSelectorAI {
         'oben'       => NNTuning.schieberMultOben,
         'unten'      => NNTuning.schieberMultUnten,
         'slalom'     => NNTuning.schieberMultSlalom, // Score=(Oben+Unten)/2 braucht Boost
-        _            => 1.0, // Misère, Molotof, etc.: nur als Notlösung
+        'misere'     => NNTuning.schieberMultMisere,
+        'molotof'    => NNTuning.schieberMultMolotof,
+        _            => 1.0,
       };
       if (vk == 'slalom' && partnerHatGeschoben) m *= NNTuning.schiebenSlalomPenalty;
       return m;
@@ -645,7 +649,7 @@ class ModeSelectorAI {
       final isFrench = cardType == CardType.french;
       final suitOrder = isFrench
           ? [Suit.clubs, Suit.spades, Suit.hearts, Suit.diamonds]
-          : [Suit.eichel, Suit.schilten, Suit.herzGerman, Suit.schellen];
+          : [Suit.schellen, Suit.schilten, Suit.herzGerman, Suit.eichel];
       for (final val in [CardValue.queen, CardValue.eight]) {
         for (final suit in suitOrder) {
           final card = available.firstWhere(
@@ -857,27 +861,37 @@ class ModeSelectorAI {
   }
 
   /// Obenabe: Asse und hohe Karten gewinnen Stiche.
+  /// Sequenz-Bonus: König ist nur stark wenn auch das Ass da ist.
   static double _scoreOben(List<JassCard> hand) {
     double score = 0;
     final suitCounts = <Suit, int>{};
+    final suitValues = <Suit, Set<CardValue>>{};
 
     for (final card in hand) {
       suitCounts[card.suit] = (suitCounts[card.suit] ?? 0) + 1;
+      (suitValues[card.suit] ??= {}).add(card.value);
       switch (card.value) {
         case CardValue.ace:
           score += 28; // sicherer Stich + 11 Punkte
-        case CardValue.ten:
-          score += 14;
         case CardValue.eight:
           score += 10; // 8 Pkt Bonus
-        case CardValue.king:
-          score += 6;
         case CardValue.queen:
           score += 4;
         case CardValue.jack:
           score += 3;
         default:
           break;
+      }
+    }
+    // Sequenz-Bonus: König/10er nur wertvoll wenn Ass dabei
+    for (final entry in suitValues.entries) {
+      final vals = entry.value;
+      final hasAce = vals.contains(CardValue.ace);
+      if (vals.contains(CardValue.king)) {
+        score += hasAce ? 10 : 3; // König mit Ass = fast sicher, ohne = riskant
+      }
+      if (vals.contains(CardValue.ten)) {
+        score += hasAce ? 16 : 5; // 10er mit Ass = sicher geschmiert, ohne = gefährlich
       }
     }
     // Lange Farben → bessere Kontrolle
@@ -888,21 +902,20 @@ class ModeSelectorAI {
   }
 
   /// Undenufe: Sechser und niedrige Karten gewinnen Stiche.
+  /// Sequenz-Bonus: 7 ist nur stark wenn auch die 6 da ist.
   static double _scoreUnten(List<JassCard> hand) {
     double score = 0;
+    final suitValues = <Suit, Set<CardValue>>{};
+    final suitCounts = <Suit, int>{};
 
     for (final card in hand) {
+      suitCounts[card.suit] = (suitCounts[card.suit] ?? 0) + 1;
+      (suitValues[card.suit] ??= {}).add(card.value);
       switch (card.value) {
         case CardValue.six:
           score += 28; // sicherer Stich + 11 Punkte
-        case CardValue.seven:
-          score += 18; // sehr stark in Undenufe
         case CardValue.eight:
-          score += 12; // 8 Pkt Bonus
-        case CardValue.ten:
-          score += 8;
-        case CardValue.king:
-          score += 5;
+          score += 10; // 8 Pkt Bonus
         case CardValue.queen:
           score += 4;
         case CardValue.jack:
@@ -910,6 +923,24 @@ class ModeSelectorAI {
         default:
           break;
       }
+    }
+    // Sequenz-Bonus: 7/10er nur wertvoll wenn 6 dabei
+    for (final entry in suitValues.entries) {
+      final vals = entry.value;
+      final hasSix = vals.contains(CardValue.six);
+      if (vals.contains(CardValue.seven)) {
+        score += hasSix ? 20 : 5; // 7 mit 6 = fast sicher, ohne = riskant
+      }
+      if (vals.contains(CardValue.ten)) {
+        score += hasSix ? 10 : 4; // 10er mit 6 = gut, ohne = mässig
+      }
+      if (vals.contains(CardValue.king)) {
+        score += 3;
+      }
+    }
+    // Lange Farben → bessere Kontrolle
+    for (final count in suitCounts.values) {
+      if (count >= 4) score += 12;
     }
     return score;
   }

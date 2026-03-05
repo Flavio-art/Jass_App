@@ -127,6 +127,44 @@ class MonteCarloAI {
       }
     }
 
+    // ── Systematisches Trumpfziehen: Gegner-Trümpfe rausziehen ────────────
+    // Beim Anspielen: wenn eigenes Team mehr Trumpf hat als Gegner,
+    // niedrigsten Trumpf spielen um Gegner-Trümpfe zu eliminieren.
+    if (state.currentTrickCards.isEmpty &&
+        (state.gameMode == GameMode.trump ||
+            state.gameMode == GameMode.trumpUnten) &&
+        state.trumpSuit != null) {
+      final trump = state.trumpSuit!;
+      final myTeamTrump = _teamTrumpCount(aiPlayer, state, trump);
+      final oppTrump = _opponentTrumpCount(aiPlayer, state, trump);
+      final myTrump = playable.where((c) => c.suit == trump).toList();
+      if (oppTrump > 0 && myTeamTrump > oppTrump && myTrump.length > 1) {
+        // Niedrigsten Trumpf spielen (zieht Gegner-Trumpf raus)
+        return _weakest(myTrump, state.gameMode, trump);
+      }
+    }
+
+    // ── Trumpf: nur eigenes Team hat Trumpf → Nicht-Trumpf-Gewinner sicher ──
+    // Gegner können nicht stechen → Asse/hohe Karten sind garantierte Gewinner.
+    // Greift auch wenn der KI-Spieler selbst keinen Trumpf mehr hat.
+    if (state.currentTrickCards.isEmpty &&
+        (state.gameMode == GameMode.trump ||
+            state.gameMode == GameMode.trumpUnten) &&
+        state.trumpSuit != null &&
+        _onlyTeamHasTrump(aiPlayer, state, state.trumpSuit!)) {
+      final safeNonTrump = playable
+          .where((c) =>
+              c.suit != state.trumpSuit! && _isHighestRemaining(c, state))
+          .toList();
+      if (safeNonTrump.isNotEmpty) {
+        safeNonTrump.sort((a, b) =>
+            GameLogic.cardPoints(b, state.effectiveMode, state.trumpSuit)
+                .compareTo(
+                    GameLogic.cardPoints(a, state.effectiveMode, state.trumpSuit)));
+        return safeNonTrump.first;
+      }
+    }
+
     // ── Alles Trumpf: sichere Gewinner sofort ausspielen ────────────────────
     // Bauern (J) sind in jeder Farbe unschlagbar (20 Pkt), Nell (9) ebenfalls
     // wenn der Bauer dieser Farbe bereits gespielt wurde (14 Pkt).
@@ -179,6 +217,24 @@ class MonteCarloAI {
       return sorted.first;
     }
 
+    // ── Obenabe / Undenufe: sichere Gewinner sofort ausspielen ──────────────
+    // Asse (Oben) bzw. 6er (Unten) sind garantierte Stichgewinner.
+    // MC unterschätzt diese systematisch wegen Top-3-Zufälligkeit in Rollouts.
+    if (state.currentTrickCards.isEmpty &&
+        (state.gameMode == GameMode.oben ||
+            state.gameMode == GameMode.unten)) {
+      final safeLeads = playable
+          .where((c) => _isHighestRemaining(c, state))
+          .toList();
+      if (safeLeads.isNotEmpty) {
+        // Höchste Punkte zuerst (Ass=11, 10=10, König=4, ...)
+        safeLeads.sort((a, b) =>
+            GameLogic.cardPoints(b, state.gameMode, null)
+                .compareTo(GameLogic.cardPoints(a, state.gameMode, null)));
+        return safeLeads.first;
+      }
+    }
+
     // ── Friseur Solo: Ansager spielt Wunschkarten-Farbe an ─────────────────
     // Wenn der Ansager keine sicheren Gewinner hat, spielt er die Farbe der
     // Wunschkarte an, damit der Partner mit der Wunschkarte stechen kann.
@@ -203,9 +259,116 @@ class MonteCarloAI {
     final aiIsTeam1 = aiPlayer.position == PlayerPosition.south ||
         aiPlayer.position == PlayerPosition.north;
 
+    // ── Misere: billige Stiche als 3./4. Spieler nehmen ───────────────────
+    if (state.gameMode == GameMode.misere &&
+        state.currentTrickCards.length >= 2) {
+      final isAnnouncerTeam = aiIsTeam1 == state.isTeam1Ansager;
+      if (isAnnouncerTeam) {
+        final effectMode = state.effectiveMode;
+        final cheapTrick = _misereCheapTrick(
+            playable, state, aiPlayer, effectMode, state.trumpSuit);
+        if (cheapTrick != null) return cheapTrick;
+      }
+    }
+
     // Deterministische Endphase: letzte 2 Stiche → exakter Minimax statt MC
     if (state.completedTricks.length >= 7) {
       return _exactBestCard(aiPlayer, state, aiIsTeam1);
+    }
+
+    // ── 4. Spieler: deterministisch (alle 3 Karten sichtbar) ──────────────
+    // Kein MC nötig — perfekte Info für diesen Stich.
+    if (state.currentTrickCards.length == 3) {
+      final effectMode = state.effectiveMode;
+      final trump = state.trumpSuit;
+
+      // Misere: eigene Logik (inkl. billige Stiche)
+      if (state.gameMode == GameMode.misere) {
+        final isAnnouncerTeam = aiIsTeam1 == state.isTeam1Ansager;
+        if (isAnnouncerTeam) {
+          final cheapTrick = _misereCheapTrick(
+              playable, state, aiPlayer, effectMode, trump);
+          if (cheapTrick != null) return cheapTrick;
+          // Abwerfen: hohe Karten von kurzen Farben loswerden
+          final ledSuit = state.currentTrickCards.first.suit;
+          if (!playable.any((c) => c.suit == ledSuit)) {
+            return _misereDiscard(playable, aiPlayer);
+          }
+          // Sonst: nicht gewinnen
+          final losing = playable
+              .where((c) => !_wouldWin(c, state, trump))
+              .toList();
+          return _weakest(
+              losing.isNotEmpty ? losing : playable, effectMode, trump);
+        } else {
+          // Misere-Gegner als 4. Spieler
+          final announcerWinning = _isAnnouncerWinning(state);
+          if (announcerWinning) {
+            final notWinning = playable
+                .where((c) => !_wouldWin(c, state, trump))
+                .toList();
+            return _weakest(
+                notWinning.isNotEmpty ? notWinning : playable,
+                effectMode, trump);
+          } else {
+            final winning = playable
+                .where((c) => _wouldWin(c, state, trump))
+                .toList();
+            return _weakest(
+                winning.isNotEmpty ? winning : playable, effectMode, trump);
+          }
+        }
+      }
+
+      // Wer gewinnt gerade?
+      final currentWinnerId = GameLogic.determineTrickWinner(
+        cards: state.currentTrickCards,
+        playerIds: state.currentTrickPlayerIds,
+        gameMode: state.gameMode,
+        trumpSuit: trump,
+        trickNumber: state.currentTrickNumber,
+        molotofSubMode: state.molotofSubMode,
+        slalomStartsOben: state.slalomStartsOben,
+      );
+      final currentWinner =
+          state.players.firstWhere((p) => p.id == currentWinnerId);
+      final partnerWins = _sameTeamFor(aiPlayer, currentWinner, state);
+
+      if (partnerWins) {
+        // Partner gewinnt → schmieren (teuerste nicht-höchste Karte)
+        final schmierbar = playable.where((c) {
+          final pts = GameLogic.cardPoints(c, effectMode, trump);
+          if (pts < 8) return false;
+          if (_isHighestRemaining(c, state)) return false;
+          if (c.value == CardValue.ace || c.value == CardValue.six) {
+            final myStrength =
+                GameLogic.cardPlayStrength(c, effectMode, trump);
+            final suitStrengths = aiPlayer.hand
+                .where((h) => h != c && h.suit == c.suit)
+                .map((h) => GameLogic.cardPlayStrength(h, effectMode, trump))
+                .toList()
+              ..sort((a, b) => b.compareTo(a));
+            if (suitStrengths.length < 2 ||
+                myStrength - suitStrengths[0] > 2) {
+              return false;
+            }
+          }
+          return true;
+        }).toList();
+        if (schmierbar.isNotEmpty) {
+          return _strongest(schmierbar, effectMode, trump);
+        }
+        return _weakest(playable, effectMode, trump);
+      }
+
+      // Gegner gewinnt → versuche billigst möglich zu übernehmen
+      final winning =
+          playable.where((c) => _wouldWin(c, state, trump)).toList();
+      if (winning.isNotEmpty) {
+        return _weakest(winning, effectMode, trump);
+      }
+      // Kann nicht gewinnen → billigste Karte wegwerfen
+      return _weakest(playable, effectMode, trump);
     }
 
     double bestScore = double.negativeInfinity;
@@ -236,6 +399,11 @@ class MonteCarloAI {
     final baseBudget = myTeamHasAllTricks ? 300 : 200;
     final simsPerCard = math.max(10, baseBudget ~/ playable.length);
 
+    // Geweiste Gegner-Farben: beim Anspielen leicht bestrafen (nur Schieber)
+    final mcWyssOppSuits = _wyssOpponentSuits(state, aiPlayer);
+    final penalizeWyss = mcWyssOppSuits.isNotEmpty &&
+        state.currentTrickCards.isEmpty;
+
     for (final card in playable) {
       double total = 0.0;
       for (int i = 0; i < simsPerCard; i++) {
@@ -246,8 +414,15 @@ class MonteCarloAI {
       }
       double avg = total / simsPerCard;
 
-      // Elefant: Bauern für Trumpfphase und 6er für Unten-Phase schonen
+      // Elefant-Vorphase: Stiche gewinnen (→ Stich 7 = Trumpfwahl kontrollieren)
+      // + Bauern/6er für spätere Phasen schonen
       if (isElefantPre) {
+        // Bonus: Stich gewinnen in der Vorphase ist sehr wertvoll
+        // Stich 6 ist am wichtigsten (Gewinner spielt Stich 7 aus)
+        if (_wouldWin(card, state, null)) {
+          final trickBonus = elefantTrick == 6 ? 20.0 : 12.0;
+          avg += trickBonus;
+        }
         if (card.value == CardValue.jack) {
           avg -= 15.0; // Bauer könnte Buur werden (20 Pkt)
         }
@@ -266,6 +441,25 @@ class MonteCarloAI {
             tc.suit == state.trumpSuit && tc.value == CardValue.jack);
         if (partnerBuur) {
           avg -= 20.0; // Nell aufsparen (14 Pkt + Stichkontrolle)
+        }
+      }
+
+      // Geweiste Gegner-Farben beim Anspielen leicht bestrafen
+      if (penalizeWyss && mcWyssOppSuits.contains(card.suit)) {
+        avg -= 5.0; // Gegner hat starke Karten in dieser Farbe
+      }
+
+      // Near-miss Karten beim Anspielen bestrafen (7 ohne 6 in Unten, König ohne Ass in Oben)
+      if (state.currentTrickCards.isEmpty &&
+          _isNearMissLead(card, state, state.effectiveMode)) {
+        avg -= 10.0; // Riskant: Gegner hat die stärkere Karte
+      }
+
+      // Sichere Gewinner nicht abwerfen (nicht bedienen können)
+      if (state.currentTrickCards.isNotEmpty) {
+        final ledSuit = state.currentTrickCards.first.suit;
+        if (card.suit != ledSuit && _isHighestRemaining(card, state)) {
+          avg -= 15.0; // Sicheren zukünftigen Stich nicht verschenken
         }
       }
 
@@ -418,12 +612,13 @@ class MonteCarloAI {
         return safeLeads.first;
       }
 
-      // Keine sichere Karte → Ansager in Slalom spielt immer stärkste Karte
+      // Keine sichere Karte → nach Spielstärke sortieren
       final sorted = List.of(playable)
         ..sort((a, b) => GameLogic.cardPlayStrength(b, effectMode, trump)
             .compareTo(GameLogic.cardPlayStrength(a, effectMode, trump)));
-      if (state.gameMode == GameMode.slalom &&
-          player.id == state.players[state.ansagerIndex].id) {
+      // Oben/Unten (inkl. Slalom-Phasen): stärkste Karte (kein Zufall)
+      if (effectMode == GameMode.oben ||
+          effectMode == GameMode.unten) {
         return sorted.first;
       }
       final topN = math.min(3, sorted.length);
@@ -689,6 +884,34 @@ class MonteCarloAI {
     return true;
   }
 
+  /// Ob [card] beim Anspielen in Oben/Unten riskant ist:
+  /// z.B. 7 ohne 6 in Unten, König ohne Ass in Oben.
+  /// Die stärkere Karte dieser Farbe existiert noch bei einem Gegner.
+  /// Gibt true zurück wenn die Karte knapp unter dem sicheren Gewinner liegt.
+  static bool _isNearMissLead(JassCard card, GameState state, GameMode effectMode) {
+    // Nur relevant für Oben/Unten-artige Modi (kein Trumpf der stechen könnte)
+    if (effectMode != GameMode.oben && effectMode != GameMode.unten) return false;
+
+    final strength = GameLogic.cardPlayStrength(card, effectMode, null);
+    // Prüfe: gibt es eine stärkere Karte dieser Farbe die noch auf einer Hand ist
+    final allCards = state.players.expand((p) => p.hand).toList();
+    final strongerInHands = allCards.where((c) =>
+        c != card &&
+        c.suit == card.suit &&
+        GameLogic.cardPlayStrength(c, effectMode, null) > strength).toList();
+    // Wenn die stärkere Karte bereits gespielt wurde → kein Risiko
+    if (strongerInHands.isEmpty) return false;
+    // Nur "near miss" wenn max 1 stärkere Karte übrig (z.B. 7 vs 6 in Unten)
+    if (strongerInHands.length > 1) return false;
+    // Prüfe ob die stärkere Karte beim Partner ist → dann kein Problem
+    final aiPlayer = state.players.firstWhere((p) =>
+        p.hand.contains(card));
+    final strongerHolder = state.players.firstWhere((p) =>
+        p.hand.contains(strongerInHands.first));
+    if (_sameTeam(aiPlayer, strongerHolder)) return false;
+    return true;
+  }
+
   /// Zweithöchste Stärke einer Farbe in der eigenen Hand (unterhalb von [topStrength]).
   static int _secondHighestStrength(Suit suit, List<JassCard> hand,
       GameMode mode, Suit? trump, int topStrength) {
@@ -781,11 +1004,31 @@ class MonteCarloAI {
         }
       }
 
-      // Einziger Spieler mit Trumpf → Trumpf sparen, Nebenfarbe spielen
+      // ── Geweiste Gegner-Farben meiden (Anspielen) ──────────────────────
+      // Wenn Gegner eine Folge geweist hat, besitzen sie hohe Karten dieser
+      // Farbe → Stich wahrscheinlich verloren. Farbe meiden.
+      final wyssOppSuits = _wyssOpponentSuits(state, player);
+      if (wyssOppSuits.isNotEmpty) {
+        final safeCards = playable
+            .where((c) => !wyssOppSuits.contains(c.suit))
+            .toList();
+        if (safeCards.isNotEmpty) {
+          final guaranteed = safeCards
+              .where((c) => _isHighestRemaining(c, state))
+              .toList();
+          if (guaranteed.isNotEmpty) {
+            return _strongest(guaranteed, effectMode, trump);
+          }
+          // Kein garantierter Gewinner → fall-through zu normaler Logik
+        }
+      }
+
+      // Nur eigenes Team hat Trumpf → Trumpf sparen, Nebenfarbe spielen
       if (trump != null &&
           (effectMode == GameMode.trump ||
               effectMode == GameMode.trumpUnten) &&
-          _onlyPlayerWithTrump(player, state, trump)) {
+          (_onlyPlayerWithTrump(player, state, trump) ||
+              _onlyTeamHasTrump(player, state, trump))) {
         final nonTrump = playable.where((c) => c.suit != trump).toList();
         if (nonTrump.isNotEmpty) {
           final safeNonTrump = nonTrump
@@ -798,6 +1041,19 @@ class MonteCarloAI {
         }
       }
 
+      // Systematisches Trumpfziehen: Gegner-Trümpfe rausziehen
+      if (trump != null &&
+          (effectMode == GameMode.trump ||
+              effectMode == GameMode.trumpUnten) &&
+          !_onlyTeamHasTrump(player, state, trump)) {
+        final myTeamTrump = _teamTrumpCount(player, state, trump);
+        final oppTrump = _opponentTrumpCount(player, state, trump);
+        final myTrump = playable.where((c) => c.suit == trump).toList();
+        if (oppTrump > 0 && myTeamTrump > oppTrump && myTrump.length > 1) {
+          return _weakest(myTrump, effectMode, trump);
+        }
+      }
+
       // Garantierter Gewinner: höchste/niedrigste verbliebene Karte der Farbe.
       // Für Oben: höchste verbleibende → sicherer Stich.
       // Für Unten: niedrigste verbleibende (höchste Spielstärke im Unten-Modus).
@@ -806,6 +1062,54 @@ class MonteCarloAI {
           playable.where((c) => _isHighestRemaining(c, state)).toList();
       if (guaranteed.isNotEmpty) {
         return _strongest(guaranteed, effectMode, trump);
+      }
+
+      // Near-miss meiden: z.B. 7 ohne 6 in Unten, König ohne Ass in Oben.
+      // Stattdessen sichere oder ungefährliche Karten bevorzugen.
+      if (effectMode == GameMode.oben || effectMode == GameMode.unten) {
+        final safe = playable
+            .where((c) => !_isNearMissLead(c, state, effectMode))
+            .toList();
+        if (safe.isNotEmpty && safe.length < playable.length) {
+          // Slalom: Karten für die andere Richtung aufsparen
+          if (state.gameMode == GameMode.slalom) {
+            final otherMode = effectMode == GameMode.oben
+                ? GameMode.unten : GameMode.oben;
+            final sorted = List.of(safe)..sort((a, b) {
+              final aStr = GameLogic.cardPlayStrength(a, effectMode, null);
+              final bStr = GameLogic.cardPlayStrength(b, effectMode, null);
+              if (aStr != bStr) return bStr.compareTo(aStr);
+              final aOther = GameLogic.cardPoints(a, otherMode, null);
+              final bOther = GameLogic.cardPoints(b, otherMode, null);
+              return aOther.compareTo(bOther);
+            });
+            return sorted.first;
+          }
+          return _strongest(safe, effectMode, trump);
+        }
+      }
+
+      // Elefant Vorphase: aggressiv spielen um Stich 7 zu kontrollieren
+      // Stärkste Karte im aktuellen Modus, aber Bauern für Trumpf aufsparen
+      if (state.gameMode == GameMode.elefant &&
+          state.currentTrickNumber <= 6) {
+        final otherMode = effectMode == GameMode.oben
+            ? GameMode.unten : GameMode.oben;
+        // Bauern für die Trumpfphase nicht verbrauchen
+        final nonJack = playable
+            .where((c) => c.value != CardValue.jack)
+            .toList();
+        final pool = nonJack.isNotEmpty ? nonJack : playable;
+        final sorted = List.of(pool)..sort((a, b) {
+          final aStr = GameLogic.cardPlayStrength(a, effectMode, null);
+          final bStr = GameLogic.cardPlayStrength(b, effectMode, null);
+          if (aStr != bStr) return bStr.compareTo(aStr);
+          // Tiebreak: Karten die in der anderen Richtung wertlos sind bevorzugen
+          final aOther = GameLogic.cardPoints(a, otherMode, null);
+          final bOther = GameLogic.cardPoints(b, otherMode, null);
+          return aOther.compareTo(bOther);
+        });
+        return sorted.first;
       }
 
       // Slalom: keine sicheren Gewinner → stärkste Karte im aktuellen Modus,
@@ -846,6 +1150,18 @@ class MonteCarloAI {
             player.position == PlayerPosition.north) ==
         state.isTeam1Ansager;
     if (state.gameMode == GameMode.misere && isAnnouncer) {
+      // Billige Stiche nehmen als 3./4. Spieler wenn es sich lohnt
+      final trickLen = state.currentTrickCards.length;
+      if (trickLen >= 2) {
+        final cheapTrick = _misereCheapTrick(playable, state, player, effectMode, trump);
+        if (cheapTrick != null) return cheapTrick;
+      }
+      // Abwerfen (Fehlfarbe): hohe Karten von kurzen Farben loswerden
+      final ledSuit = state.currentTrickCards.first.suit;
+      final isDiscarding = !playable.any((c) => c.suit == ledSuit);
+      if (isDiscarding) {
+        return _misereDiscard(playable, player);
+      }
       final losing = playable
           .where((c) => !_wouldWin(c, state, trump))
           .toList();
@@ -905,11 +1221,24 @@ class MonteCarloAI {
           return _strongest(schmierbar, effectMode, trump);
         }
       }
-      // Slalom: wertvolle Karten für andere Richtung aufsparen
-      if (state.gameMode == GameMode.slalom) {
-        return _slalomDiscard(playable, effectMode);
+      // Schwächste Karte, aber sichere Gewinner behalten
+      return _smartDiscard(playable, state, effectMode, trump);
+    }
+
+    // Elefant Vorphase: aggressiv gewinnen (Stich 7 = Trumpfwahl!)
+    // Auch teure Gewinner einsetzen um den Stich zu holen
+    if (state.gameMode == GameMode.elefant &&
+        state.currentTrickNumber <= 6) {
+      final winning =
+          playable.where((c) => _wouldWin(c, state, null)).toList();
+      if (winning.isNotEmpty) {
+        // Stich 5-6 besonders wichtig: stärkste Gewinnerkarte nutzen
+        if (state.currentTrickNumber >= 5) {
+          return _strongest(winning, effectMode, null);
+        }
+        return _weakest(winning, effectMode, null);
       }
-      return _weakest(playable, effectMode, trump);
+      return _smartDiscard(playable, state, effectMode, null);
     }
 
     // Gegner gewinnt → versuche mit billigster Karte zu gewinnen
@@ -919,13 +1248,27 @@ class MonteCarloAI {
       return _weakest(winning, effectMode, trump);
     }
 
-    // Kann nicht gewinnen → wegwerfen
-    // Slalom: Karten aufsparen, die in der anderen Richtung wertvoll sind
-    // (z.B. 6er nicht in Oben-Stichen verbraten, Asse nicht in Unten-Stichen)
-    if (state.gameMode == GameMode.slalom) {
-      return _slalomDiscard(playable, effectMode);
+    // Kann nicht gewinnen → wegwerfen, aber sichere zukünftige Gewinner behalten
+    return _smartDiscard(playable, state, effectMode, trump);
+  }
+
+  /// Misere-Discard: hohe gefährliche Karten von kurzen Farben zuerst loswerden.
+  /// Priorisierung: kürzeste Farbe → höchste Karte (gefährlichste zuerst).
+  static JassCard _misereDiscard(List<JassCard> cards, Player player) {
+    // Farbverteilung in der gesamten Hand zählen
+    final suitCounts = <Suit, int>{};
+    for (final c in player.hand) {
+      suitCounts[c.suit] = (suitCounts[c.suit] ?? 0) + 1;
     }
-    return _weakest(playable, effectMode, trump);
+    final sorted = List.of(cards)..sort((a, b) {
+      final aCount = suitCounts[a.suit] ?? 0;
+      final bCount = suitCounts[b.suit] ?? 0;
+      // Primär: kürzeste Farbe zuerst (Singletons → Doubletons → ...)
+      if (aCount != bCount) return aCount.compareTo(bCount);
+      // Sekundär: höchste Karte zuerst (Ass → König → ...)
+      return b.value.index.compareTo(a.value.index);
+    });
+    return sorted.first;
   }
 
   /// Slalom-Discard: schwächste Karte im aktuellen Modus, aber Karten die
@@ -945,6 +1288,39 @@ class MonteCarloAI {
       return aOther.compareTo(bOther);
     });
     return sorted.first;
+  }
+
+  /// Intelligentes Abwerfen: sichere zukünftige Gewinner behalten.
+  /// Priorisierung:
+  /// 1. Nie sichere Gewinner abwerfen (höchste verbleibende Karte der Farbe)
+  /// 2. Nie near-miss Karten behalten (zweitbeste ohne beste → wertlos)
+  /// 3. Slalom/Elefant: Karten für die andere Richtung aufsparen
+  /// 4. Schwächste Karte abwerfen
+  static JassCard _smartDiscard(
+    List<JassCard> cards, GameState state, GameMode effectMode, Suit? trump,
+  ) {
+    if (cards.length == 1) return cards.first;
+
+    // Sichere Gewinner identifizieren (sollten behalten werden)
+    final safeWinners = cards
+        .where((c) => _isHighestRemaining(c, state))
+        .toSet();
+
+    // Kandidaten zum Abwerfen: alles ausser sichere Gewinner
+    final discardable = cards.where((c) => !safeWinners.contains(c)).toList();
+
+    // Alle Karten sind sichere Gewinner → schwächsten Gewinner abwerfen
+    if (discardable.isEmpty) {
+      return _weakest(cards, effectMode, trump);
+    }
+
+    // Slalom / Elefant: Karten für andere Richtung aufsparen
+    if (state.gameMode == GameMode.slalom ||
+        state.gameMode == GameMode.elefant) {
+      return _slalomDiscard(discardable, effectMode);
+    }
+
+    return _weakest(discardable, effectMode, trump);
   }
 
   /// Gibt true zurück, wenn [card] den aktuellen Teilstich gewinnen würde.
@@ -1210,27 +1586,181 @@ class MonteCarloAI {
     return voids;
   }
 
+  /// Rekonstruiert bekannte Karten aus geweisten Einträgen (nur wenn wyssResolved).
+  /// Gibt Map<playerId, Set<JassCard>> zurück.
+  static Map<String, Set<JassCard>> _wyssKnownCards(GameState state) {
+    final known = <String, Set<JassCard>>{};
+    if (!state.wyssResolved) return known;
+    final ct = state.cardType;
+    final frenchSuits = [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs];
+    final germanSuits = [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
+    final suits = ct == CardType.french ? frenchSuits : germanSuits;
+
+    for (final entry in state.playerWyss.entries) {
+      final playerId = entry.key;
+      final cards = <JassCard>{};
+      for (final w in entry.value) {
+        if (w.isFourOfAKind) {
+          for (final s in suits) {
+            cards.add(JassCard(suit: s, value: w.topValue, cardType: ct));
+          }
+        } else if (w.suit != null) {
+          final allValues = CardValue.values;
+          final from = allValues.indexOf(w.bottomValue);
+          final to = allValues.indexOf(w.topValue);
+          for (int i = from; i <= to; i++) {
+            cards.add(JassCard(suit: w.suit!, value: allValues[i], cardType: ct));
+          }
+        }
+      }
+      if (cards.isNotEmpty) {
+        known[playerId] = cards;
+      }
+    }
+    return known;
+  }
+
+  /// Gibt die Suits zurück, in denen Gegner Folge-Weisen haben.
+  /// Nur relevant wenn wyssResolved.
+  static Set<Suit> _wyssOpponentSuits(GameState state, Player aiPlayer) {
+    final result = <Suit>{};
+    if (!state.wyssResolved) return result;
+    for (final entry in state.playerWyss.entries) {
+      final p = state.players.firstWhere((p) => p.id == entry.key);
+      if (_sameTeam(p, aiPlayer)) continue; // Nur Gegner
+      for (final w in entry.value) {
+        if (!w.isFourOfAKind && w.suit != null) {
+          result.add(w.suit!);
+        }
+      }
+    }
+    return result;
+  }
+
   /// Erstellt eine zufällige Welt: eigene Hand bleibt, unbekannte Karten
   /// werden unter den anderen Spielern neu verteilt (Fehlfarben respektiert).
+  /// Bekannte Weis-Karten werden dem richtigen Spieler fest zugewiesen.
   static GameState _sampleWorld(
     GameState state,
     String aiPlayerId,
     Map<String, Set<Suit>> voidSuits,
   ) {
     final others = state.players.where((p) => p.id != aiPlayerId).toList();
+    final wyssKnown = _wyssKnownCards(state);
 
     // Pool = alle Karten in fremden Händen (unbekannt für die KI)
-    final pool = others.expand((p) => p.hand).toList()..shuffle(_rng);
+    final allOtherCards = others.expand((p) => p.hand).toList();
 
-    // Karten unter anderen Spielern verteilen (Fehlfarben beachten)
-    final assignments = _dealCards(pool, others, voidSuits);
+    // Bekannte Weis-Karten fest zuweisen
+    final fixedAssignments = <String, List<JassCard>>{};
+    final fixedCardSet = <JassCard>{};
+    for (final entry in wyssKnown.entries) {
+      if (entry.key == aiPlayerId) continue; // Eigene Karten nicht nochmal
+      final playerCards = entry.value
+          .where((c) => allOtherCards.contains(c))
+          .toList();
+      if (playerCards.isNotEmpty) {
+        fixedAssignments[entry.key] = playerCards;
+        fixedCardSet.addAll(playerCards);
+      }
+    }
+
+    // Pool = fremde Karten MINUS bekannte Weis-Karten
+    final pool = allOtherCards
+        .where((c) => !fixedCardSet.contains(c))
+        .toList()
+      ..shuffle(_rng);
+
+    // Restliche Karten zufällig verteilen (Fehlfarben beachten)
+    // Handgrössen anpassen: fixierte Karten abziehen
+    final adjustedOthers = others.map((p) {
+      final fixed = fixedAssignments[p.id] ?? [];
+      final remaining = p.hand.length - fixed.length;
+      // Temporär: Hand-Grösse = restliche Slots
+      return p.copyWith(hand: List<JassCard>.filled(remaining, p.hand.first));
+    }).toList();
+
+    final randomAssignments = _dealCards(pool, adjustedOthers, voidSuits);
 
     final newPlayers = state.players.map((p) {
       if (p.id == aiPlayerId) return p.copyWith(hand: List<JassCard>.from(p.hand));
-      return p.copyWith(hand: assignments[p.id] ?? List<JassCard>.from(p.hand));
+      final fixed = fixedAssignments[p.id] ?? <JassCard>[];
+      final random = randomAssignments[p.id] ?? <JassCard>[];
+      return p.copyWith(hand: [...fixed, ...random]);
     }).toList();
 
     return state.copyWith(players: newPlayers);
+  }
+
+  /// Misere: Als 3./4. Spieler billigen Stich nehmen wenn sinnvoll.
+  /// Bedingungen: Punkte ≤ 4, Gewinnerkarte kein Ass/sicherer Gewinner,
+  /// Spieler hat Fluchtroute (nicht nur höchste Karten), nicht ≥3 der Farbe.
+  static JassCard? _misereCheapTrick(
+    List<JassCard> playable,
+    GameState state,
+    Player player,
+    GameMode effectMode,
+    Suit? trump,
+  ) {
+    // Punkte im aktuellen Stich berechnen
+    int trickPoints = 0;
+    for (final c in state.currentTrickCards) {
+      trickPoints += GameLogic.cardPoints(c, effectMode, trump);
+    }
+    if (trickPoints > 4) return null;
+
+    // Aktuelle Gewinnerkarte prüfen
+    final currentWinnerId = GameLogic.determineTrickWinner(
+      cards: state.currentTrickCards,
+      playerIds: state.currentTrickPlayerIds,
+      gameMode: state.gameMode,
+      trumpSuit: trump,
+      trickNumber: state.currentTrickNumber,
+      molotofSubMode: state.molotofSubMode,
+      slalomStartsOben: state.slalomStartsOben,
+    );
+    final winnerIdx = state.currentTrickPlayerIds.indexOf(currentWinnerId);
+    if (winnerIdx < 0) return null;
+    final winnerCard = state.currentTrickCards[winnerIdx];
+
+    // Gewinnerkarte darf kein Ass sein und kein sicherer Gewinner
+    if (winnerCard.value == CardValue.ace) return null;
+    if (_isHighestRemaining(winnerCard, state)) return null;
+
+    // Gewinnbare Karten finden
+    final winning = playable.where((c) => _wouldWin(c, state, trump)).toList();
+    if (winning.isEmpty) return null;
+
+    // Spieler braucht Fluchtroute: mind. 1 andere Karte die NICHT höchste ist
+    final otherCards = player.hand.where((c) => !winning.contains(c)).toList();
+    final hasEscape = otherCards.any((c) => !_isHighestRemaining(c, state));
+    if (!hasEscape) return null;
+
+    // Nicht nötig wenn ≥3 tiefe Karten derselben Farbe (verlieren sowieso)
+    final ledSuit = state.currentTrickCards.first.suit;
+    final suitCount = player.hand.where((c) => c.suit == ledSuit).length;
+    if (suitCount >= 3) return null;
+
+    // Billigste Gewinnerkarte spielen
+    return _weakest(winning, effectMode, trump);
+  }
+
+  /// Anzahl Trumpfkarten des eigenen Teams (Spieler + Partner).
+  static int _teamTrumpCount(Player player, GameState state, Suit trump) {
+    return state.players
+        .where((p) => _sameTeam(p, player))
+        .expand((p) => p.hand)
+        .where((c) => c.suit == trump)
+        .length;
+  }
+
+  /// Anzahl Trumpfkarten der Gegner.
+  static int _opponentTrumpCount(Player player, GameState state, Suit trump) {
+    return state.players
+        .where((p) => !_sameTeam(p, player))
+        .expand((p) => p.hand)
+        .where((c) => c.suit == trump)
+        .length;
   }
 
   /// Verteilt [pool] auf [players] unter Berücksichtigung von Fehlfarben.

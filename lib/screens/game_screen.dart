@@ -315,6 +315,14 @@ class _GameScreenState extends State<GameScreen> {
                 ? state.currentAnsager.id
                 : null;
 
+            // Geschoben-Sprechblase: Ansager hat geschoben, Partner wählt jetzt
+            final geschobenId = (state.phase == GamePhase.trumpSelection &&
+                    state.trumpSelectorIndex != null &&
+                    (state.gameType == GameType.schieber ||
+                        state.gameType == GameType.friseurTeam))
+                ? state.currentAnsager.id
+                : null;
+
             return Stack(
               children: [
                 // Felt gradient background
@@ -377,21 +385,50 @@ class _GameScreenState extends State<GameScreen> {
                                       )
                                     : state.gameType == GameType.schieber
                                         ? Center(
-                                            child: _SchieberScoreBar(
-                                              totalTeamScores: state.totalTeamScores,
-                                              teamScores: state.teamScores,
-                                              roundNumber: state.roundNumber,
-                                              winTarget: state.schieberWinTarget,
-                                              isRoundEnd: state.phase == GamePhase.roundEnd,
-                                              multiplier: _schieberMultiplier(state),
+                                            child: Builder(
+                                              builder: (_) {
+                                                int wb1 = 0, wb2 = 0;
+                                                if (state.wyssResolved && state.wyssWinnerTeam != null) {
+                                                  final wyssTotal = state.playerWyss.values
+                                                      .expand((e) => e)
+                                                      .fold(0, (s, e) => s + e.points);
+                                                  final stocke1 = state.stockeRoundPoints['team1'] ?? 0;
+                                                  final stocke2 = state.stockeRoundPoints['team2'] ?? 0;
+                                                  wb1 = (state.wyssWinnerTeam == 'team1' ? wyssTotal : 0) + stocke1;
+                                                  wb2 = (state.wyssWinnerTeam == 'team2' ? wyssTotal : 0) + stocke2;
+                                                }
+                                                return _SchieberScoreBar(
+                                                  totalTeamScores: state.totalTeamScores,
+                                                  teamScores: state.teamScores,
+                                                  roundNumber: state.roundNumber,
+                                                  winTarget: state.schieberWinTarget,
+                                                  isRoundEnd: state.phase == GamePhase.roundEnd,
+                                                  multiplier: _schieberMultiplier(state),
+                                                  wyssBonus1: wb1,
+                                                  wyssBonus2: wb2,
+                                                );
+                                              },
                                             ),
                                           )
                                         : Center(
-                                            child: ScoreBoardWidget(
-                                              teamScores: state.teamScores,
-                                              roundNumber: state.roundNumber,
-                                              isFriseurSolo:
-                                                  state.gameType == GameType.friseur,
+                                            child: Builder(
+                                              builder: (_) {
+                                                var scores = state.teamScores;
+                                                if (state.wyssResolved && state.wyssWinnerTeam != null) {
+                                                  final wyssTotal = state.playerWyss.values
+                                                      .expand((e) => e)
+                                                      .fold(0, (s, e) => s + e.points);
+                                                  scores = Map<String, int>.from(scores);
+                                                  final key = state.wyssWinnerTeam!;
+                                                  scores[key] = (scores[key] ?? 0) + wyssTotal;
+                                                }
+                                                return ScoreBoardWidget(
+                                                  teamScores: scores,
+                                                  roundNumber: state.roundNumber,
+                                                  isFriseurSolo:
+                                                      state.gameType == GameType.friseur,
+                                                );
+                                              },
                                             ),
                                           ),
                           ),
@@ -439,6 +476,8 @@ class _GameScreenState extends State<GameScreen> {
                             const _AnsagerBadge()
                           else if (lochId == north.id)
                             const _LochBadge(),
+                          if (geschobenId == north.id)
+                            const _GeschobenBubble(),
                           if (state.wyssDeclarationPending &&
                               state.completedTricks.isEmpty &&
                               state.phase == GamePhase.playing &&
@@ -516,6 +555,11 @@ class _GameScreenState extends State<GameScreen> {
                                       padding: EdgeInsets.only(top: 2),
                                       child: _LochBadge(),
                                     ),
+                                  if (geschobenId == west.id)
+                                    const Padding(
+                                      padding: EdgeInsets.only(top: 2),
+                                      child: _GeschobenBubble(),
+                                    ),
                                   if (state.wyssDeclarationPending &&
                                       state.completedTricks.isEmpty &&
                                       state.phase == GamePhase.playing &&
@@ -559,6 +603,9 @@ class _GameScreenState extends State<GameScreen> {
                                     : null,
                                 gameType: state.gameType,
                                 cardType: state.cardType,
+                                geschoben: state.trumpSelectorIndex != null &&
+                                    (state.gameType == GameType.schieber ||
+                                        state.gameType == GameType.friseurTeam),
                               ),
                             ),
                           ),
@@ -603,6 +650,11 @@ class _GameScreenState extends State<GameScreen> {
                                     const Padding(
                                       padding: EdgeInsets.only(top: 2),
                                       child: _LochBadge(),
+                                    ),
+                                  if (geschobenId == east.id)
+                                    const Padding(
+                                      padding: EdgeInsets.only(top: 2),
+                                      child: _GeschobenBubble(),
                                     ),
                                   if (state.wyssDeclarationPending &&
                                       state.completedTricks.isEmpty &&
@@ -652,6 +704,13 @@ class _GameScreenState extends State<GameScreen> {
                           child: _LochBadge(),
                         ),
                     ],
+
+                    // ── Geschoben-Sprechblase (Human hat geschoben) ──
+                    if (geschobenId == human.id)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 2),
+                        child: _GeschobenBubble(),
+                      ),
 
                     // ── Human Wyss-Sprechblase ────────────────────────
                     if (state.wyssDeclarationPending &&
@@ -726,6 +785,14 @@ class _GameScreenState extends State<GameScreen> {
                     onClose: () => setState(() => _showWishCardDetail = false),
                   ),
 
+                // ── Wyss Entscheidung-Overlay (Spieler entscheidet ob weisen) ──
+                if (state.phase == GamePhase.wyssDeclaration)
+                  _WyssDeclarationOverlay(
+                    state: state,
+                    onDecide: (show) =>
+                        context.read<GameProvider>().declareWyss(show),
+                  ),
+
                 // ── Wyss Auswertung-Overlay (nach 1. Stich, vor 2. Stich) ──
                 if (state.wyssDeclarationPending &&
                     state.completedTricks.length == 1 &&
@@ -778,7 +845,7 @@ class _GameScreenState extends State<GameScreen> {
                     Positioned(
                       left: 0,
                       right: 0,
-                      bottom: 300,
+                      bottom: 340,
                       child: Center(
                         child: GestureDetector(
                           onTap: () {
@@ -820,7 +887,7 @@ class _GameScreenState extends State<GameScreen> {
                   Positioned(
                     left: 0,
                     right: 0,
-                    bottom: 245,
+                    bottom: 265,
                     child: Center(
                       child: GestureDetector(
                         onTap: _showTrumpSelection,
@@ -1194,6 +1261,30 @@ class _AnsagerBadge extends StatelessWidget {
   }
 }
 
+class _GeschobenBubble extends StatelessWidget {
+  const _GeschobenBubble();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.blueGrey.shade800.withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: const Text(
+        'Geschoben!',
+        style: TextStyle(
+          color: Colors.white70,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          fontStyle: FontStyle.italic,
+        ),
+      ),
+    );
+  }
+}
+
 class _LochBadge extends StatelessWidget {
   const _LochBadge();
 
@@ -1477,20 +1568,20 @@ class _RoundEndOverlay extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                   child: Column(
                     children: [
                       Text(
                         roundNum != null ? 'Runde $roundNum beendet' : 'Runde beendet',
                         style: const TextStyle(
                             color: AppColors.gold,
-                            fontSize: 18,
+                            fontSize: 17,
                             fontWeight: FontWeight.bold),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 6),
                       Text(
                           _variantLongName(lastResult.variantKey, lastResult.trumpSuit, cardType),
-                          style: const TextStyle(color: Colors.white70, fontSize: 14)),
+                          style: const TextStyle(color: Colors.white70, fontSize: 13)),
                       const SizedBox(height: 8),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -1500,24 +1591,24 @@ class _RoundEndOverlay extends StatelessWidget {
                           _resultBadge('Gegner', lastResult.team2Score),
                         ],
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 6),
                       Text('Partner: $partnerName',
-                          style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                          style: const TextStyle(color: Colors.white54, fontSize: 11)),
                       if (postRoundComment != null) ...[
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 10),
+                              horizontal: 10, vertical: 6),
                           decoration: BoxDecoration(
                             color: Colors.black38,
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(10),
                             border: Border.all(color: Colors.white24),
                           ),
                           child: Text(
                             postRoundComment!,
                             style: const TextStyle(
                               color: Colors.white70,
-                              fontSize: 13,
+                              fontSize: 11,
                               fontStyle: FontStyle.italic,
                             ),
                             textAlign: TextAlign.center,
@@ -1528,23 +1619,16 @@ class _RoundEndOverlay extends StatelessWidget {
                   ),
                 ),
                 if (soloScores != null && players.isNotEmpty) ...[
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   const Divider(color: Colors.white24, height: 1),
-                  ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxHeight: MediaQuery.of(context).size.height * 0.35,
-                    ),
-                    child: SingleChildScrollView(
-                      child: _FriseurSoloScoreTable(
-                        players: players,
-                        friseurSoloScores: soloScores,
-                        cardType: cardType,
-                        enabledVariants: enabledVariants,
-                      ),
-                    ),
+                  _FriseurSoloScoreTable(
+                    players: players,
+                    friseurSoloScores: soloScores,
+                    cardType: cardType,
+                    enabledVariants: enabledVariants,
                   ),
                 ],
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 const Divider(color: Colors.white24, height: 1),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -1656,7 +1740,7 @@ class _RoundEndOverlay extends StatelessWidget {
       color: Colors.black54,
       child: Center(
         child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 24),
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
           decoration: BoxDecoration(
             color: const Color(0xFF1B4D2E),
             borderRadius: BorderRadius.circular(20),
@@ -1680,65 +1764,56 @@ class _RoundEndOverlay extends StatelessWidget {
               const Divider(color: Colors.white24, height: 1),
 
               // ── Tabelle ───────────────────────────────────────────────
-              Flexible(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: MediaQuery.of(context).size.height * 0.60,
+              Table(
+                columnWidths: const {
+                  0: FlexColumnWidth(2.4),
+                  1: FlexColumnWidth(1.0),
+                  2: FlexColumnWidth(1.0),
+                },
+                children: [
+                  // Header
+                  TableRow(
+                    decoration: const BoxDecoration(color: Colors.black26),
+                    children: [
+                      _hCell('Spiel'),
+                      _hCell('Ihr', right: true),
+                      _hCell('Gegner', right: true),
+                    ],
                   ),
-                  child: SingleChildScrollView(
-                    child: Table(
-                      columnWidths: const {
-                        0: FlexColumnWidth(2.4),
-                        1: FlexColumnWidth(1.0),
-                        2: FlexColumnWidth(1.0),
-                      },
-                      children: [
-                        // Header
-                        TableRow(
-                          decoration: const BoxDecoration(color: Colors.black26),
-                          children: [
-                            _hCell('Spiel'),
-                            _hCell('Ihr', right: true),
-                            _hCell('Gegner', right: true),
-                          ],
-                        ),
-                        for (final variant in _variants)
-                          _buildRow(
-                            variant: variant,
-                            r1: _byTeam1(variant),
-                            r2: _byTeam2(variant),
-                            isLastPlayed: variant == lastVariant &&
-                                roundHistory.isNotEmpty,
-                            cardType: cardType,
-                          ),
-                        // Trennlinie
-                        TableRow(
-                          decoration: const BoxDecoration(
-                              border: Border(
-                                  top: BorderSide(color: Colors.white38))),
-                          children: List.filled(3, const SizedBox(height: 1)),
-                        ),
-                        // Gesamtzeile
-                        TableRow(
-                          decoration: const BoxDecoration(color: Colors.black12),
-                          children: [
-                            _totalCell('Gesamt'),
-                            _totalCell('$tot1',
-                                right: true,
-                                color: tot1 >= tot2
-                                    ? AppColors.gold
-                                    : Colors.white70),
-                            _totalCell('$tot2',
-                                right: true,
-                                color: tot2 > tot1
-                                    ? AppColors.gold
-                                    : Colors.white70),
-                          ],
-                        ),
-                      ],
+                  for (final variant in _variants)
+                    _buildRow(
+                      variant: variant,
+                      r1: _byTeam1(variant),
+                      r2: _byTeam2(variant),
+                      isLastPlayed: variant == lastVariant &&
+                          roundHistory.isNotEmpty,
+                      cardType: cardType,
                     ),
+                  // Trennlinie
+                  TableRow(
+                    decoration: const BoxDecoration(
+                        border: Border(
+                            top: BorderSide(color: Colors.white38))),
+                    children: List.filled(3, const SizedBox(height: 1)),
                   ),
-                ),
+                  // Gesamtzeile
+                  TableRow(
+                    decoration: const BoxDecoration(color: Colors.black12),
+                    children: [
+                      _totalCell('Gesamt'),
+                      _totalCell('$tot1',
+                          right: true,
+                          color: tot1 >= tot2
+                              ? AppColors.gold
+                              : Colors.white70),
+                      _totalCell('$tot2',
+                          right: true,
+                          color: tot2 > tot1
+                              ? AppColors.gold
+                              : Colors.white70),
+                    ],
+                  ),
+                ],
               ),
 
               // ── Buttons ──────────────────────────────────────────────
@@ -3197,6 +3272,8 @@ class _SchieberScoreBar extends StatelessWidget {
   final int winTarget;
   final bool isRoundEnd;
   final int multiplier;
+  final int wyssBonus1;
+  final int wyssBonus2;
 
   const _SchieberScoreBar({
     required this.totalTeamScores,
@@ -3205,6 +3282,8 @@ class _SchieberScoreBar extends StatelessWidget {
     required this.winTarget,
     this.isRoundEnd = false,
     this.multiplier = 1,
+    this.wyssBonus1 = 0,
+    this.wyssBonus2 = 0,
   });
 
   @override
@@ -3213,9 +3292,9 @@ class _SchieberScoreBar extends StatelessWidget {
     final prev2 = totalTeamScores['team2'] ?? 0;
     // Bei Rundenende: totalTeamScores enthält bereits die Rundenpunkte (mit Multiplikator)
     // → teamScores NICHT addieren, sonst Doppelzählung
-    // Während der Runde: Rohpunkte × Multiplikator anzeigen
-    final cur1 = isRoundEnd ? 0 : (teamScores['team1'] ?? 0) * multiplier;
-    final cur2 = isRoundEnd ? 0 : (teamScores['team2'] ?? 0) * multiplier;
+    // Während der Runde: Rohpunkte × Multiplikator anzeigen (inkl. Wyss wenn aufgelöst)
+    final cur1 = isRoundEnd ? 0 : ((teamScores['team1'] ?? 0) + wyssBonus1) * multiplier;
+    final cur2 = isRoundEnd ? 0 : ((teamScores['team2'] ?? 0) + wyssBonus2) * multiplier;
     // Live total: kumulierte Gesamtpunkte inkl. aktueller Rundenfortschritt
     final live1 = prev1 + cur1;
     final live2 = prev2 + cur2;
@@ -3880,6 +3959,166 @@ class _WishCardDetailOverlay extends StatelessWidget {
                   style: TextStyle(color: Colors.white54, fontSize: 12),
                 ),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Wyss Entscheidung Overlay ──────────────────────────────────────────────────
+
+class _WyssDeclarationOverlay extends StatelessWidget {
+  final GameState state;
+  final void Function(bool) onDecide;
+
+  const _WyssDeclarationOverlay({required this.state, required this.onDecide});
+
+  @override
+  Widget build(BuildContext context) {
+    final human = state.players.firstWhere((p) => p.isHuman);
+    final entries = state.playerWyss[human.id] ?? [];
+    if (entries.isEmpty) return const SizedBox.shrink();
+
+    // Besten Weis anzeigen
+    final best = entries.reduce((a, b) => a.points >= b.points ? a : b);
+    final ct = state.cardType;
+
+    // Karten rekonstruieren
+    List<JassCard> wyssCards;
+    if (best.isFourOfAKind) {
+      final suits = ct == CardType.french
+          ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
+          : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
+      wyssCards = suits
+          .map((s) => JassCard(suit: s, value: best.topValue, cardType: ct))
+          .toList();
+    } else {
+      final allValues = CardValue.values;
+      final from = allValues.indexOf(best.bottomValue);
+      final to = allValues.indexOf(best.topValue);
+      wyssCards = [
+        for (int i = from; i <= to; i++)
+          JassCard(suit: best.suit!, value: allValues[i], cardType: ct)
+      ];
+    }
+
+    final typeName = best.isFourOfAKind
+        ? 'Vierling ${best.topValueLabel(ct)}'
+        : '${best.typeName} ${best.topValueLabel(ct)}';
+
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black87,
+        child: SafeArea(
+          child: Center(
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 24),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1B4D2E),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.gold, width: 2),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Weisen?',
+                    style: TextStyle(
+                        color: AppColors.gold,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      typeName,
+                      style: const TextStyle(
+                          color: Colors.white, fontSize: 16),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '+${best.points} Punkte${entries.length > 1 ? ' (+ ${entries.length - 1} weitere)' : ''}',
+                    style: TextStyle(
+                        color: Colors.amber.shade300, fontSize: 14),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  // Karten-Preview
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Wrap(
+                      spacing: 4,
+                      runSpacing: 4,
+                      alignment: WrapAlignment.center,
+                      children: [
+                        for (final card in wyssCards)
+                          CardWidget(card: card, width: 52),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  // Warnung
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 20),
+                    child: Text(
+                      'Achtung: Gegner sehen deine Karten!',
+                      style: TextStyle(
+                          color: Colors.orangeAccent,
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Buttons
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () => onDecide(false),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blueGrey.shade700,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: const Text('Verzichten',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 15)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () => onDecide(true),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.gold,
+                              foregroundColor: Colors.black,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: const Text('Weisen',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 15)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
             ),
           ),
         ),
