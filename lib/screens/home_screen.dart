@@ -21,7 +21,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   CardType _selectedCardType = CardType.french;
-  GameType _selectedGameType = GameType.friseurTeam;
+  GameType _selectedGameType = GameType.schieber;
   int _schieberWinTarget = 2500;
   int _differenzlerRounds = 4;
   String _playerName = 'Du';
@@ -85,6 +85,12 @@ class _HomeScreenState extends State<HomeScreen> {
           ..addAll(variants);
       }
       _savedGameTypes = saved;
+      // Zuletzt gewählten Spielmodus laden
+      final lastGameType = prefs.getString('last_game_type');
+      if (lastGameType != null) {
+        final match = GameType.values.where((t) => t.name == lastGameType);
+        if (match.isNotEmpty) _selectedGameType = match.first;
+      }
     });
   }
 
@@ -359,6 +365,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _startGame() async {
     if (!mounted) return;
+    // Spielmodus merken
+    SharedPreferences.getInstance().then((p) => p.setString('last_game_type', _selectedGameType.name));
     final provider = context.read<GameProvider>();
     provider.startNewGame(
       cardType: _selectedCardType,
@@ -378,6 +386,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _resumeGame() async {
+    // Spielmodus merken
+    SharedPreferences.getInstance().then((p) => p.setString('last_game_type', _selectedGameType.name));
     final provider = context.read<GameProvider>();
     final success = await provider.resumeGame(_selectedGameType);
     if (success && mounted) {

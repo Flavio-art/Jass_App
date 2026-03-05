@@ -129,17 +129,18 @@ class GameLogic {
   }
 
   /// Suit-Priorität für Schafkopf-Trumpf:
-  /// Kreuz/Eichel=3 > Schaufel/Schilten=2 > Herz=1 > Ecken/Schellen=0
+  /// Französisch: Kreuz(3) > Schaufel(2) > Herz(1) > Ecken(0)
+  /// Deutsch:     Schellen(3) > Schilten(2) > Rosen(1) > Eichel(0)
   static int _schafkopfSuitPriority(Suit suit) {
     switch (suit) {
-      case Suit.clubs:
-      case Suit.eichel:     return 3;
-      case Suit.spades:
+      case Suit.clubs:      return 3;
+      case Suit.spades:     return 2;
+      case Suit.hearts:     return 1;
+      case Suit.diamonds:   return 0;
+      case Suit.schellen:   return 3;
       case Suit.schilten:   return 2;
-      case Suit.hearts:
       case Suit.herzGerman: return 1;
-      case Suit.diamonds:
-      case Suit.schellen:   return 0;
+      case Suit.eichel:     return 0;
     }
   }
 

@@ -315,8 +315,8 @@ class _RulesScreenState extends State<RulesScreen>
         : 'Eine Farbe aus der Gruppe Herz (♥) / Ecken (♦) wird Trumpf. Gleiche Regeln wie oben.';
     final schafJack = isGerman ? 'Under' : 'Bauer';
     final schafTrumpfReihe = isGerman
-        ? 'Trumpfreihenfolge: Rosen-Ober › Schellen-Ober › Eichel-Ober › Schilten-Ober › '
-          'Rosen-8 › Schellen-8 › Eichel-8 › Schilten-8 › '
+        ? 'Trumpfreihenfolge: Schellen-Ober › Schilten-Ober › Rosen-Ober › Eichel-Ober › '
+          'Schellen-8 › Schilten-8 › Rosen-8 › Eichel-8 › '
           'Zehner › König › Under › Ass › 9 › 7 › 6 (Trumpffarbe).'
         : 'Trumpfreihenfolge: Kreuz-Dame › Schaufeln-Dame › Herz-Dame › Ecken-Dame › '
           'Kreuz-8 › Schaufeln-8 › Herz-8 › Ecken-8 › '

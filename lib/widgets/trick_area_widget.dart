@@ -19,6 +19,7 @@ class TrickAreaWidget extends StatelessWidget {
   final VoidCallback? onWishCardTap; // Tap auf Wunschkarte → Detail-Overlay
   final GameType gameType;
   final CardType cardType;
+  final bool geschoben;
 
   const TrickAreaWidget({
     super.key,
@@ -36,6 +37,7 @@ class TrickAreaWidget extends StatelessWidget {
     this.onWishCardTap,
     this.gameType = GameType.friseurTeam,
     this.cardType = CardType.french,
+    this.geschoben = false,
   });
 
   @override
@@ -65,6 +67,30 @@ class TrickAreaWidget extends StatelessWidget {
                 cardType: cardType,
               ),
             ),
+            // Geschoben-Indikator zentral in der Tischmitte
+            if (geschoben && cards.isEmpty)
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.blueGrey.shade800.withValues(alpha: 0.9),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white24, width: 1),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.swap_horiz, color: Colors.white70, size: 18),
+                      SizedBox(width: 6),
+                      Text('Geschoben',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              ),
             // Wunschkarte (Friseur Solo) oben links
             if (wishCard != null)
               Positioned(

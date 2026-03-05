@@ -38,6 +38,8 @@ class NNTuning {
   static const double schieberMultUnten = 2.4;
   static const double schieberMultSlalom = 3.6;
   static const double schiebenSlalomPenalty = 0.85;
+  static const double schieberMultMisere = 0.7;    // Misere im Schieber ~10%
+  static const double schieberMultMolotof = 0.7;   // Molotof im Schieber ~10%
 
   // ── Friseur Solo Moduswahl-Multiplikatoren ─────────────
   // Trumpf ist "einfach" (Buur wünschen) → aufsparen, nur bei starker Hand.
