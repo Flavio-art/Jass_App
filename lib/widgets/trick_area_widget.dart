@@ -65,6 +65,7 @@ class TrickAreaWidget extends StatelessWidget {
                 slalomStartsOben: slalomStartsOben,
                 gameType: gameType,
                 cardType: cardType,
+                geschoben: geschoben,
               ),
             ),
             // Geschoben-Indikator zentral in der Tischmitte
@@ -165,6 +166,7 @@ class _ModeIndicator extends StatelessWidget {
   final bool slalomStartsOben;
   final GameType gameType;
   final CardType cardType;
+  final bool geschoben;
 
   const _ModeIndicator({
     required this.gameMode,
@@ -174,6 +176,7 @@ class _ModeIndicator extends StatelessWidget {
     this.slalomStartsOben = true,
     this.gameType = GameType.friseurTeam,
     this.cardType = CardType.french,
+    this.geschoben = false,
   });
 
   bool get _isFriseur =>
@@ -181,17 +184,29 @@ class _ModeIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final modeWidget = _buildModeWidget();
+    if (!geschoben) return modeWidget;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        modeWidget,
+        const SizedBox(height: 2),
+        const Text('Geschoben',
+            style: TextStyle(color: Colors.white38, fontSize: 8, fontStyle: FontStyle.italic)),
+      ],
+    );
+  }
+
+  Widget _buildModeWidget() {
     switch (gameMode) {
       case GameMode.trump:
         if (trumpSuit == null) return const SizedBox.shrink();
-        // Friseur: Richtungspfeil ⬇️ (Obenabe). Schieber/Differenzler: nur "Trumpf"
         final trumpLabel = _isFriseur ? '⬇️ Trumpf' : 'Trumpf';
         final trumpColor = _isFriseur ? Colors.amber : Colors.amber.shade300;
         return _trumpBox(trumpLabel, trumpColor);
 
       case GameMode.trumpUnten:
         if (trumpSuit == null) return const SizedBox.shrink();
-        // Friseur: Richtungspfeil ⬆️ (Undenufe). Schieber: ohne Pfeil.
         final uLabel = _isFriseur ? '⬆️ Trumpf' : 'Trumpf ⬆️';
         return _trumpBox(uLabel, Colors.orange);
 
@@ -304,7 +319,7 @@ class _ModeIndicator extends StatelessWidget {
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _label('Molotof 💣', Colors.deepOrange.shade300),
+          _label('Molotow 💣', Colors.deepOrange.shade300),
           const SizedBox(height: 2),
           _label('Trumpf offen…', Colors.white54),
         ],
@@ -327,7 +342,7 @@ class _ModeIndicator extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _label('Molotof 💣', Colors.deepOrange.shade300),
+        _label('Molotow 💣', Colors.deepOrange.shade300),
         const SizedBox(height: 2),
         subWidget,
       ],

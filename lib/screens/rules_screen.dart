@@ -249,7 +249,7 @@ class _RulesScreenState extends State<RulesScreen>
         _Section('Spielstruktur – Coiffeur', [
           _Rule('2 Teams: Süd & Nord gegen West & Ost.'),
           _Rule('Jedes Team muss alle 10 Spielvarianten je einmal ansagen:\n'
-              '$grp1, $grp2, Obenabe, Undenufe, Slalom, Elefant, Misere, Alles Trumpf, Schafkopf, Molotof.'),
+              '$grp1, $grp2, Obenabe, Undenufe, Slalom, Elefant, Misere, Alles Trumpf, Schafkopf, Molotow.'),
           _Rule('Alle Varianten zählen zu Beginn 1×. Der Multiplikator kann in den Einstellungen angepasst werden.'),
           _Rule('Trumpf Oben / Unten: Jede Trumpfgruppe ($grpHint) muss ein Team je einmal als Oben und einmal als Unten spielen. '
               'Die erste Wahl ist frei; die zweite Gruppe wird automatisch erzwungen.'),
@@ -262,7 +262,7 @@ class _RulesScreenState extends State<RulesScreen>
         _Section('Wertung', [
           _Rule('Nur das ansagende Team (Ansager + Partner) erhält die Punkte aus dieser Runde. '
               'Das gegnerische Team erhält für diese Runde keine Punkte.'),
-          _Rule('Misere & Molotof:\n'
+          _Rule('Misere & Molotow:\n'
               'Gutschrift = 157 − eigene Kartenpunkte (je tiefer, desto besser).'),
           _Rule('Match: Gewinnt ein Team alle 9 Stiche, erhält es 170 Punkte. '
               'Das andere Team erhält 0.'),
@@ -403,7 +403,7 @@ class _RulesScreenState extends State<RulesScreen>
             '$schafTrumpfReihe\n'
             '$schafNonTrumpOrder\n'
             'Punktesystem: Obenabe-Werte.'),
-        _ModeCard('💣  Molotof',
+        _ModeCard('💣  Molotow',
             'Strenge Farbenpflicht für alle. Der erste Spieler der nicht Farbe angeben kann, '
             'bestimmt den Spielmodus:\n'
             '• 6 → Undenufe  • Ass → Obenabe  • Andere → Trumpf (Farbe der Karte)\n\n'

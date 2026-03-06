@@ -371,6 +371,14 @@ class MonteCarloAI {
       return _weakest(playable, effectMode, trump);
     }
 
+    // ── Obenabe/Undenufe Anführen: Greedy statt MC ─────────────────────────
+    // MC simuliert schlecht bei Flat-Modi ohne Trumpf. Greedy wählt zuverlässig
+    // Asse (Oben) / 6er (Unten) zuerst.
+    if (state.currentTrickCards.isEmpty &&
+        (state.gameMode == GameMode.oben || state.gameMode == GameMode.unten)) {
+      return GameLogic.chooseCard(aiPlayer: aiPlayer, state: state);
+    }
+
     // ── Schnelles Abwerfen: wenn nicht angeben kann und kein Trumpf-Stechen ─
     // Spart MC-Berechnungszeit im 1. Stich bei voller Hand.
     // NICHT bei Misère/Molotof (dort ist jede Entscheidung strategisch wichtig).
