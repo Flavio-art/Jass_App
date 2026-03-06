@@ -20,7 +20,7 @@ Eine Flutter-App für das Schweizer Kartenspiel **Jass** – spielbar auf Androi
 
 ## Spieltypen
 
-### 🃏 Schieber
+### <img src="assets/cards/french/hearts_ace.png" height="24"> Schieber
 Klassischer Schweizer Schieber für 2 Teams (Süd+Nord vs. West+Ost).
 
 - 5 Varianten wählbar: Trumpf Schwarz (×1), Trumpf Rot (×2), Obenabe (×3), Undenufe (×3), Slalom (×4)
