@@ -271,6 +271,10 @@ class GameState {
   /// Multiplikatoren pro Variante: {'trump_ss':1, 'trump_re':2, 'oben':3, 'unten':3, 'slalom':4}
   final Map<String, int> schieberMultipliers;
 
+  // ─── Coiffeur ──────────────────────────────────────────────────────────────
+  /// Multiplikatoren pro Coiffeur-Variante (alle 10 Modi), default 1×.
+  final Map<String, int> coiffeurMultipliers;
+
   // ─── Stöcke ────────────────────────────────────────────────────────────────
   /// Stöcke-Punkte pro Team für die aktuelle Runde (für Wysspunkte-Anzeige).
   final Map<String, int> stockeRoundPoints;
@@ -359,6 +363,7 @@ class GameState {
     this.playerScores = const {},
     this.schieberWinTarget = 1500,
     this.schieberMultipliers = const {'trump_ss': 1, 'trump_re': 2, 'oben': 3, 'unten': 3, 'slalom': 3},
+    this.coiffeurMultipliers = const {'trump_ss': 1, 'trump_re': 1, 'oben': 1, 'unten': 1, 'slalom': 1, 'elefant': 1, 'misere': 1, 'allesTrumpf': 1, 'schafkopf': 1, 'molotof': 1},
     this.stockeRoundPoints = const {'team1': 0, 'team2': 0},
     this.schieberLimitReachedBy,
     this.differenzlerMaxRounds = 4,
@@ -566,6 +571,7 @@ class GameState {
     'playerScores': playerScores,
     'schieberWinTarget': schieberWinTarget,
     'schieberMultipliers': schieberMultipliers,
+    'coiffeurMultipliers': coiffeurMultipliers,
     'stockeRoundPoints': stockeRoundPoints,
     if (schieberLimitReachedBy != null) 'schieberLimitReachedBy': schieberLimitReachedBy,
     'differenzlerMaxRounds': differenzlerMaxRounds,
@@ -631,6 +637,7 @@ class GameState {
       playerScores: Map<String, int>.from(j['playerScores'] as Map? ?? {}),
       schieberWinTarget: j['schieberWinTarget'] as int? ?? 1500,
       schieberMultipliers: Map<String, int>.from(j['schieberMultipliers'] as Map? ?? {'trump_ss': 1, 'trump_re': 2, 'oben': 3, 'unten': 3, 'slalom': 4}),
+      coiffeurMultipliers: Map<String, int>.from(j['coiffeurMultipliers'] as Map? ?? {'trump_ss': 1, 'trump_re': 1, 'oben': 1, 'unten': 1, 'slalom': 1, 'elefant': 1, 'misere': 1, 'allesTrumpf': 1, 'schafkopf': 1, 'molotof': 1}),
       stockeRoundPoints: Map<String, int>.from(j['stockeRoundPoints'] as Map? ?? {'team1': 0, 'team2': 0}),
       schieberLimitReachedBy: j['schieberLimitReachedBy'] as String?,
       differenzlerMaxRounds: j['differenzlerMaxRounds'] as int? ?? 4,
@@ -711,6 +718,7 @@ class GameState {
     Map<String, int>? playerScores,
     int? schieberWinTarget,
     Map<String, int>? schieberMultipliers,
+    Map<String, int>? coiffeurMultipliers,
     Map<String, int>? stockeRoundPoints,
     String? schieberLimitReachedBy,
     bool clearSchieberLimitReachedBy = false,
@@ -778,6 +786,7 @@ class GameState {
       playerScores: playerScores ?? this.playerScores,
       schieberWinTarget: schieberWinTarget ?? this.schieberWinTarget,
       schieberMultipliers: schieberMultipliers ?? this.schieberMultipliers,
+      coiffeurMultipliers: coiffeurMultipliers ?? this.coiffeurMultipliers,
       stockeRoundPoints: stockeRoundPoints ?? this.stockeRoundPoints,
       schieberLimitReachedBy: clearSchieberLimitReachedBy ? null : (schieberLimitReachedBy ?? this.schieberLimitReachedBy),
       differenzlerMaxRounds: differenzlerMaxRounds ?? this.differenzlerMaxRounds,

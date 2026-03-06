@@ -200,6 +200,7 @@ class GameProvider extends ChangeNotifier {
     GameType gameType = GameType.friseurTeam,
     int schieberWinTarget = 1500,
     Map<String, int> schieberMultipliers = const {'trump_ss': 1, 'trump_re': 2, 'oben': 3, 'unten': 3, 'slalom': 4},
+    Map<String, int> coiffeurMultipliers = const {'trump_ss': 1, 'trump_re': 1, 'oben': 1, 'unten': 1, 'slalom': 1, 'elefant': 1, 'misere': 1, 'allesTrumpf': 1, 'schafkopf': 1, 'molotof': 1},
     Set<String>? enabledVariants,
     int differenzlerMaxRounds = 4,
   }) {
@@ -279,6 +280,7 @@ class GameProvider extends ChangeNotifier {
       playerScores: {for (final p in players) p.id: 0},
       schieberWinTarget: schieberWinTarget,
       schieberMultipliers: schieberMultipliers,
+      coiffeurMultipliers: coiffeurMultipliers,
       enabledVariants: enabledVariants ?? const {'trump_oben', 'trump_unten', 'oben', 'unten', 'slalom', 'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof'},
     );
     notifyListeners();
@@ -301,6 +303,13 @@ class GameProvider extends ChangeNotifier {
       return isSchwarz ? (m['trump_ss'] ?? 1) : (m['trump_re'] ?? 2);
     }
     return 1;
+  }
+
+  /// Coiffeur: Punktemultiplikator aus coiffeurMultipliers.
+  int _coiffeurMultiplier(GameMode mode, Suit? trumpSuit) {
+    final m = _state.coiffeurMultipliers;
+    final key = _state.variantKey(mode, trumpSuit: trumpSuit);
+    return m[key] ?? 1;
   }
 
   /// Prüft ob ein Team im Schieber das Punktelimit mit den aktuellen
@@ -1972,6 +1981,15 @@ class GameProvider extends ChangeNotifier {
             roundWyssPoints2 = totalW;
           }
         }
+      }
+
+      // Coiffeur: Multiplikator anwenden
+      if (_state.gameType == GameType.friseurTeam) {
+        final mult = _coiffeurMultiplier(_state.gameMode, _state.trumpSuit);
+        finalTeam1 *= mult;
+        finalTeam2 *= mult;
+        roundWyssPoints1 *= mult;
+        roundWyssPoints2 *= mult;
       }
 
       final varKey = _state.variantKey(_state.gameMode, trumpSuit: _state.trumpSuit);

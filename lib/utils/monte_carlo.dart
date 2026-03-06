@@ -1344,6 +1344,10 @@ class MonteCarloAI {
           gm == GameMode.elefant || gm == GameMode.trumpUnten) {
         if (c.value == CardValue.six) valuable.add(c);
       }
+      // Elefant: Buben (Buur) sind extrem wertvoll für die Trumpf-Stiche
+      if (gm == GameMode.elefant) {
+        if (c.value == CardValue.jack) valuable.add(c);
+      }
     }
 
     // Kandidaten zum Abwerfen: nicht sichere Gewinner, nicht wertvolle Karten

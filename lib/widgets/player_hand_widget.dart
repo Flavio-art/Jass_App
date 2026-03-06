@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/card_model.dart';
 import '../models/player.dart';
@@ -27,6 +28,13 @@ class PlayerHandWidget extends StatefulWidget {
 
 class _PlayerHandWidgetState extends State<PlayerHandWidget> {
   JassCard? _selectedCard;
+  Timer? _autoPlayTimer;
+
+  @override
+  void dispose() {
+    _autoPlayTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,15 +50,15 @@ class _PlayerHandWidgetState extends State<PlayerHandWidget> {
 
   Widget _buildHumanHand(List<JassCard> cards) {
     final n = cards.length;
-    final cardWidth = n >= 9 ? 70.0 : 80.0;
-    final overlap = n >= 9 ? 33.0 : 38.0;
+    // Kartengrösse dynamisch: mehr Karten → schmaler
+    final cardWidth = n >= 9 ? 76.0 : n >= 7 ? 84.0 : 90.0;
+    final overlap = n >= 9 ? 33.0 : n >= 7 ? 40.0 : 44.0;
 
     if (n == 0) {
       return const SizedBox(height: 160);
     }
 
     // Fan (Fächer) layout: rotate cards around bottom center
-    // Weniger aggressiver Winkel damit Eckkarten nicht abgeschnitten werden
     final maxHalfAngle = (0.03 * n).clamp(0.0, 0.22);
     final angleStep = n > 1 ? (2 * maxHalfAngle) / (n - 1) : 0.0;
     final totalWidth = cardWidth + (n - 1) * overlap;
@@ -97,7 +105,7 @@ class _PlayerHandWidgetState extends State<PlayerHandWidget> {
           height: 160,
           width: totalWidth,
           child: Stack(
-            clipBehavior: Clip.none, // Karten oben nicht abschneiden
+            clipBehavior: Clip.none,
             alignment: Alignment.bottomCenter,
             children: [
               for (int i = 0; i < n; i++)
@@ -173,13 +181,20 @@ class _PlayerHandWidgetState extends State<PlayerHandWidget> {
   }
 
   void _onCardTap(JassCard card) {
-    setState(() {
-      if (_selectedCard == card) {
-        _selectedCard = null;
-        widget.onCardTap?.call(card);
-      } else {
-        _selectedCard = card;
-      }
-    });
+    _autoPlayTimer?.cancel();
+    if (_selectedCard == card) {
+      // 2. Tap → sofort spielen
+      setState(() => _selectedCard = null);
+      widget.onCardTap?.call(card);
+    } else {
+      // 1. Tap → auswählen + Auto-Play nach 2 Sekunden
+      setState(() => _selectedCard = card);
+      _autoPlayTimer = Timer(const Duration(seconds: 2), () {
+        if (mounted && _selectedCard == card) {
+          setState(() => _selectedCard = null);
+          widget.onCardTap?.call(card);
+        }
+      });
+    }
   }
 }

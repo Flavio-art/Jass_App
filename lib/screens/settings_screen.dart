@@ -13,6 +13,7 @@ class SettingsResult {
   final int schieberWinTarget;
   final Set<String> enabledVariants;
   final int differenzlerRounds;
+  final Map<String, int> coiffeurMultipliers;
 
   const SettingsResult({
     required this.cardType,
@@ -21,6 +22,7 @@ class SettingsResult {
     required this.schieberWinTarget,
     required this.enabledVariants,
     required this.differenzlerRounds,
+    required this.coiffeurMultipliers,
   });
 }
 
@@ -31,6 +33,7 @@ class SettingsScreen extends StatefulWidget {
   final int schieberWinTarget;
   final Set<String> enabledVariants;
   final int differenzlerRounds;
+  final Map<String, int> coiffeurMultipliers;
   final int initialTab;
 
   const SettingsScreen({
@@ -41,6 +44,7 @@ class SettingsScreen extends StatefulWidget {
     required this.schieberWinTarget,
     required this.enabledVariants,
     this.differenzlerRounds = 4,
+    this.coiffeurMultipliers = const {'trump_ss': 1, 'trump_re': 1, 'oben': 1, 'unten': 1, 'slalom': 1, 'elefant': 1, 'misere': 1, 'allesTrumpf': 1, 'schafkopf': 1, 'molotof': 1},
     this.initialTab = 0,
   });
 
@@ -57,6 +61,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   late int _schieberWinTarget;
   late Set<String> _enabledVariants;
   late int _differenzlerRounds;
+  late Map<String, int> _coiffeurMultipliers;
 
   static const _modeKeys = ['trump_ss', 'trump_re', 'oben', 'unten', 'slalom'];
 
@@ -83,9 +88,9 @@ class _SettingsScreenState extends State<SettingsScreen>
   void initState() {
     super.initState();
     _tabController = TabController(
-      length: 3,
+      length: 4,
       vsync: this,
-      initialIndex: widget.initialTab,
+      initialIndex: widget.initialTab.clamp(0, 3),
     );
     _cardType = widget.cardType;
     _playerName = widget.playerName;
@@ -93,6 +98,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     _schieberWinTarget = widget.schieberWinTarget;
     _enabledVariants = Set.from(widget.enabledVariants);
     _differenzlerRounds = widget.differenzlerRounds;
+    _coiffeurMultipliers = Map.from(widget.coiffeurMultipliers);
   }
 
   @override
@@ -110,6 +116,7 @@ class _SettingsScreenState extends State<SettingsScreen>
       schieberWinTarget: _schieberWinTarget,
       enabledVariants: Set.from(_enabledVariants),
       differenzlerRounds: _differenzlerRounds,
+      coiffeurMultipliers: Map.from(_coiffeurMultipliers),
     );
   }
 
@@ -119,6 +126,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     await prefs.setString('schieber_multipliers', jsonEncode(_schieberMultipliers));
     await prefs.setStringList('enabled_variants', _enabledVariants.toList());
     await prefs.setInt('differenzler_rounds', _differenzlerRounds);
+    await prefs.setString('coiffeur_multipliers', jsonEncode(_coiffeurMultipliers));
   }
 
   void _setCardType(CardType type) async {
@@ -228,37 +236,25 @@ class _SettingsScreenState extends State<SettingsScreen>
             ListenableBuilder(
               listenable: _tabController,
               builder: (context, _) {
-                // Friseur/WK Tab: 2 Buch-Icons
-                if (_tabController.index == 2) {
-                  return Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Text('✂️', style: TextStyle(fontSize: 16)),
-                        tooltip: 'Regeln Friseur',
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        constraints: const BoxConstraints(),
-                        onPressed: () => _openRules(GameType.friseurTeam),
-                      ),
-                      const SizedBox(width: 4),
-                      IconButton(
-                        icon: const Text('🎴', style: TextStyle(fontSize: 16)),
-                        tooltip: 'Regeln Wunschkarte',
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        constraints: const BoxConstraints(),
-                        onPressed: () => _openRules(GameType.friseur),
-                      ),
-                      const SizedBox(width: 8),
-                    ],
-                  );
-                }
-                final gameType = _tabController.index == 0
-                    ? GameType.schieber
-                    : GameType.differenzler;
-                return IconButton(
-                  icon: const Icon(Icons.menu_book, color: Colors.white54),
-                  tooltip: 'Regeln',
-                  onPressed: () => _openRules(gameType),
+                final gameType = switch (_tabController.index) {
+                  0 => GameType.schieber,
+                  1 => GameType.differenzler,
+                  2 => GameType.friseurTeam,
+                  _ => GameType.friseur,
+                };
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: GestureDetector(
+                    onTap: () => _openRules(gameType),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Text('Regeln', style: TextStyle(color: Colors.white54, fontSize: 13)),
+                        SizedBox(width: 4),
+                        Icon(Icons.menu_book, color: Colors.white54, size: 20),
+                      ],
+                    ),
+                  ),
                 );
               },
             ),
@@ -275,7 +271,8 @@ class _SettingsScreenState extends State<SettingsScreen>
             tabs: const [
               Tab(text: 'Schieber'),
               Tab(text: 'Differenzler'),
-              Tab(text: 'Friseur / WK'),
+              Tab(text: 'Coiffeur'),
+              Tab(text: 'Wunschkarte'),
             ],
           ),
         ),
@@ -286,10 +283,11 @@ class _SettingsScreenState extends State<SettingsScreen>
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
               child: Column(
                 children: [
-                  // ── Name (zentriert) ──
+                  // ── Name (zentriert, Edit-Icon rechts) ──
                   GestureDetector(
                     onTap: _showNameDialog,
-                    child: Column(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
                           _playerName,
@@ -299,16 +297,8 @@ class _SettingsScreenState extends State<SettingsScreen>
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.edit, color: Colors.white38, size: 13),
-                            SizedBox(width: 4),
-                            Text('Name ändern',
-                                style: TextStyle(color: Colors.white38, fontSize: 12)),
-                          ],
-                        ),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.edit, color: Colors.white38, size: 16),
                       ],
                     ),
                   ),
@@ -358,7 +348,8 @@ class _SettingsScreenState extends State<SettingsScreen>
                 children: [
                   _buildSchieberTab(),
                   _buildDifferenzlerTab(),
-                  _buildFriseurTab(),
+                  _buildCoiffeurTab(),
+                  _buildWunschkarteTab(),
                 ],
               ),
             ),
@@ -515,9 +506,124 @@ class _SettingsScreenState extends State<SettingsScreen>
     );
   }
 
-  // ── Friseur / Wunschkarte Tab ──────────────────────────────────────────────
+  // ── Coiffeur Tab ─────────────────────────────────────────────────────────
 
-  Widget _buildFriseurTab() {
+  static const _coiffeurKeys  = ['trump_ss', 'trump_re', 'oben', 'unten', 'slalom', 'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof'];
+  static const _coiffeurNames = ['Trumpf Schwarz', 'Trumpf Rot', 'Obenabe', 'Undenufe', 'Slalom', 'Elefant', 'Misere', 'Alles Trumpf', 'Schafkopf', 'Molotof'];
+  static const _coiffeurEmojis = ['♠♣', '♥♦', '⬇️', '⬆️', '↕️', '🐘', '😶', '👑', '🐑', '💣'];
+
+  void _editCoiffeurMultiplier(String key, String label) async {
+    final result = await showDialog<int>(
+      context: context,
+      builder: (ctx) => _MultiplierDialog(label: label, initial: _coiffeurMultipliers[key] ?? 1, maxValue: 10),
+    );
+    if (result != null) setState(() => _coiffeurMultipliers[key] = result);
+  }
+
+  Widget _buildCoiffeurTab() {
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    return SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(12, 16, 12, 16 + bottomPadding),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('Varianten & Multiplikatoren',
+                  style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600)),
+              const Spacer(),
+              Text(
+                '$_effectiveVariantCount Varianten · ${_effectiveVariantCount * 2} Runden',
+                style: const TextStyle(color: Colors.white38, fontSize: 11),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          for (int i = 0; i < _variantKeys.length; i++)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  // Toggle
+                  GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        if (_enabledVariants.contains(_variantKeys[i])) {
+                          _enabledVariants.remove(_variantKeys[i]);
+                          if (_effectiveVariantCount == 0) {
+                            _enabledVariants.add(_variantKeys[i]);
+                          }
+                        } else {
+                          _enabledVariants.add(_variantKeys[i]);
+                        }
+                      });
+                    },
+                    child: Icon(
+                      _enabledVariants.contains(_variantKeys[i])
+                          ? Icons.check_circle
+                          : Icons.circle_outlined,
+                      color: _enabledVariants.contains(_variantKeys[i])
+                          ? AppColors.gold
+                          : Colors.white24,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(_variantEmojis[i], style: const TextStyle(fontSize: 16)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _variantNames[i],
+                      style: TextStyle(
+                        color: _enabledVariants.contains(_variantKeys[i]) ? Colors.white70 : Colors.white24,
+                        fontSize: 13,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () => _editCoiffeurMultiplier(_coiffeurKeys[i], _coiffeurNames[i]),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.gold.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.gold, width: 1),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${_coiffeurMultipliers[_coiffeurKeys[i]] ?? 1}×',
+                            style: const TextStyle(
+                              color: AppColors.gold,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(Icons.edit, color: AppColors.gold, size: 12),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 12),
+          const Text(
+            'Kein Weisen im Coiffeur.',
+            style: TextStyle(color: Colors.white38, fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Wunschkarte Tab ─────────────────────────────────────────────────────────
+
+  Widget _buildWunschkarteTab() {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomPadding),
@@ -537,7 +643,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           ),
           const SizedBox(height: 4),
           Text(
-            'Friseur = ${_effectiveVariantCount * 2} Runden  ·  Wunschkarte ≈ ${_effectiveVariantCount * 2}–${_effectiveVariantCount * 4} Runden',
+            '≈ ${_effectiveVariantCount * 2}–${_effectiveVariantCount * 3} Runden',
             style: const TextStyle(color: Colors.white54, fontSize: 11),
           ),
           const SizedBox(height: 12),
@@ -663,7 +769,8 @@ class _SettingsScreenState extends State<SettingsScreen>
 class _MultiplierDialog extends StatefulWidget {
   final String label;
   final int initial;
-  const _MultiplierDialog({required this.label, required this.initial});
+  final int maxValue;
+  const _MultiplierDialog({required this.label, required this.initial, this.maxValue = 5});
 
   @override
   State<_MultiplierDialog> createState() => _MultiplierDialogState();
@@ -701,7 +808,7 @@ class _MultiplierDialogState extends State<_MultiplierDialog> {
           const SizedBox(width: 8),
           IconButton(
             icon: const Icon(Icons.add_circle_outline, color: Colors.white70, size: 32),
-            onPressed: _value < 8 ? () => setState(() => _value++) : null,
+            onPressed: _value < widget.maxValue ? () => setState(() => _value++) : null,
           ),
         ],
       ),

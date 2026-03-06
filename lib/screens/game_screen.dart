@@ -187,7 +187,7 @@ class _GameScreenState extends State<GameScreen> {
                 // Erster Stich
                 Column(
                   children: [
-                    const Text('1. Stich',
+                    const Text('Erster Stich',
                         style:
                             TextStyle(color: Colors.white54, fontSize: 11)),
                     const SizedBox(height: 8),
@@ -200,9 +200,9 @@ class _GameScreenState extends State<GameScreen> {
                 if (state.completedTricks.length >= 2)
                   Column(
                     children: [
-                      Text(
-                        '${state.completedTricks.length}. Stich',
-                        style: const TextStyle(
+                      const Text(
+                        'Letzter Stich',
+                        style: TextStyle(
                             color: Colors.white54, fontSize: 11),
                       ),
                       const SizedBox(height: 8),
@@ -4061,7 +4061,7 @@ class _WyssDeclarationOverlay extends StatelessWidget {
                       alignment: WrapAlignment.center,
                       children: [
                         for (final card in wyssCards)
-                          CardWidget(card: card, width: 52),
+                          CardWidget(card: card, width: 68),
                       ],
                     ),
                   ),
@@ -4346,7 +4346,7 @@ class _WyssOverlayState extends State<_WyssOverlay> {
               spacing: 3,
               children: [
                 for (final card in _wyssCards(entry))
-                  CardWidget(card: card, width: 46),
+                  CardWidget(card: card, width: 62),
               ],
             ),
             const SizedBox(height: 4),
