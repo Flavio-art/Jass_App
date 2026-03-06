@@ -371,6 +371,28 @@ class MonteCarloAI {
       return _weakest(playable, effectMode, trump);
     }
 
+    // ── Schnelles Abwerfen: wenn nicht angeben kann und kein Trumpf-Stechen ─
+    // Spart MC-Berechnungszeit im 1. Stich bei voller Hand.
+    // NICHT bei Misère/Molotof (dort ist jede Entscheidung strategisch wichtig).
+    if (state.currentTrickCards.isNotEmpty &&
+        state.gameMode != GameMode.misere &&
+        state.gameMode != GameMode.molotof) {
+      final ledSuit = state.currentTrickCards.first.suit;
+      final canFollow = playable.any((c) => c.suit == ledSuit);
+      if (!canFollow) {
+        final effectMode = state.effectiveMode;
+        final trump = state.trumpSuit;
+        final hasTrump = (effectMode == GameMode.trump ||
+                effectMode == GameMode.trumpUnten) &&
+            trump != null &&
+            playable.any((c) => c.suit == trump);
+        // Kein Trumpf → schnell abwerfen (wertvolle Karten behalten)
+        if (!hasTrump) {
+          return _smartDiscard(playable, state, effectMode, trump);
+        }
+      }
+    }
+
     double bestScore = double.negativeInfinity;
     JassCard bestCard = playable.first;
 
@@ -1293,9 +1315,9 @@ class MonteCarloAI {
   /// Intelligentes Abwerfen: sichere zukünftige Gewinner behalten.
   /// Priorisierung:
   /// 1. Nie sichere Gewinner abwerfen (höchste verbleibende Karte der Farbe)
-  /// 2. Nie near-miss Karten behalten (zweitbeste ohne beste → wertlos)
+  /// 2. Wertvolle Stichkarten behalten (Asse in Oben, 6er in Unten, beide in Slalom)
   /// 3. Slalom/Elefant: Karten für die andere Richtung aufsparen
-  /// 4. Schwächste Karte abwerfen
+  /// 4. Punktlose/niedrigwertige Karten bevorzugt abwerfen
   static JassCard _smartDiscard(
     List<JassCard> cards, GameState state, GameMode effectMode, Suit? trump,
   ) {
@@ -1306,19 +1328,50 @@ class MonteCarloAI {
         .where((c) => _isHighestRemaining(c, state))
         .toSet();
 
-    // Kandidaten zum Abwerfen: alles ausser sichere Gewinner
-    final discardable = cards.where((c) => !safeWinners.contains(c)).toList();
+    // Wertvolle Stichkarten schützen: Karten die in zukünftigen Stichen
+    // gewinnen könnten (Asse im Oben, 6er im Unten, beide im Slalom/Elefant)
+    final valuable = <JassCard>{};
+    final gm = state.gameMode;
+    for (final c in cards) {
+      if (safeWinners.contains(c)) continue; // bereits geschützt
+      // Oben-Modi: Asse behalten (sichere Stichgewinner)
+      if (gm == GameMode.oben || gm == GameMode.slalom ||
+          gm == GameMode.elefant || gm == GameMode.trump) {
+        if (c.value == CardValue.ace) valuable.add(c);
+      }
+      // Unten-Modi: 6er behalten (sichere Stichgewinner)
+      if (gm == GameMode.unten || gm == GameMode.slalom ||
+          gm == GameMode.elefant || gm == GameMode.trumpUnten) {
+        if (c.value == CardValue.six) valuable.add(c);
+      }
+    }
 
-    // Alle Karten sind sichere Gewinner → schwächsten Gewinner abwerfen
+    // Kandidaten zum Abwerfen: nicht sichere Gewinner, nicht wertvolle Karten
+    final discardable = cards
+        .where((c) => !safeWinners.contains(c) && !valuable.contains(c))
+        .toList();
+
+    // Nur wertvolle + sichere Karten? → wenigst wertvolle Karte abwerfen
     if (discardable.isEmpty) {
-      return _weakest(cards, effectMode, trump);
+      final fallback = cards.where((c) => !safeWinners.contains(c)).toList();
+      if (fallback.isEmpty) return _weakest(cards, effectMode, trump);
+      // Unter den wertvollen: die mit geringstem Punktwert abwerfen
+      fallback.sort((a, b) =>
+          GameLogic.cardPoints(a, effectMode, trump)
+              .compareTo(GameLogic.cardPoints(b, effectMode, trump)));
+      return fallback.first;
     }
 
     // Slalom / Elefant: Karten für andere Richtung aufsparen
-    if (state.gameMode == GameMode.slalom ||
-        state.gameMode == GameMode.elefant) {
+    if (gm == GameMode.slalom || gm == GameMode.elefant) {
       return _slalomDiscard(discardable, effectMode);
     }
+
+    // Bevorzuge Karten ohne Punkte, dann niedrigste Punkte
+    final zeroPts = discardable
+        .where((c) => GameLogic.cardPoints(c, effectMode, trump) == 0)
+        .toList();
+    if (zeroPts.isNotEmpty) return _weakest(zeroPts, effectMode, trump);
 
     return _weakest(discardable, effectMode, trump);
   }

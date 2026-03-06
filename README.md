@@ -1,4 +1,4 @@
-# Jass App 🃏
+# Jass App ♥️
 
 Eine Flutter-App für das Schweizer Kartenspiel **Jass** – spielbar auf Android.
 
@@ -56,8 +56,8 @@ Solo-Variante über 20–40 Runden.
 
 | Variante | Beschreibung | Besonderheit |
 |----------|-------------|--------------|
-| ♠♣ / 🔔🛡 Trumpf Schwarz | Schaufeln/Kreuz bzw. Schellen/Schilten | Buur › Näll › Ass › … |
-| ♥♦ / 🌹🌰 Trumpf Rot | Herz/Ecken bzw. Rosen/Eichel | ×2 Punkte |
+| ♠♣ / <img src="assets/suit_icons/schellen.png" height="16"> <img src="assets/suit_icons/schilten.png" height="16"> Trumpf Schwarz | Schaufeln/Kreuz bzw. Schellen/Schilten | Buur › Näll › Ass › … |
+| ♥️♦️ / <img src="assets/suit_icons/herzGerman.png" height="16"> <img src="assets/suit_icons/eichel.png" height="16"> Trumpf Rot | Herz/Ecken bzw. Rosen/Eichel | ×2 Punkte |
 | ⬆️ Trumpf Unten | Trumpf mit umgekehrter Reihenfolge | Sechs = 11 Pkt |
 | ⬇️ Obenabe | Kein Trumpf, Ass gewinnt | Achter = 8 Pkt |
 | ⬆️ Undenufe | Kein Trumpf, Sechs gewinnt | Sechs = 11 Pkt, Achter = 8 Pkt |
@@ -74,7 +74,7 @@ Solo-Variante über 20–40 Runden.
 
 ## Features
 
-- **Zwei Kartensets**: Französisch (♠♣♥♦) und Deutsch (🔔 Schellen · 🌹 Rosen · 🌰 Eichel · 🛡 Schilten)
+- **Zwei Kartensets**: Französisch (♠♣♥️♦️) und Deutsch (<img src="assets/suit_icons/schellen.png" height="16"> Schellen · <img src="assets/suit_icons/herzGerman.png" height="16"> Rosen · <img src="assets/suit_icons/eichel.png" height="16"> Eichel · <img src="assets/suit_icons/schilten.png" height="16"> Schilten)
 - **KI-Gegner** mit Monte-Carlo-Simulation + neuronales Netz für Modus-Wahl + intelligente Abwurfstrategie
 - **KI-Moduswahl mit Wunschkarte**: Im Friseur Solo bewertet die KI jeden Modus mit idealer Wunschkarte + besten 9 Karten
 - **Im-Loch-Boost**: Misère/Molotof werden bei schlechten Händen (2× geschoben) häufiger gewählt als Fallback
