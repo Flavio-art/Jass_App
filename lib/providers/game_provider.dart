@@ -1208,11 +1208,7 @@ class GameProvider extends ChangeNotifier {
       List<JassCard> hand, Suit? trumpSuit, String playerId, GameMode mode) {
     final entries = <WyssEntry>[];
 
-    // Welche Vierlinge sind im aktuellen Modus wertlos?
-    final isOben = mode == GameMode.oben;
-    final isUnten = mode == GameMode.unten;
-
-    // Vierling (4 gleiche Werte)
+    // Vierling (4 gleiche Werte) – alle Vierlinge sind immer weisbar
     final valueCounts = <CardValue, int>{};
     for (final card in hand) {
       valueCounts[card.value] = (valueCounts[card.value] ?? 0) + 1;
@@ -1220,10 +1216,6 @@ class GameProvider extends ChangeNotifier {
     for (final ve in valueCounts.entries) {
       if (ve.value == 4) {
         final v = ve.key;
-        // 4×6 bei Obenabe = wertlos (6 zählt 0 Punkte)
-        if (v == CardValue.six && isOben) continue;
-        // 4×Ass bei Undenufe = wertlos (Ass zählt 0 Punkte)
-        if (v == CardValue.ace && isUnten) continue;
         final pts = v == CardValue.jack ? 200 : (v == CardValue.nine ? 150 : 100);
         entries.add(WyssEntry(
           playerId: playerId,
@@ -1254,7 +1246,8 @@ class GameProvider extends ChangeNotifier {
         }
         final runLen = j - i + 1;
         if (runLen >= 3) {
-          final pts = runLen == 3 ? 20 : (runLen == 4 ? 50 : 100);
+          // 3=20, 4=50, 5=100, 6=150, 7=200, 8=250, 9=300
+          final pts = runLen == 3 ? 20 : (runLen == 4 ? 50 : 100 + (runLen - 5) * 50);
           entries.add(WyssEntry(
             playerId: playerId,
             isFourOfAKind: false,
@@ -1272,11 +1265,25 @@ class GameProvider extends ChangeNotifier {
     return entries;
   }
 
+  /// Folgenlänge aus top/bottom ableiten.
+  int _wyssRunLen(WyssEntry e) =>
+      CardValue.values.indexOf(e.topValue) -
+      CardValue.values.indexOf(e.bottomValue) +
+      1;
+
   /// Vergleicht zwei WyssEntry-Einträge. Positiv = a ist besser.
+  /// Bei gleichen Punkten: Folge (mehr Karten) > Vierling.
+  /// Bei gleichen Folgen: längere > kürzere, dann höchste Karte, dann Trumpf.
   int _compareWyss(WyssEntry a, WyssEntry b) {
     if (a.points != b.points) return a.points.compareTo(b.points);
-    if (a.isFourOfAKind != b.isFourOfAKind) return a.isFourOfAKind ? 1 : -1;
+    // Folge schlägt Vierling bei gleichen Punkten
+    if (a.isFourOfAKind != b.isFourOfAKind) return a.isFourOfAKind ? -1 : 1;
     if (!a.isFourOfAKind) {
+      // Längere Folge gewinnt
+      final aLen = _wyssRunLen(a);
+      final bLen = _wyssRunLen(b);
+      if (aLen != bLen) return aLen.compareTo(bLen);
+      // Höchste Karte
       final aOrd = CardValue.values.indexOf(a.topValue);
       final bOrd = CardValue.values.indexOf(b.topValue);
       if (aOrd != bOrd) return aOrd.compareTo(bOrd);
@@ -1334,14 +1341,27 @@ class GameProvider extends ChangeNotifier {
   }
 
   /// Vergleicht zwei WyssEntry für die Team-Entscheidung.
-  /// [ignoreTopCard]: Bei Unten-Spielen wird Höchste-Karte-Tiebreaker übersprungen.
-  int _compareWyssForWinner(WyssEntry a, WyssEntry b, bool ignoreTopCard) {
+  /// [isUnten]: Bei Unten-Spielen gewinnt die tiefste Karte.
+  int _compareWyssForWinner(WyssEntry a, WyssEntry b, bool isUnten) {
     if (a.points != b.points) return a.points.compareTo(b.points);
-    if (a.isFourOfAKind != b.isFourOfAKind) return a.isFourOfAKind ? 1 : -1;
-    if (!a.isFourOfAKind && !ignoreTopCard) {
-      final aOrd = CardValue.values.indexOf(a.topValue);
-      final bOrd = CardValue.values.indexOf(b.topValue);
-      if (aOrd != bOrd) return aOrd.compareTo(bOrd);
+    // Folge schlägt Vierling bei gleichen Punkten
+    if (a.isFourOfAKind != b.isFourOfAKind) return a.isFourOfAKind ? -1 : 1;
+    if (!a.isFourOfAKind) {
+      // Längere Folge gewinnt
+      final aLen = _wyssRunLen(a);
+      final bLen = _wyssRunLen(b);
+      if (aLen != bLen) return aLen.compareTo(bLen);
+      if (isUnten) {
+        // Unten: tiefste Karte (bottomValue) gewinnt → invertiert
+        final aOrd = CardValue.values.indexOf(a.bottomValue);
+        final bOrd = CardValue.values.indexOf(b.bottomValue);
+        if (aOrd != bOrd) return bOrd.compareTo(aOrd);
+      } else {
+        // Oben/Trumpf: höchste Karte gewinnt
+        final aOrd = CardValue.values.indexOf(a.topValue);
+        final bOrd = CardValue.values.indexOf(b.topValue);
+        if (aOrd != bOrd) return aOrd.compareTo(bOrd);
+      }
       if (a.isTrumpSuit != b.isTrumpSuit) return a.isTrumpSuit ? 1 : -1;
     }
     return 0;
@@ -2538,10 +2558,14 @@ class GameProvider extends ChangeNotifier {
       debugPrint('AI loop error: $e');
     } finally {
       _aiRunning = false;
-      // Falls während der AI-Loop ein Rundenwechsel stattfand und
-      // jetzt wieder ein AI-Spieler dran ist, erneut starten.
-      if (_state.phase == GamePhase.playing && !_state.currentPlayer.isHuman) {
-        _triggerAiIfNeeded();
+      if (_state.phase == GamePhase.playing) {
+        if (!_state.currentPlayer.isHuman) {
+          // Noch ein AI-Spieler dran → erneut starten
+          _triggerAiIfNeeded();
+        } else if (_humanWyssDecisionPending) {
+          // Human ist dran und muss über Weisen entscheiden
+          _triggerAiIfNeeded();
+        }
       }
       notifyListeners();
     }

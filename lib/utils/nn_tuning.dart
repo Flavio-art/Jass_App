@@ -26,17 +26,17 @@
 ///   Alles Tr.  ~2%  |  Elefant    ~1%
 class NNTuning {
   // ── NN Score-Korrekturen (Bias-Fixes) ──────────────────
-  static const double untenBias = 0.06; // Index 9: Undenufe
-  static const double trumpUntenBias = 0.05; // Index 4-7: Trump Unten
+  static const double untenBias = 0.075; // Index 9: Undenufe
+  static const double trumpUntenBias = 0.10; // Index 4-7: Trump Unten
   static const double misereDampening = 0.6; // Index 11
   static const double molotofDampening = 0.6; // Index 14
   static const bool slalomFromObenUnten = true; // Index 10 = (8+9)/2
 
   // ── Schieber Moduswahl-Multiplikatoren ─────────────────
-  static const double schieberMultTrump = 1.4;
-  static const double schieberMultOben = 2.6;
-  static const double schieberMultUnten = 2.2;
-  static const double schieberMultSlalom = 3.6;
+  static const double schieberMultTrump = 1.25;
+  static const double schieberMultOben = 2.2;
+  static const double schieberMultUnten = 2.8;
+  static const double schieberMultSlalom = 4.0;
   static const double schiebenSlalomPenalty = 0.85;
   static const double schieberMultMisere = 0.7;    // Misere im Schieber ~10%
   static const double schieberMultMolotof = 0.7;   // Molotof im Schieber ~10%

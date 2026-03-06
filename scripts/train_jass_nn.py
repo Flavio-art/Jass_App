@@ -208,13 +208,49 @@ def _has_stronger_remaining(card, p_idx, hands, eff_mode, eff_trump):
                 return True
     return False
 
+def _is_slalom_or_elefant(mode):
+    return mode == 10 or mode == 13
+
+def _combined_pts(c, mode, el_trump):
+    """Kombinierte Oben+Unten Punkte für Slalom/Elefant Abwurf-Bewertung."""
+    if _is_slalom_or_elefant(mode):
+        return card_pts(c, 8, el_trump) + card_pts(c, 9, el_trump)
+    return card_pts(c, mode, el_trump)
+
+def _is_safe_lead(c, hand, eff_mode):
+    """Prüft ob eine Karte sicher angespielt werden kann."""
+    v, s = val_of(c), suit_of(c)
+    # Unten: 7 nur mit passender 6
+    if eff_mode == 9 and v == V7:
+        if not any(val_of(x) == V6 and suit_of(x) == s for x in hand):
+            return False
+    # Oben: König nur mit passender Dame
+    if eff_mode == 8 and v == VK:
+        if not any(val_of(x) == VQ and suit_of(x) == s for x in hand):
+            return False
+    return True
+
+def _is_protected_card(c, mode, eff_mode):
+    """Karten die in Slalom/Elefant nicht weggeworfen werden sollen."""
+    v = val_of(c)
+    if _is_slalom_or_elefant(mode):
+        # 6er und Asse sind in Slalom/Elefant wertvoll
+        if v == V6 or v == VA:
+            return True
+    if eff_mode == 9:  # Unten
+        if v == V6:
+            return True
+    if eff_mode == 8:  # Oben
+        if v == VA:
+            return True
+    return False
+
 def pick_card(p_idx, hand, led_suit, mode, eff_mode, trump, el_trump,
               best_card, best_player_abs, hands):
-    """Verbesserte Kartenwahl:
-    • Anspielen: garantierte Gewinner zuerst (höchste/niedrigste verbliebene),
-      dann stärkstes Drittel mit Zufälligkeit.
-    • Folgen: Schmieren wenn Partner gewinnt; billigste Gewinnerkarte; sonst
-      tiefste Punkte wegwerfen.
+    """Verbesserte Kartenwahl mit App-konformen Regeln:
+    • Anspielen: garantierte Gewinner zuerst, sichere Leads (7 nur mit 6, K nur mit Q)
+    • Folgen: Schmieren wenn Partner gewinnt; billigste Gewinnerkarte
+    • Abwurf: 6er/Asse in Slalom/Elefant schützen, kombinierte Punkte
     """
     allowed = legal_cards(hand, led_suit, mode, trump)
     is_team0   = p_idx % 2 == 0
@@ -227,19 +263,22 @@ def pick_card(p_idx, hand, led_suit, mode, eff_mode, trump, el_trump,
             return min(allowed, key=lambda c: card_pts(c, mode, el_trump))
 
         # Garantierter Gewinner: keine stärkere Karte mehr bei anderen Spielern
-        # (gilt für Oben, Unten, Slalom-Phasen, Trumpf – eff_trump-aware)
         guaranteed = [c for c in allowed
                       if not _has_stronger_remaining(c, p_idx, hands, eff_mode, eff_trump)]
         if guaranteed:
-            # Stärksten garantierten Gewinner (in Unten = tiefste Karte) spielen
-            return max(guaranteed,
+            # Nur sichere Leads (7 mit 6, K mit Q)
+            safe_guaranteed = [c for c in guaranteed if _is_safe_lead(c, hand, eff_mode)]
+            candidates = safe_guaranteed if safe_guaranteed else guaranteed
+            return max(candidates,
                        key=lambda c: card_strength(c, suit_of(c), eff_mode, eff_trump))
 
-        # Kein garantierter Gewinner → oberstes Drittel mit Zufälligkeit
+        # Kein garantierter Gewinner → sichere Leads aus oberstem Drittel
+        safe = [c for c in allowed if _is_safe_lead(c, hand, eff_mode)]
+        pool = safe if safe else allowed
         def lead_str(c):
             pri, rank = card_strength(c, suit_of(c), eff_mode, eff_trump)
             return pri * 200 + rank
-        ranked = sorted(allowed, key=lead_str, reverse=True)
+        ranked = sorted(pool, key=lead_str, reverse=True)
         top = max(1, len(ranked) // 3)
         return random.choice(ranked[:top])
 
@@ -260,8 +299,11 @@ def pick_card(p_idx, hand, led_suit, mode, eff_mode, trump, el_trump,
     if winning:
         return min(winning, key=my_str)
 
-    # Kann nicht gewinnen: tiefste Punkte wegwerfen
-    return min(allowed, key=lambda c: card_pts(c, mode, el_trump))
+    # Kann nicht gewinnen: Abwurf mit Schutz für 6er/Asse
+    # Geschützte Karten nur wegwerfen wenn nichts anderes da ist
+    unprotected = [c for c in allowed if not _is_protected_card(c, mode, eff_mode)]
+    discard_pool = unprotected if unprotected else allowed
+    return min(discard_pool, key=lambda c: _combined_pts(c, mode, el_trump))
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  SPIELSIMULATION
