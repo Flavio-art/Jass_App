@@ -593,15 +593,28 @@ class GameLogic {
     if (effectiveMode == GameMode.trump && trump != null) {
       final trumpCards = playable.where((c) => c.suit == trump).toList();
       if (trumpCards.length >= 3) {
-        // Viel Trumpf → stärksten Trumpf führen
         return _strongest(trumpCards, effectiveMode, trump);
       }
       if (trumpCards.isNotEmpty && trickNumber <= 3) {
-        // Frühe Runde, etwas Trumpf → Trumpf ziehen
         return _strongest(trumpCards, effectiveMode, trump);
       }
     }
-    // Sonst: stärkste Nicht-Trumpf-Karte aus längster Farbe
+    // Unten/TrumpUnten: sichere Karten anführen (6er), 10er nur mit 6 darunter
+    if (effectiveMode == GameMode.unten || effectiveMode == GameMode.trumpUnten) {
+      // Sichere Stichkarten zuerst (6er = sicherster Stich)
+      final sixes = playable.where((c) =>
+          c.value == CardValue.six && (c.suit != trump || effectiveMode == GameMode.unten)).toList();
+      if (sixes.isNotEmpty) return sixes.first;
+      // 7er wenn kein 6er mehr vorhanden → relativ sicher
+      final sevens = playable.where((c) =>
+          c.value == CardValue.seven && (c.suit != trump || effectiveMode == GameMode.unten)).toList();
+      if (sevens.isNotEmpty) return sevens.first;
+      // Keine sichere Karte → schwächste (höchste = am wenigsten wert im Unten)
+      final nonTrump = playable.where((c) => c.suit != trump).toList();
+      if (nonTrump.isNotEmpty) return _weakest(nonTrump, effectiveMode, trump);
+      return _weakest(playable, effectiveMode, trump);
+    }
+    // Sonst: stärkste Nicht-Trumpf-Karte
     final nonTrump = playable.where((c) => c.suit != trump).toList();
     if (nonTrump.isNotEmpty) {
       return _strongest(nonTrump, effectiveMode, trump);
@@ -675,7 +688,9 @@ class GameLogic {
     return _weakest(winning, effectiveMode, trump);
   }
 
-  /// Abwerfen: schone wertvolle Karten, wirf billige weg
+  /// Abwerfen: schone wertvolle Karten, wirf billige weg.
+  /// Im Unten/TrumpUnten: 10 und hohe Karten vermeiden, lieber von langer
+  /// schwacher Farbe abwerfen. Im Oben/Trump: niedrige wertlose Karten zuerst.
   static JassCard _discardCard(
     List<JassCard> playable,
     GameMode effectiveMode,
@@ -685,8 +700,17 @@ class GameLogic {
     final zeroPts = playable
         .where((c) => cardPoints(c, effectiveMode, trump) == 0)
         .toList();
-    if (zeroPts.isNotEmpty) return _weakest(zeroPts, effectiveMode, trump);
-    // Sonst: schwächste Karte
+    if (zeroPts.isNotEmpty) {
+      // Im Unten/TrumpUnten: schwächste 0-Punkt-Karte = höchste (Ass, König...)
+      // → gut zum Loswerden. Im Oben: schwächste = niedrigste (6, 7...).
+      return _weakest(zeroPts, effectiveMode, trump);
+    }
+    // Vermeide 10er abzuwerfen wenn günstigere Karten verfügbar (≤4 Punkte)
+    final cheap = playable
+        .where((c) => cardPoints(c, effectiveMode, trump) <= 4)
+        .toList();
+    if (cheap.isNotEmpty) return _weakest(cheap, effectiveMode, trump);
+    // Sonst: schwächste Karte (geringster Spielwert)
     return _weakest(playable, effectiveMode, trump);
   }
 

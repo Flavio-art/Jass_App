@@ -832,6 +832,29 @@ class ModeSelectorAI {
         (c) => c.suit == trump && c.value == CardValue.nine);
     if (hasBuur && hasNaell) score += 20;
 
+    // Trumpf Unten: Nebenfarben brauchen tiefe Karten (6/7) als Stich-Sicherheit.
+    // Ohne 6er in Nebenfarben verliert man fast jeden Nebenstich.
+    if (!oben) {
+      final nonTrumpSuits = hand.where((c) => c.suit != trump).map((c) => c.suit).toSet();
+      final hasSixInNonTrump = hand.any((c) => c.suit != trump && c.value == CardValue.six);
+      final hasSevenInNonTrump = hand.any((c) => c.suit != trump && c.value == CardValue.seven);
+      if (!hasSixInNonTrump && nonTrumpSuits.isNotEmpty) {
+        score -= 30; // Keine einzige 6 in Nebenfarben = sehr schlecht
+      }
+      if (!hasSevenInNonTrump && !hasSixInNonTrump) {
+        score -= 15; // Auch keine 7 = noch schlechter
+      }
+    }
+
+    // Trumpf Oben: Nebenfarben brauchen hohe Karten (Ass/König) als Stich-Sicherheit.
+    if (oben) {
+      final hasAceInNonTrump = hand.any((c) => c.suit != trump && c.value == CardValue.ace);
+      final hasKingInNonTrump = hand.any((c) => c.suit != trump && c.value == CardValue.king);
+      if (!hasAceInNonTrump && !hasKingInNonTrump) {
+        score -= 20; // Keine hohen Nebenkarten = riskant
+      }
+    }
+
     return score;
   }
 
@@ -898,6 +921,9 @@ class ModeSelectorAI {
     for (final count in suitCounts.values) {
       if (count >= 4) score += 12;
     }
+    // Oben ohne Ass ist sehr riskant
+    final hasAce = hand.any((c) => c.value == CardValue.ace);
+    if (!hasAce) score -= 35;
     return score;
   }
 
@@ -942,6 +968,9 @@ class ModeSelectorAI {
     for (final count in suitCounts.values) {
       if (count >= 4) score += 12;
     }
+    // Unten ohne 6 ist sehr riskant
+    final hasSix = hand.any((c) => c.value == CardValue.six);
+    if (!hasSix) score -= 35;
     return score;
   }
 

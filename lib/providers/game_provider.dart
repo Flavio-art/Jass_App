@@ -69,8 +69,28 @@ class GameProvider extends ChangeNotifier {
     final jsonStr = prefs.getString(_saveKey(type));
     if (jsonStr == null) return false;
     try {
+      _aiRunning = false;
+      _humanWyssDecisionPending = false;
+      _clearTrickTimer?.cancel();
+      _clearTrickTimer = null;
       _state = GameState.fromJson(jsonDecode(jsonStr) as Map<String, dynamic>);
       notifyListeners();
+      // Nach Resume: blockierten Zustand reparieren
+      if (_state.phase == GamePhase.wyssDeclaration) {
+        // Wyss-Overlay stuck: Human hat kein Wyss → direkt spielen
+        final humanId = _state.players.firstWhere((p) => p.isHuman).id;
+        final hasWyss = _state.playerWyss.containsKey(humanId) &&
+            _state.playerWyss[humanId]!.isNotEmpty;
+        if (!hasWyss) {
+          _state = _state.copyWith(phase: GamePhase.playing);
+          notifyListeners();
+          _triggerAiIfNeeded();
+        }
+      } else if (_state.phase == GamePhase.trickClearPending) {
+        _clearTrickTimer = Timer(const Duration(milliseconds: 500), clearTrick);
+      } else if (_state.phase == GamePhase.playing) {
+        _triggerAiIfNeeded();
+      }
       return true;
     } catch (_) {
       await clearSavedGame(type);
@@ -395,6 +415,7 @@ class GameProvider extends ChangeNotifier {
   }
 
   void _startNewRoundFriseurTeam(GameState currentState) {
+    _aiRunning = false;
     // Kumulierte Punkte aus letztem RoundResult (binäre Auswertung)
     final newTotal = Map<String, int>.from(currentState.totalTeamScores);
     if (currentState.roundHistory.isNotEmpty) {
@@ -492,6 +513,7 @@ class GameProvider extends ChangeNotifier {
   }
 
   void _startNewRoundFriseurSolo(GameState currentState) {
+    _aiRunning = false;
     // Gespielte Variante für Ansager markieren
     final varKey = currentState.variantKey(currentState.gameMode,
         trumpSuit: currentState.trumpSuit);
@@ -617,6 +639,8 @@ class GameProvider extends ChangeNotifier {
   }
 
   void _startNewRoundSchieber(GameState currentState) {
+    _aiRunning = false;
+    _humanWyssDecisionPending = false;
     // totalTeamScores wurde bereits in clearTrick() aktualisiert – kein nochmaliges Hinzufügen.
     final newTotal = Map<String, int>.from(currentState.totalTeamScores);
 
@@ -685,6 +709,7 @@ class GameProvider extends ChangeNotifier {
   }
 
   void _startNewRoundDifferenzler(GameState currentState) {
+    _aiRunning = false;
     // Spielende nach N Runden
     if (currentState.roundNumber >= currentState.differenzlerMaxRounds) {
       _state = _state.copyWith(phase: GamePhase.gameEnd);
@@ -2029,18 +2054,27 @@ class GameProvider extends ChangeNotifier {
       }
     }
 
+    // Schieber: Wenn Limit bereits erreicht, direkt zum Spielende
+    final skipRoundEnd = roundOver &&
+        _state.gameType == GameType.schieber &&
+        _state.schieberLimitReachedBy != null;
+    final endPhase = skipRoundEnd
+        ? GamePhase.gameEnd
+        : (roundOver ? GamePhase.roundEnd : GamePhase.playing);
+
     _state = _state.copyWith(
       currentTrickCards: [],
       currentTrickPlayerIds: [],
       currentPlayerIndex: nextIdx,
       pendingNextPlayerIndex: null,
-      phase: roundOver ? GamePhase.roundEnd : GamePhase.playing,
+      phase: endPhase,
       roundHistory: newHistory,
       friseurSoloScores: newFriseurSoloScores,
       differenzlerPenalties: newDifferenzlerPenalties,
       totalTeamScores: newTotalTeamScores,
       soloSchiebungComment: postRoundComment,
     );
+    if (skipRoundEnd) _archiveGame();
     notifyListeners();
 
     if (!roundOver) {
@@ -2399,12 +2433,15 @@ class GameProvider extends ChangeNotifier {
     // Human ist dran und muss noch über Weisen entscheiden (nur im 1. Stich)
     if (_state.currentPlayer.isHuman && _humanWyssDecisionPending) {
       _humanWyssDecisionPending = false;
-      if (_state.completedTricks.isEmpty) {
+      final humanId = _state.currentPlayer.id;
+      final hasWyss = _state.playerWyss.containsKey(humanId) &&
+          _state.playerWyss[humanId]!.isNotEmpty;
+      if (_state.completedTricks.isEmpty && hasWyss) {
         _state = _state.copyWith(phase: GamePhase.wyssDeclaration);
         notifyListeners();
         return;
       }
-      // Nach dem 1. Stich: zu spät → Weisen verfallen
+      // Kein Wyss oder nach dem 1. Stich: zu spät → Weisen verfallen
     }
     if (_state.currentPlayer.isHuman) return;
     _runAiLoop();
@@ -2412,24 +2449,35 @@ class GameProvider extends ChangeNotifier {
 
   Future<void> _runAiLoop() async {
     _aiRunning = true;
-    while (_state.phase == GamePhase.playing && !_state.currentPlayer.isHuman) {
-      await Future.delayed(const Duration(milliseconds: 500));
-      if (_state.phase != GamePhase.playing) break;
+    try {
+      while (_state.phase == GamePhase.playing && !_state.currentPlayer.isHuman) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (_state.phase != GamePhase.playing) break;
 
-      final aiPlayer = _state.currentPlayer;
-      final playerIdx = _state.currentPlayerIndex;
+        final aiPlayer = _state.currentPlayer;
+        final playerIdx = _state.currentPlayerIndex;
 
-      final card = await compute(
-        MonteCarloAI.computeEntry,
-        (aiPlayer.id, _state),
-      );
+        final card = await compute(
+          MonteCarloAI.computeEntry,
+          (aiPlayer.id, _state),
+        );
 
-      if (_state.phase != GamePhase.playing) break;
-      if (_state.currentPlayerIndex != playerIdx) break;
+        if (_state.phase != GamePhase.playing) break;
+        if (_state.currentPlayerIndex != playerIdx) break;
 
-      _doPlayCard(aiPlayer.id, card, playerIdx);
+        _doPlayCard(aiPlayer.id, card, playerIdx);
+      }
+    } catch (e) {
+      debugPrint('AI loop error: $e');
+    } finally {
+      _aiRunning = false;
+      // Falls während der AI-Loop ein Rundenwechsel stattfand und
+      // jetzt wieder ein AI-Spieler dran ist, erneut starten.
+      if (_state.phase == GamePhase.playing && !_state.currentPlayer.isHuman) {
+        _triggerAiIfNeeded();
+      }
+      notifyListeners();
     }
-    _aiRunning = false;
   }
 
   void resetToSetup() {
