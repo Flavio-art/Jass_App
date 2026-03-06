@@ -67,7 +67,7 @@ Solo-Variante über 20–40 Runden.
 | 😶 Misere | Ziel: möglichst wenig Punkte | Wertung: 157 − Punkte |
 | 👑 Alles Trumpf | Angespielte Farbe als Trumpf | Nur Buur / Näll / König zählen |
 | 🐑 Schafkopf | Damen + Achter + Trumpffarbe = Trumpf | Zehner schlägt Ass |
-| 💣 Molotof | Modus durch ersten Abwurf bestimmt | Ziel: wenig Punkte |
+| 💣 Molotow | Modus durch ersten Abwurf bestimmt | Ziel: wenig Punkte |
 
 > Schieber nutzt nur: Trumpf Schwarz/Rot, Obenabe, Undenufe, Slalom
 
@@ -78,7 +78,7 @@ Solo-Variante über 20–40 Runden.
 - **Zwei Kartensets**: Französisch (♠ Schaufeln · ♣ Kreuz · ♥️ Herz · ♦️ Ecken) und Deutsch (<img src="assets/suit_icons/schellen.png" height="16"> Schellen · <img src="assets/suit_icons/herzGerman.png" height="16"> Rosen · <img src="assets/suit_icons/eichel.png" height="16"> Eichel · <img src="assets/suit_icons/schilten.png" height="16"> Schilten)
 - **KI-Gegner** mit Monte-Carlo-Simulation + neuronales Netz für Modus-Wahl + intelligente Abwurfstrategie
 - **KI-Moduswahl mit Wunschkarte**: Im Friseur Solo bewertet die KI jeden Modus mit idealer Wunschkarte + besten 9 Karten
-- **Im-Loch-Boost**: Misère/Molotof werden bei schlechten Händen (2× geschoben) häufiger gewählt als Fallback
+- **Im-Loch-Boost**: Misère/Molotow werden bei schlechten Händen (2× geschoben) häufiger gewählt als Fallback
 - **Dynamisches Schieben**: KI schiebt ~80% am Anfang, ~60% am Ende; in Runde 2 sagen ~10% trotzdem an
 - **Zentrale KI-Tuning-Config** (`nn_tuning.dart`): Alle Multiplikatoren und Schwellenwerte an einem Ort
 - **Weisen (Wys)**: Kombinationen werden angesagt und automatisch ausgewertet

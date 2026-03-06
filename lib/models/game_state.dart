@@ -111,7 +111,7 @@ class RoundResult {
       case 'misere':     return 'Misere 😶';
       case 'allesTrumpf': return 'Alles Trumpf 👑';
       case 'schafkopf':   return 'Schafkopf 🐑';
-      case 'molotof':     return 'Molotof 💣';
+      case 'molotof':     return 'Molotow 💣';
       default: return variantKey;
     }
   }

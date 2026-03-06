@@ -49,14 +49,21 @@ class _GameScreenState extends State<GameScreen> {
     final forcedTrump = isFriseurSolo &&
         state.soloSchiebungRounds >= 2 &&
         !hasSchieben;
-    // Friseur Team / Schieber: nur Ansager kann schieben (einmalig)
-    final canSchiebenTeam =
-        (state.gameType == GameType.friseurTeam ||
-            state.gameType == GameType.schieber) &&
-        !hasSchieben;
+    // Schieber: nur Ansager kann schieben (einmalig, zum Partner)
+    final canSchiebenSchieber =
+        state.gameType == GameType.schieber && !hasSchieben;
+    // Coiffeur: reihum schieben, aber nicht zurück zum Ansager
+    final canSchiebenCoiffeur = state.gameType == GameType.friseurTeam &&
+        (state.trumpSelectorIndex ?? state.ansagerIndex) != state.ansagerIndex ||
+        (state.gameType == GameType.friseurTeam && !hasSchieben);
+    // Coiffeur: nächster wäre Ansager → kann nicht mehr schieben
+    if (state.gameType == GameType.friseurTeam && hasSchieben) {
+      final nextIndex = (state.trumpSelectorIndex! + 1) % 4;
+      if (nextIndex == state.ansagerIndex) return false;
+    }
     // Friseur Solo: jeder Spieler kann schieben
     final canSchiebenSolo = isFriseurSolo && !forcedTrump;
-    return canSchiebenTeam || canSchiebenSolo;
+    return canSchiebenSchieber || canSchiebenCoiffeur || canSchiebenSolo;
   }
 
   void _showSchieberLimitDialog(BuildContext ctx, GameProvider provider, GameState state) {
@@ -1510,7 +1517,7 @@ class _RoundEndOverlay extends StatelessWidget {
     'misere':       '😶 Misere',
     'allesTrumpf':  '👑 Alles Trumpf',
     'schafkopf':    '🐑 Schafkopf',
-    'molotof':      '💣 Molotof',
+    'molotof':      '💣 Molotow',
   };
 
   const _RoundEndOverlay({
@@ -2220,7 +2227,7 @@ class _WishCardOverlayState extends State<_WishCardOverlay> {
       GameMode.misere => 'Misere',
       GameMode.allesTrumpf => 'Alles Trumpf',
       GameMode.schafkopf => 'Schafkopf',
-      GameMode.molotof => 'Molotof',
+      GameMode.molotof => 'Molotow',
     };
     return Text(label, style: style, textAlign: TextAlign.center);
   }

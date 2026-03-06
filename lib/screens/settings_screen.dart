@@ -71,7 +71,7 @@ class _SettingsScreenState extends State<SettingsScreen>
 
   static const _variantKeys   = ['trump_oben', 'trump_unten', 'oben', 'unten', 'slalom', 'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof'];
   static const _variantEmojis = ['🂡⬇️', '🂡⬆️', '⬇️', '⬆️', '↕️', '🐘', '😶', '👑', '🐑', '💣'];
-  static const _variantNames  = ['Trumpf Oben', 'Trumpf Unten', 'Obenabe', 'Undenufe', 'Slalom', 'Elefant', 'Misere', 'Alles Trumpf', 'Schafkopf', 'Molotof'];
+  static const _variantNames  = ['Trumpf Oben', 'Trumpf Unten', 'Obenabe', 'Undenufe', 'Slalom', 'Elefant', 'Misere', 'Alles Trumpf', 'Schafkopf', 'Molotow'];
 
   /// Effektive Anzahl Spielvarianten (trump_oben/trump_unten zählen zusammen als 2: trump_ss + trump_re)
   int get _effectiveVariantCount {
@@ -509,7 +509,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   // ── Coiffeur Tab ─────────────────────────────────────────────────────────
 
   static const _coiffeurKeys  = ['trump_ss', 'trump_re', 'oben', 'unten', 'slalom', 'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof'];
-  static const _coiffeurNames = ['Trumpf Schwarz', 'Trumpf Rot', 'Obenabe', 'Undenufe', 'Slalom', 'Elefant', 'Misere', 'Alles Trumpf', 'Schafkopf', 'Molotof'];
+  static const _coiffeurNames = ['Trumpf Schwarz', 'Trumpf Rot', 'Obenabe', 'Undenufe', 'Slalom', 'Elefant', 'Misere', 'Alles Trumpf', 'Schafkopf', 'Molotow'];
   static const _coiffeurEmojis = ['♠♣', '♥♦', '⬇️', '⬆️', '↕️', '🐘', '😶', '👑', '🐑', '💣'];
 
   void _editCoiffeurMultiplier(String key, String label) async {

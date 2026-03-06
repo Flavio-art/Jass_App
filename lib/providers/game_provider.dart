@@ -769,9 +769,8 @@ class GameProvider extends ChangeNotifier {
   void schieben() {
     if (_state.phase != GamePhase.trumpSelection) return;
 
-    if (_state.gameType == GameType.friseurTeam ||
-        _state.gameType == GameType.schieber) {
-      // Friseur Team / Schieber: nur Ansager kann schieben (genau einmal, zum Partner)
+    if (_state.gameType == GameType.schieber) {
+      // Schieber: nur Ansager kann schieben (genau einmal, zum Partner)
       if (_state.trumpSelectorIndex != null) return;
       final partnerIndex = (_state.ansagerIndex + 2) % 4;
       _state = _state.copyWith(trumpSelectorIndex: partnerIndex);
@@ -780,8 +779,45 @@ class GameProvider extends ChangeNotifier {
       return;
     }
 
+    if (_state.gameType == GameType.friseurTeam) {
+      // Coiffeur: schieben reihum (S→O→N→W), Ansager darf nicht nochmal schieben
+      final currentSelector = _state.trumpSelectorIndex ?? _state.ansagerIndex;
+      final nextIndex = (currentSelector + 1) % 4;
+      // Zurück beim Ansager → muss spielen, kein weiteres Schieben
+      if (nextIndex == _state.ansagerIndex) return;
+      _state = _state.copyWith(trumpSelectorIndex: nextIndex);
+      notifyListeners();
+      if (!_state.currentTrumpSelector.isHuman) {
+        _coiffeurKiDecideSchieben();
+      }
+      return;
+    }
+
     // Friseur Solo
     _schiebenSolo();
+  }
+
+  /// Coiffeur: KI entscheidet ob schieben oder ansagen.
+  void _coiffeurKiDecideSchieben() {
+    final selector = _state.currentTrumpSelector;
+    Future.delayed(const Duration(milliseconds: 700), () {
+      if (!_state.players.contains(selector)) return;
+      // KI prüft ob die Hand gut genug ist zum Ansagen
+      final play = _shouldPlay(
+        player: selector,
+        available: _state.availableVariants(
+            selector.position == PlayerPosition.south ||
+            selector.position == PlayerPosition.north),
+        nnPlayThreshold: NNTuning.friseurSchiebenNNMin,
+        heuristicThreshold: NNTuning.friseurSchiebenHeuMin,
+      );
+      if (play) {
+        _autoSelectMode();
+      } else {
+        // Weiter schieben
+        schieben();
+      }
+    });
   }
 
   /// Friseur Solo: Schieben-Logik. Verschiebt den Entscheider zum nächsten

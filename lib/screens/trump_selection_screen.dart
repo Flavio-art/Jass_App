@@ -36,11 +36,19 @@ class TrumpSelectionScreen extends StatelessWidget {
       available = state.availableVariants(isTeam1).toSet();
     }
 
-    // Friseur Team / Schieber: nur Ansager kann schieben (einmalig)
-    final canSchiebenTeam =
-        (state.gameType == GameType.friseurTeam ||
-            state.gameType == GameType.schieber) &&
-        !hasSchieben;
+    // Schieber: nur Ansager kann schieben (einmalig)
+    final canSchiebenSchieber = state.gameType == GameType.schieber && !hasSchieben;
+    // Coiffeur: reihum schieben, nächster darf nicht Ansager sein
+    bool canSchiebenCoiffeur = false;
+    if (state.gameType == GameType.friseurTeam) {
+      if (!hasSchieben) {
+        canSchiebenCoiffeur = true;
+      } else {
+        final nextIndex = (state.trumpSelectorIndex! + 1) % 4;
+        canSchiebenCoiffeur = nextIndex != state.ansagerIndex;
+      }
+    }
+    final canSchiebenTeam = canSchiebenSchieber || canSchiebenCoiffeur;
     // Friseur Solo: jeder Spieler kann passen, ausser der Original-Ansager nach 2 Runden
     final canSchiebenSolo = isFriseurSolo && !forcedTrump;
 
@@ -189,7 +197,7 @@ class TrumpSelectionScreen extends StatelessWidget {
                             color: Colors.green.shade800, isAvailable: available.contains('schafkopf'),
                             onTap: () => _pickSchafkopfTrump(context, suits, cardType))),
                           const SizedBox(width: 8),
-                          Expanded(child: _ModeButton(label: 'Molotof', subtitle: '6=↓ · A=↑ · Farbe=Trumpf', emoji: '💣',
+                          Expanded(child: _ModeButton(label: 'Molotow', subtitle: '6=↓ · A=↑ · Farbe=Trumpf', emoji: '💣',
                             color: Colors.deepOrange.shade900, isAvailable: available.contains('molotof'),
                             onTap: () => _selectMode(context, GameMode.molotof))),
                         ],
