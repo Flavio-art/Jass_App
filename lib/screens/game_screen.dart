@@ -61,7 +61,8 @@ class _GameScreenState extends State<GameScreen> {
 
   void _showSchieberLimitDialog(BuildContext ctx, GameProvider provider, GameState state) {
     final winner = state.schieberLimitReachedBy;
-    final winnerLabel = winner == 'team1' ? 'Ihr' : 'Gegner';
+    final isTeam1 = winner == 'team1';
+    final winnerLabel = isTeam1 ? 'Ihr habt' : 'Gegner haben';
     final mult = _schieberMultiplier(state);
     final raw1 = state.teamScores['team1'] ?? 0;
     final raw2 = state.teamScores['team2'] ?? 0;
@@ -75,8 +76,9 @@ class _GameScreenState extends State<GameScreen> {
         backgroundColor: const Color(0xFF1B4D2E),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
-          '$winnerLabel hat ${state.schieberWinTarget} erreicht!',
+          '$winnerLabel das Punktelimit erreicht!',
           style: const TextStyle(color: AppColors.gold, fontSize: 18),
+          textAlign: TextAlign.center,
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -4197,7 +4199,7 @@ class _WyssOverlayState extends State<_WyssOverlay> {
         }
       }
     }
-    final winnerName = winner == 'team1' ? 'Ihr Team' : 'Gegner';
+    final winnerName = winner == 'team1' ? 'Euer Team' : 'Das gegnerische Team';
 
     // Only show winning team's players
     final winnerPlayers = winner == null
@@ -4266,10 +4268,11 @@ class _WyssOverlayState extends State<_WyssOverlay> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              for (final player in winnerPlayers) ...[
-                                _playerWyssCards(player, wyss[player.id]),
-                                const SizedBox(height: 12),
-                              ],
+                              for (final player in winnerPlayers)
+                                if (wyss[player.id] != null && wyss[player.id]!.isNotEmpty) ...[
+                                  _playerWyssCards(player, wyss[player.id]),
+                                  const SizedBox(height: 12),
+                                ],
                             ],
                           ),
                         ),

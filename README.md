@@ -56,8 +56,8 @@ Solo-Variante über 20–40 Runden.
 
 | Variante | Beschreibung | Besonderheit |
 |----------|-------------|--------------|
-| ♠️♣️ / 🔔🛡 Trumpf Oben | Schwarze Farbe / Metall als Trumpf | Buur › Näll › Ass › … |
-| ♥️♦️ / 🌹🌰 Trumpf Oben | Rote Farbe / Gemüse als Trumpf | ×2 Punkte |
+| ♠♣ / 🔔🛡 Trumpf Schwarz | Schaufeln/Kreuz bzw. Schellen/Schilten | Buur › Näll › Ass › … |
+| ♥♦ / 🌹🌰 Trumpf Rot | Herz/Ecken bzw. Rosen/Eichel | ×2 Punkte |
 | ⬆️ Trumpf Unten | Trumpf mit umgekehrter Reihenfolge | Sechs = 11 Pkt |
 | ⬇️ Obenabe | Kein Trumpf, Ass gewinnt | Achter = 8 Pkt |
 | ⬆️ Undenufe | Kein Trumpf, Sechs gewinnt | Sechs = 11 Pkt, Achter = 8 Pkt |
@@ -74,8 +74,8 @@ Solo-Variante über 20–40 Runden.
 
 ## Features
 
-- **Zwei Kartensets**: Französisch (♠️♣️♥️♦️) und Deutsch (Schellen · Rosen · Eichel · Schilten)
-- **KI-Gegner** mit Monte-Carlo-Simulation + neuronales Netz für Modus-Wahl
+- **Zwei Kartensets**: Französisch (♠♣♥♦) und Deutsch (🔔 Schellen · 🌹 Rosen · 🌰 Eichel · 🛡 Schilten)
+- **KI-Gegner** mit Monte-Carlo-Simulation + neuronales Netz für Modus-Wahl + intelligente Abwurfstrategie
 - **KI-Moduswahl mit Wunschkarte**: Im Friseur Solo bewertet die KI jeden Modus mit idealer Wunschkarte + besten 9 Karten
 - **Im-Loch-Boost**: Misère/Molotof werden bei schlechten Händen (2× geschoben) häufiger gewählt als Fallback
 - **Dynamisches Schieben**: KI schiebt ~80% am Anfang, ~60% am Ende; in Runde 2 sagen ~10% trotzdem an
