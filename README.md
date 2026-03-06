@@ -74,7 +74,7 @@ Solo-Variante über 20–40 Runden.
 
 ## Features
 
-- **Zwei Kartensets**: Französisch (♠♣♥️♦️) und Deutsch (<img src="assets/suit_icons/schellen.png" height="16"> Schellen · <img src="assets/suit_icons/herzGerman.png" height="16"> Rosen · <img src="assets/suit_icons/eichel.png" height="16"> Eichel · <img src="assets/suit_icons/schilten.png" height="16"> Schilten)
+- **Zwei Kartensets**: Französisch (♠ Schaufeln · ♣ Kreuz · ♥️ Herz · ♦️ Ecken) und Deutsch (<img src="assets/suit_icons/schellen.png" height="16"> Schellen · <img src="assets/suit_icons/herzGerman.png" height="16"> Rosen · <img src="assets/suit_icons/eichel.png" height="16"> Eichel · <img src="assets/suit_icons/schilten.png" height="16"> Schilten)
 - **KI-Gegner** mit Monte-Carlo-Simulation + neuronales Netz für Modus-Wahl + intelligente Abwurfstrategie
 - **KI-Moduswahl mit Wunschkarte**: Im Friseur Solo bewertet die KI jeden Modus mit idealer Wunschkarte + besten 9 Karten
 - **Im-Loch-Boost**: Misère/Molotof werden bei schlechten Händen (2× geschoben) häufiger gewählt als Fallback
