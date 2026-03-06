@@ -30,7 +30,7 @@ class TrumpSelectionScreen extends StatelessWidget {
       // Nach 2× Schieben: alle verfügbaren Varianten (kein Trumpfzwang mehr)
       available = state.availableVariantsForPlayer(selector.id).toSet();
     } else if (state.gameType == GameType.schieber) {
-      // Schieber: nur Trumpf Oben (4 Farben), Obenabe, Undenufe, Slalom
+      // Schieber: Trumpf, Obenabe, Undenufe, Slalom
       available = const {'trump_ss', 'trump_re', 'oben', 'unten', 'slalom'};
     } else {
       available = state.availableVariants(isTeam1).toSet();
@@ -68,7 +68,7 @@ class TrumpSelectionScreen extends StatelessWidget {
           children: [
             // ── Header ───────────────────────────────────────────────────
             Padding(
-              padding: const EdgeInsets.fromLTRB(8, 4, 8, 6),
+              padding: const EdgeInsets.fromLTRB(8, 2, 8, 2),
               child: Row(
                 children: [
                   IconButton(
@@ -117,13 +117,13 @@ class TrumpSelectionScreen extends StatelessWidget {
             // ── Spielmodus-Buttons: füllen den ganzen Platz ──────────────
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     if (isSchieber) ...[
                       // Schieber: 4 gleich hohe Reihen
-                      ..._buildSchieberRows(context, suits, cardType, state, available),
+                      ..._buildSchieberRows(context, suits, cardType, state, available, hasSchieben),
                     ] else ...[
                       // Nicht-Schieber: Trumpf-Gruppen + alle Varianten
                       Expanded(child: Row(
@@ -252,7 +252,7 @@ class TrumpSelectionScreen extends StatelessWidget {
             const Divider(color: Colors.white12, height: 1),
             Container(
               color: Colors.black26,
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+              padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -262,7 +262,7 @@ class TrumpSelectionScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   LayoutBuilder(builder: (context, constraints) {
-                    const cardWidth = 54.0;
+                    const cardWidth = 82.0;
                     const cardHeight = cardWidth * 1.5;
                     final n = human.hand.length;
                     if (n == 0) return const SizedBox.shrink();
@@ -321,7 +321,7 @@ class TrumpSelectionScreen extends StatelessWidget {
 
   /// Schieber: 4 gleich hohe Reihen (2× Trumpf, Obenabe/Undenufe, Slalom).
   List<Widget> _buildSchieberRows(
-      BuildContext context, List<Suit> suits, CardType cardType, GameState state, Set<String> available) {
+      BuildContext context, List<Suit> suits, CardType cardType, GameState state, Set<String> available, bool geschoben) {
     final mults = state.schieberMultipliers;
     // Reihe 1: ♠+♣ / 🔔+🛡 (×1), Reihe 2: ♥+♦ / 🌹+🌰 (×2)
     final suitRows = [[suits[0], suits[3]], [suits[1], suits[2]]];
@@ -392,18 +392,36 @@ class TrumpSelectionScreen extends StatelessWidget {
         ),
       ),
       const SizedBox(height: 8),
-      // Slalom
-      Expanded(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(child: _ModeButton(label: 'Slalom', subtitle: 'Oben · Unten · …', emoji: '↕️',
-              color: Colors.purple.shade700, isAvailable: available.contains('slalom'),
-              multiplier: mults['slalom'],
-              onTap: () => _pickSlalomDirection(context))),
-          ],
+      // Slalom: nach Schieben nur 1 Button (Ansager wählt Richtung), sonst 2 direkte Buttons
+      if (geschoben)
+        Expanded(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: _ModeButton(label: 'Slalom', subtitle: 'Ansager wählt Richtung', emoji: '↕️',
+                color: Colors.purple.shade700, isAvailable: available.contains('slalom'),
+                multiplier: mults['slalom'],
+                onTap: () => _selectMode(context, GameMode.slalom))),
+            ],
+          ),
+        )
+      else
+        Expanded(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: _ModeButton(label: 'Slalom', subtitle: 'Start: Oben ⬇️', emoji: '↕️',
+                color: Colors.purple.shade700, isAvailable: available.contains('slalom'),
+                multiplier: mults['slalom'],
+                onTap: () => _selectMode(context, GameMode.slalom, slalomStartsOben: true))),
+              const SizedBox(width: 8),
+              Expanded(child: _ModeButton(label: 'Slalom', subtitle: 'Start: Unten ⬆️', emoji: '↕️',
+                color: Colors.purple.shade800, isAvailable: available.contains('slalom'),
+                multiplier: mults['slalom'],
+                onTap: () => _selectMode(context, GameMode.slalom, slalomStartsOben: false))),
+            ],
+          ),
         ),
-      ),
     ];
   }
 
@@ -923,15 +941,15 @@ class _SuitPip extends StatelessWidget {
   Widget build(BuildContext context) {
     if (cardType == CardType.german) {
       return SizedBox(
-        width: 38,
-        height: 38,
+        width: 52,
+        height: 52,
         child: Image.asset(_imagePath, fit: BoxFit.contain),
       );
     }
     // French: crop ace card center (single large symbol)
     return SizedBox(
-      width: 38,
-      height: 38,
+      width: 52,
+      height: 52,
       child: ClipRect(
         child: Align(
           alignment: Alignment.center,
@@ -939,7 +957,7 @@ class _SuitPip extends StatelessWidget {
           heightFactor: 0.42,
           child: Image.asset(
             _imagePath,
-            width: 90,
+            width: 120,
             fit: BoxFit.fitWidth,
           ),
         ),

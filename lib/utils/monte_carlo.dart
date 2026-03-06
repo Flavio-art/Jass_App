@@ -401,6 +401,7 @@ class MonteCarloAI {
       }
     }
 
+
     double bestScore = double.negativeInfinity;
     JassCard bestCard = playable.first;
 
@@ -482,14 +483,25 @@ class MonteCarloAI {
       // Near-miss Karten beim Anspielen bestrafen (7 ohne 6 in Unten, König ohne Ass in Oben)
       if (state.currentTrickCards.isEmpty &&
           _isNearMissLead(card, state, state.effectiveMode)) {
-        avg -= 10.0; // Riskant: Gegner hat die stärkere Karte
+        avg -= 20.0; // Riskant: Gegner hat die stärkere Karte
       }
 
       // Sichere Gewinner nicht abwerfen (nicht bedienen können)
       if (state.currentTrickCards.isNotEmpty) {
         final ledSuit = state.currentTrickCards.first.suit;
-        if (card.suit != ledSuit && _isHighestRemaining(card, state)) {
-          avg -= 15.0; // Sicheren zukünftigen Stich nicht verschenken
+        if (card.suit != ledSuit) {
+          if (_isHighestRemaining(card, state)) {
+            avg -= 15.0; // Sicheren zukünftigen Stich nicht verschenken
+          }
+          // Sichere Stichkarten (6er im Unten, Asse im Oben) nie abwerfen
+          final gm = state.gameMode;
+          final em = state.effectiveMode;
+          if ((card.value == CardValue.six &&
+                  (em == GameMode.unten || gm == GameMode.slalom || gm == GameMode.elefant)) ||
+              (card.value == CardValue.ace &&
+                  (em == GameMode.oben || gm == GameMode.slalom || gm == GameMode.elefant))) {
+            avg -= 25.0; // Sichere Stichkarte nie abwerfen
+          }
         }
       }
 
@@ -931,8 +943,7 @@ class MonteCarloAI {
         GameLogic.cardPlayStrength(c, effectMode, null) > strength).toList();
     // Wenn die stärkere Karte bereits gespielt wurde → kein Risiko
     if (strongerInHands.isEmpty) return false;
-    // Nur "near miss" wenn max 1 stärkere Karte übrig (z.B. 7 vs 6 in Unten)
-    if (strongerInHands.length > 1) return false;
+    // "near miss" wenn stärkere Karten bei Gegnern übrig (z.B. 7 vs 6, König ohne Ass)
     // Prüfe ob die stärkere Karte beim Partner ist → dann kein Problem
     final aiPlayer = state.players.firstWhere((p) =>
         p.hand.contains(card));
@@ -1307,15 +1318,17 @@ class MonteCarloAI {
     final otherMode = currentMode == GameMode.oben
         ? GameMode.unten : GameMode.oben;
     final sorted = List.of(cards)..sort((a, b) {
-      // Primär: niedrigste Spielstärke im aktuellen Modus (schwächste zuerst)
+      // Primär: kombinierte Punkte beider Richtungen (wenigste zuerst)
+      // Damit werden 10er (20 kombiniert) vor 6er (11) / Asse (11) abgeworfen
+      final aComb = GameLogic.cardPoints(a, GameMode.oben, null) +
+          GameLogic.cardPoints(a, GameMode.unten, null);
+      final bComb = GameLogic.cardPoints(b, GameMode.oben, null) +
+          GameLogic.cardPoints(b, GameMode.unten, null);
+      if (aComb != bComb) return aComb.compareTo(bComb);
+      // Tiebreak: geringste Spielstärke im aktuellen Modus
       final aStr = GameLogic.cardPlayStrength(a, currentMode, null);
       final bStr = GameLogic.cardPlayStrength(b, currentMode, null);
-      if (aStr != bStr) return aStr.compareTo(bStr);
-      // Tiebreak: geringster Wert im anderen Modus bevorzugt
-      // (Karten die in beiden Richtungen wertlos sind zuerst abwerfen)
-      final aOther = GameLogic.cardPoints(a, otherMode, null);
-      final bOther = GameLogic.cardPoints(b, otherMode, null);
-      return aOther.compareTo(bOther);
+      return aStr.compareTo(bStr);
     });
     return sorted.first;
   }
@@ -1367,10 +1380,18 @@ class MonteCarloAI {
     if (discardable.isEmpty) {
       final fallback = cards.where((c) => !safeWinners.contains(c)).toList();
       if (fallback.isEmpty) return _weakest(cards, effectMode, trump);
-      // Unter den wertvollen: die mit geringstem Punktwert abwerfen
-      fallback.sort((a, b) =>
-          GameLogic.cardPoints(a, effectMode, trump)
-              .compareTo(GameLogic.cardPoints(b, effectMode, trump)));
+      // Slalom/Elefant: kombinierte Punkte beider Richtungen, damit
+      // 6er (11 Pkt in Unten) nicht als "0 Pkt" im Oben-Stich geopfert werden
+      final isMultiMode = gm == GameMode.slalom || gm == GameMode.elefant;
+      fallback.sort((a, b) {
+        final aP = isMultiMode
+            ? GameLogic.cardPoints(a, GameMode.oben, trump) + GameLogic.cardPoints(a, GameMode.unten, trump)
+            : GameLogic.cardPoints(a, effectMode, trump);
+        final bP = isMultiMode
+            ? GameLogic.cardPoints(b, GameMode.oben, trump) + GameLogic.cardPoints(b, GameMode.unten, trump)
+            : GameLogic.cardPoints(b, effectMode, trump);
+        return aP.compareTo(bP);
+      });
       return fallback.first;
     }
 

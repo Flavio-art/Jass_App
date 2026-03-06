@@ -115,8 +115,21 @@ class ModeSelectorAI {
       } else if (variant == 'slalom') {
         final sOben = _scoreOben(hand);
         final sUnten = _scoreUnten(hand);
-        rawEntries.add((raw: (sOben + sUnten) / 2, m: mult(variant),
-            mode: GameMode.slalom, trump: null, slalomOben: sOben >= sUnten));
+        final aces = hand.where((c) => c.value == CardValue.ace).length;
+        final sixes = hand.where((c) => c.value == CardValue.six).length;
+        // Slalom braucht mindestens 1 Ass UND 1 Sechs für sichere Stiche
+        if (aces == 0 || sixes == 0) {
+          // Ohne beides kein Slalom – überspringen
+        } else if (partnerHatGeschoben) {
+          // Nach Schieben: Slalom nur mit mind. 2 Asse + 1 Sechser ODER 2 Sechser + 1 Ass
+          if ((aces >= 2 && sixes >= 1) || (sixes >= 2 && aces >= 1)) {
+            rawEntries.add((raw: (sOben + sUnten) / 2, m: mult(variant),
+                mode: GameMode.slalom, trump: null, slalomOben: sOben >= sUnten));
+          }
+        } else {
+          rawEntries.add((raw: (sOben + sUnten) / 2, m: mult(variant),
+              mode: GameMode.slalom, trump: null, slalomOben: sOben >= sUnten));
+        }
       } else {
         final mode = GameMode.values.firstWhere((m) => m.name == variant,
             orElse: () => GameMode.oben);
@@ -267,6 +280,14 @@ class ModeSelectorAI {
       } else {
         final nnIdx = _variantToNNIdx(variant);
         if (nnIdx >= 0 && nnIdx < cs.length) {
+          // Slalom: Mindestanforderung an Asse und Sechser
+          if (variant == 'slalom') {
+            final aces = hand.where((c) => c.value == CardValue.ace).length;
+            final sixes = hand.where((c) => c.value == CardValue.six).length;
+            if (aces == 0 || sixes == 0) continue;
+            if (partnerHatGeschoben &&
+                !((aces >= 2 && sixes >= 1) || (sixes >= 2 && aces >= 1))) continue;
+          }
           var s = adj(cs[nnIdx], mult(variant));
           if (s > bestScore) {
             bestScore = s;
@@ -922,19 +943,19 @@ class ModeSelectorAI {
       final vals = entry.value;
       final hasAce = vals.contains(CardValue.ace);
       if (vals.contains(CardValue.king)) {
-        score += hasAce ? 10 : 3; // König mit Ass = fast sicher, ohne = riskant
+        score += hasAce ? 10 : 0; // König ohne Ass = wertlos
       }
       if (vals.contains(CardValue.ten)) {
-        score += hasAce ? 16 : 5; // 10er mit Ass = sicher geschmiert, ohne = gefährlich
+        score += hasAce ? 16 : 2; // 10er ohne Ass = kaum nützlich
       }
     }
     // Lange Farben → bessere Kontrolle
     for (final count in suitCounts.values) {
       if (count >= 4) score += 12;
     }
-    // Oben ohne Ass ist sehr riskant
+    // Oben ohne Ass ist sehr riskant – ohne ein einziges Ass fast chancenlos
     final hasAce = hand.any((c) => c.value == CardValue.ace);
-    if (!hasAce) score -= 35;
+    if (!hasAce) score -= 45;
     return score;
   }
 
@@ -966,22 +987,22 @@ class ModeSelectorAI {
       final vals = entry.value;
       final hasSix = vals.contains(CardValue.six);
       if (vals.contains(CardValue.seven)) {
-        score += hasSix ? 20 : 5; // 7 mit 6 = fast sicher, ohne = riskant
+        score += hasSix ? 20 : 0; // 7 ohne 6 = wertlos
       }
       if (vals.contains(CardValue.ten)) {
-        score += hasSix ? 10 : 4; // 10er mit 6 = gut, ohne = mässig
+        score += hasSix ? 10 : 2;
       }
       if (vals.contains(CardValue.king)) {
-        score += 3;
+        score += hasSix ? 3 : 0; // König ohne 6 = wertlos im Unten
       }
     }
     // Lange Farben → bessere Kontrolle
     for (final count in suitCounts.values) {
       if (count >= 4) score += 12;
     }
-    // Unten ohne 6 ist sehr riskant
+    // Unten ohne 6 ist sehr riskant – ohne eine einzige 6 fast chancenlos
     final hasSix = hand.any((c) => c.value == CardValue.six);
-    if (!hasSix) score -= 35;
+    if (!hasSix) score -= 45;
     return score;
   }
 

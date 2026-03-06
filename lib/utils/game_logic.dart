@@ -600,7 +600,7 @@ class GameLogic {
     }
 
     // ── Kann nicht gewinnen → klug abwerfen ──────────────────────────────────
-    return _discardCard(playable, effectiveMode, trump);
+    return _discardCard(playable, effectiveMode, trump, state.gameMode);
   }
 
   /// Anführ-Strategie: Trump-Stärke ausspielen oder beste Nicht-Trumpf-Farbe
@@ -621,27 +621,40 @@ class GameLogic {
         return _strongest(trumpCards, effectiveMode, trump);
       }
     }
-    // Unten/TrumpUnten: sichere Karten anführen (6er), 10er nur mit 6 darunter
+    // Unten/TrumpUnten: sichere Karten anführen (6er), 7er nur mit zugehöriger 6
     if (effectiveMode == GameMode.unten || effectiveMode == GameMode.trumpUnten) {
       // Sichere Stichkarten zuerst (6er = sicherster Stich)
       final sixes = playable.where((c) =>
           c.value == CardValue.six && (c.suit != trump || effectiveMode == GameMode.unten)).toList();
       if (sixes.isNotEmpty) return sixes.first;
-      // 7er wenn kein 6er mehr vorhanden → relativ sicher
-      final sevens = playable.where((c) =>
-          c.value == CardValue.seven && (c.suit != trump || effectiveMode == GameMode.unten)).toList();
-      if (sevens.isNotEmpty) return sevens.first;
+      // 7er NUR wenn die 6 derselben Farbe auch in der Hand ist (sonst riskant)
+      final safeSevens = playable.where((c) =>
+          c.value == CardValue.seven &&
+          (c.suit != trump || effectiveMode == GameMode.unten) &&
+          playable.any((s) => s.suit == c.suit && s.value == CardValue.six)).toList();
+      if (safeSevens.isNotEmpty) return safeSevens.first;
       // Keine sichere Karte → schwächste (höchste = am wenigsten wert im Unten)
       final nonTrump = playable.where((c) => c.suit != trump).toList();
       if (nonTrump.isNotEmpty) return _weakest(nonTrump, effectiveMode, trump);
       return _weakest(playable, effectiveMode, trump);
     }
-    // Sonst: stärkste Nicht-Trumpf-Karte
+    // Oben: sichere Karten anführen (Asse), König nur mit Dame derselben Farbe
     final nonTrump = playable.where((c) => c.suit != trump).toList();
-    if (nonTrump.isNotEmpty) {
-      return _strongest(nonTrump, effectiveMode, trump);
-    }
-    return _strongest(playable, effectiveMode, trump);
+    final leadCandidates = nonTrump.isNotEmpty ? nonTrump : playable;
+    // Asse zuerst (sicherster Stich im Oben)
+    final aces = leadCandidates.where((c) => c.value == CardValue.ace).toList();
+    if (aces.isNotEmpty) return aces.first;
+    // König nur wenn Dame derselben Farbe auch in der Hand ist
+    final safeKings = leadCandidates.where((c) =>
+        c.value == CardValue.king &&
+        playable.any((q) => q.suit == c.suit && q.value == CardValue.queen)).toList();
+    if (safeKings.isNotEmpty) return safeKings.first;
+    // Sonst: stärkste Karte (aber keine ungesicherten Könige bevorzugen)
+    final noLoneKings = leadCandidates.where((c) =>
+        c.value != CardValue.king ||
+        playable.any((q) => q.suit == c.suit && q.value == CardValue.queen)).toList();
+    if (noLoneKings.isNotEmpty) return _strongest(noLoneKings, effectiveMode, trump);
+    return _strongest(leadCandidates, effectiveMode, trump);
   }
 
   /// Misere/Molotof: versuche den Stich NICHT zu gewinnen
@@ -717,38 +730,47 @@ class GameLogic {
     List<JassCard> playable,
     GameMode effectiveMode,
     Suit? trump,
+    [GameMode? originalMode,]
   ) {
-    // Wertvolle Stichkarten schützen (Asse im Oben, 6er im Unten, beide im Slalom)
+    final baseMode = originalMode ?? effectiveMode;
+    // Wertvolle Stichkarten schützen (Asse im Oben, 6er im Unten, beide im Slalom/Elefant)
+    final protectAces = baseMode == GameMode.slalom || baseMode == GameMode.elefant ||
+        effectiveMode == GameMode.oben || effectiveMode == GameMode.trump;
+    final protectSixes = baseMode == GameMode.slalom || baseMode == GameMode.elefant ||
+        effectiveMode == GameMode.unten || effectiveMode == GameMode.trumpUnten;
+    final protectJacks = baseMode == GameMode.elefant;
     final valuable = <JassCard>{};
     for (final c in playable) {
       if (c.suit == trump) continue; // Trumpfkarten separat behandeln
-      if (effectiveMode == GameMode.oben || effectiveMode == GameMode.slalom ||
-          effectiveMode == GameMode.elefant || effectiveMode == GameMode.trump) {
-        if (c.value == CardValue.ace) valuable.add(c);
-      }
-      if (effectiveMode == GameMode.unten || effectiveMode == GameMode.slalom ||
-          effectiveMode == GameMode.elefant || effectiveMode == GameMode.trumpUnten) {
-        if (c.value == CardValue.six) valuable.add(c);
-      }
-      // Elefant: Buben (Buur) sind extrem wertvoll für die Trumpf-Stiche
-      if (effectiveMode == GameMode.elefant) {
-        if (c.value == CardValue.jack) valuable.add(c);
-      }
+      if (protectAces && c.value == CardValue.ace) valuable.add(c);
+      if (protectSixes && c.value == CardValue.six) valuable.add(c);
+      if (protectJacks && c.value == CardValue.jack) valuable.add(c);
     }
 
     final safe = playable.where((c) => !valuable.contains(c)).toList();
     final candidates = safe.isNotEmpty ? safe : playable;
 
+    // Slalom/Elefant Fallback: wenn nur wertvolle Karten übrig, kombinierte
+    // Punkte beider Richtungen verwenden damit 6er/Asse nicht als "0 Punkte" abgeworfen werden
+    final isMultiMode = baseMode == GameMode.slalom || baseMode == GameMode.elefant;
+    int discardScore(JassCard c) {
+      if (isMultiMode) {
+        // Kombinierter Wert: Punkte in BEIDEN Richtungen berücksichtigen
+        return cardPoints(c, GameMode.oben, trump) + cardPoints(c, GameMode.unten, trump);
+      }
+      return cardPoints(c, effectiveMode, trump);
+    }
+
     // Karten ohne Punktwert bevorzugen
     final zeroPts = candidates
-        .where((c) => cardPoints(c, effectiveMode, trump) == 0)
+        .where((c) => discardScore(c) == 0)
         .toList();
     if (zeroPts.isNotEmpty) {
       return _weakest(zeroPts, effectiveMode, trump);
     }
     // Vermeide 10er abzuwerfen wenn günstigere Karten verfügbar (≤4 Punkte)
     final cheap = candidates
-        .where((c) => cardPoints(c, effectiveMode, trump) <= 4)
+        .where((c) => discardScore(c) <= 4)
         .toList();
     if (cheap.isNotEmpty) return _weakest(cheap, effectiveMode, trump);
     // Sonst: schwächste Karte (geringster Spielwert)
