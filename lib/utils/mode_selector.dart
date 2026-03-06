@@ -55,9 +55,15 @@ class ModeSelectorAI {
     bool bestSlalomStartsOben = true;
 
     final isSchieber = state.gameType == GameType.schieber;
+    final isCoiffeur = state.gameType == GameType.friseurTeam;
     // Wenn Partner geschoben hat, ist Slalom riskant (Partner hat schlechte Hand)
     final partnerHatGeschoben = isSchieber && state.trumpSelectorIndex != null;
     double mult(String vk) {
+      if (isCoiffeur) {
+        // Coiffeur: Multiplikator aus Einstellungen als Delta-Amplifikator
+        final cm = state.coiffeurMultipliers[vk] ?? 1;
+        return cm.toDouble();
+      }
       if (!isSchieber) return 1.0;
       var m = switch (vk) {
         'trump_ss'   => NNTuning.schieberMultTrump,
@@ -190,8 +196,13 @@ class ModeSelectorAI {
     // Moduswahl-Multiplikatoren (unabhängig von Scoring-Multiplikatoren).
     // Ziel: ~20% Oben, ~20% Unten, ~30% Slalom, ~30% Trumpf
     final isSchieber = state.gameType == GameType.schieber;
+    final isCoiffeur = state.gameType == GameType.friseurTeam;
     final partnerHatGeschoben = isSchieber && state.trumpSelectorIndex != null;
     double mult(String vk) {
+      if (isCoiffeur) {
+        final cm = state.coiffeurMultipliers[vk] ?? 1;
+        return cm.toDouble();
+      }
       if (!isSchieber) return 1.0;
       var m = switch (vk) {
         'trump_ss'   => NNTuning.schieberMultTrump,

@@ -35,14 +35,15 @@ Individuelles Spiel über 4 Runden.
 - Strafe = |Vorhersage − tatsächliche Punkte|
 - Spieler mit der geringsten Gesamtstrafe gewinnt
 
-### ✂️ Friseur Team
+### ✂️ Coiffeur
 Strategie-Modus für 2 Teams über 20 Runden.
 
 - Jedes Team muss alle 10 Varianten je einmal ansagen
+- Alle Varianten zählen zu Beginn 1×, Multiplikatoren einstellbar
 - Trumpfgruppen (Schwarz/Rot) müssen je einmal als Oben und einmal als Unten gespielt werden
 - Das Team mit den meisten Punkten nach 20 Runden gewinnt
 
-### ✂️ Friseur Solo (Wunschkarte)
+### 🎴 Wunschkarte (Friseur Solo)
 Solo-Variante über 20–40 Runden.
 
 - Jeder Spieler sagt seine 10 Varianten einzeln an

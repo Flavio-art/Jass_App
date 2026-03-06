@@ -514,6 +514,28 @@ class GameLogic {
       return _avoidWinning(playable, state, effectiveMode, trump, trickNumber, molotofSubMode);
     }
 
+    // ── Geschoben + Partner hat Trumpf angesagt → höchste Trumpfkarte zuerst ──
+    if (isLeading && trump != null &&
+        state.trumpSelectorIndex != null &&
+        (effectiveMode == GameMode.trump || effectiveMode == GameMode.trumpUnten) &&
+        state.gameType == GameType.schieber) {
+      // Prüfen ob dieser Spieler der Schieber ist (= Ansager, nicht der Trumpfwähler)
+      final ansager = state.players[state.ansagerIndex];
+      if (aiPlayer.id == ansager.id && trickNumber == 1) {
+        final trumpCards = playable.where((c) => c.suit == trump).toList();
+        if (trumpCards.isNotEmpty) {
+          // Höchste Trumpfkarte spielen, aber 10 und Ass vermeiden
+          final preferred = trumpCards.where((c) =>
+              c.value != CardValue.ten && c.value != CardValue.ace).toList();
+          if (preferred.isNotEmpty) {
+            return _strongest(preferred, effectiveMode, trump);
+          }
+          // Nur 10/Ass → trotzdem höchste Trumpfkarte
+          return _strongest(trumpCards, effectiveMode, trump);
+        }
+      }
+    }
+
     // ── Anführen ─────────────────────────────────────────────────────────────
     if (isLeading) {
       return _leadCard(playable, effectiveMode, trump, trickNumber, state);
@@ -696,22 +718,41 @@ class GameLogic {
     GameMode effectiveMode,
     Suit? trump,
   ) {
+    // Wertvolle Stichkarten schützen (Asse im Oben, 6er im Unten, beide im Slalom)
+    final valuable = <JassCard>{};
+    for (final c in playable) {
+      if (c.suit == trump) continue; // Trumpfkarten separat behandeln
+      if (effectiveMode == GameMode.oben || effectiveMode == GameMode.slalom ||
+          effectiveMode == GameMode.elefant || effectiveMode == GameMode.trump) {
+        if (c.value == CardValue.ace) valuable.add(c);
+      }
+      if (effectiveMode == GameMode.unten || effectiveMode == GameMode.slalom ||
+          effectiveMode == GameMode.elefant || effectiveMode == GameMode.trumpUnten) {
+        if (c.value == CardValue.six) valuable.add(c);
+      }
+      // Elefant: Buben (Buur) sind extrem wertvoll für die Trumpf-Stiche
+      if (effectiveMode == GameMode.elefant) {
+        if (c.value == CardValue.jack) valuable.add(c);
+      }
+    }
+
+    final safe = playable.where((c) => !valuable.contains(c)).toList();
+    final candidates = safe.isNotEmpty ? safe : playable;
+
     // Karten ohne Punktwert bevorzugen
-    final zeroPts = playable
+    final zeroPts = candidates
         .where((c) => cardPoints(c, effectiveMode, trump) == 0)
         .toList();
     if (zeroPts.isNotEmpty) {
-      // Im Unten/TrumpUnten: schwächste 0-Punkt-Karte = höchste (Ass, König...)
-      // → gut zum Loswerden. Im Oben: schwächste = niedrigste (6, 7...).
       return _weakest(zeroPts, effectiveMode, trump);
     }
     // Vermeide 10er abzuwerfen wenn günstigere Karten verfügbar (≤4 Punkte)
-    final cheap = playable
+    final cheap = candidates
         .where((c) => cardPoints(c, effectiveMode, trump) <= 4)
         .toList();
     if (cheap.isNotEmpty) return _weakest(cheap, effectiveMode, trump);
     // Sonst: schwächste Karte (geringster Spielwert)
-    return _weakest(playable, effectiveMode, trump);
+    return _weakest(candidates, effectiveMode, trump);
   }
 
   static JassCard _strongest(List<JassCard> cards, GameMode mode, Suit? trump) =>

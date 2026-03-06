@@ -233,7 +233,7 @@ class _StatsScreenState extends State<StatsScreen> {
           _buildChip('Alle', null),
           _buildChip('Schieber', GameType.schieber),
           _buildChip('Differenzler', GameType.differenzler),
-          _buildChip('Friseur', GameType.friseurTeam),
+          _buildChip('Coiffeur', GameType.friseurTeam),
           _buildChip('Wunschkarte', GameType.friseur),
         ],
       ),
@@ -574,7 +574,7 @@ class _StatsScreenState extends State<StatsScreen> {
     switch (type) {
       case GameType.schieber: return 'Schieber';
       case GameType.differenzler: return 'Differenzler';
-      case GameType.friseurTeam: return 'Friseur';
+      case GameType.friseurTeam: return 'Coiffeur';
       case GameType.friseur: return 'Wunschkarte';
     }
   }

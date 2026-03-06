@@ -65,7 +65,7 @@ class _RulesScreenState extends State<RulesScreen>
           tabs: const [
             Tab(text: 'Schieber'),
             Tab(text: 'Differenzler'),
-            Tab(text: 'Friseur Team'),
+            Tab(text: 'Coiffeur'),
             Tab(text: 'Wunschkarte'),
           ],
         ),
@@ -236,7 +236,7 @@ class _RulesScreenState extends State<RulesScreen>
         const SizedBox(height: 8),
       ];
 
-  // ── Friseur Team ─────────────────────────────────────────────────────────────
+  // ── Coiffeur ─────────────────────────────────────────────────────────────
 
   List<Widget> _buildFriseurTeamContent(CardType ct) {
     final isGerman = ct == CardType.german;
@@ -246,10 +246,11 @@ class _RulesScreenState extends State<RulesScreen>
         ? 'Metall (Schellen/Schilten) und Gemüse (Rosen/Eichel)'
         : '♠♣ schwarz und ♥♦ rot';
     return [
-        _Section('Spielstruktur – Friseur Team', [
+        _Section('Spielstruktur – Coiffeur', [
           _Rule('2 Teams: Süd & Nord gegen West & Ost.'),
           _Rule('Jedes Team muss alle 10 Spielvarianten je einmal ansagen:\n'
               '$grp1, $grp2, Obenabe, Undenufe, Slalom, Elefant, Misere, Alles Trumpf, Schafkopf, Molotof.'),
+          _Rule('Alle Varianten zählen zu Beginn 1×. Der Multiplikator kann in den Einstellungen angepasst werden.'),
           _Rule('Trumpf Oben / Unten: Jede Trumpfgruppe ($grpHint) muss ein Team je einmal als Oben und einmal als Unten spielen. '
               'Die erste Wahl ist frei; die zweite Gruppe wird automatisch erzwungen.'),
           _Rule('Schieben: Der Ansager kann die Trumpfwahl an den Partner weitergeben. '

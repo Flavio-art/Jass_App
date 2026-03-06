@@ -42,6 +42,11 @@ class _HomeScreenState extends State<HomeScreen> {
     'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof',
   };
 
+  final Map<String, int> _coiffeurMultipliers = {
+    'trump_ss': 1, 'trump_re': 1, 'oben': 1, 'unten': 1, 'slalom': 1,
+    'elefant': 1, 'misere': 1, 'allesTrumpf': 1, 'schafkopf': 1, 'molotof': 1,
+  };
+
   bool get _hasCurrentSavedGame => _savedGameTypes.contains(_selectedGameType);
 
   @override
@@ -84,6 +89,13 @@ class _HomeScreenState extends State<HomeScreen> {
           ..clear()
           ..addAll(variants);
       }
+      final coiffeurJson = prefs.getString('coiffeur_multipliers');
+      if (coiffeurJson != null) {
+        final decoded = jsonDecode(coiffeurJson) as Map<String, dynamic>;
+        _coiffeurMultipliers
+          ..clear()
+          ..addAll(decoded.map((k, v) => MapEntry(k, v as int)));
+      }
       _savedGameTypes = saved;
       // Zuletzt gewählten Spielmodus laden
       final lastGameType = prefs.getString('last_game_type');
@@ -97,7 +109,8 @@ class _HomeScreenState extends State<HomeScreen> {
   void _openSettings() async {
     final initialTab = switch (_selectedGameType) {
       GameType.differenzler => 1,
-      GameType.friseurTeam || GameType.friseur => 2,
+      GameType.friseurTeam => 2,
+      GameType.friseur => 3,
       _ => 0,
     };
 
@@ -111,6 +124,7 @@ class _HomeScreenState extends State<HomeScreen> {
           schieberWinTarget: _schieberWinTarget,
           enabledVariants: Set.from(_enabledVariants),
           differenzlerRounds: _differenzlerRounds,
+          coiffeurMultipliers: Map.from(_coiffeurMultipliers),
           initialTab: initialTab,
         ),
       ),
@@ -144,6 +158,12 @@ class _HomeScreenState extends State<HomeScreen> {
         if (_savedGameTypes.contains(GameType.friseur)) affectedTypes.add(GameType.friseur);
       }
 
+      // Coiffeur-Multiplikatoren geändert → Coiffeur betroffen
+      final coiffeurChanged = !_mapEquals(result.coiffeurMultipliers, _coiffeurMultipliers);
+      if (coiffeurChanged && _savedGameTypes.contains(GameType.friseurTeam)) {
+        affectedTypes.add(GameType.friseurTeam);
+      }
+
       // Wenn betroffene Spielstände existieren → Warndialog
       if (affectedTypes.isNotEmpty) {
         final ok = await _confirmSettingsChange(affectedTypes);
@@ -161,6 +181,9 @@ class _HomeScreenState extends State<HomeScreen> {
           ..clear()
           ..addAll(result.enabledVariants);
         _differenzlerRounds = result.differenzlerRounds;
+        _coiffeurMultipliers
+          ..clear()
+          ..addAll(result.coiffeurMultipliers);
       });
     }
   }
@@ -252,7 +275,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               _GameTypeButton(
-                                label: 'Friseur',
+                                label: 'Coiffeur',
                                 details: const ['Feste Teams', 'Schieben'],
                                 emoji: '✂️',
                                 selected: _selectedGameType == GameType.friseurTeam,
@@ -377,6 +400,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ? Set.from(_enabledVariants)
           : null,
       differenzlerMaxRounds: _differenzlerRounds,
+      coiffeurMultipliers: Map.from(_coiffeurMultipliers),
     );
     await Navigator.push(
       context,
@@ -457,7 +481,7 @@ class _HomeScreenState extends State<HomeScreen> {
     switch (type) {
       case GameType.schieber: return 'Schieber';
       case GameType.differenzler: return 'Differenzler';
-      case GameType.friseurTeam: return 'Friseur';
+      case GameType.friseurTeam: return 'Coiffeur';
       case GameType.friseur: return 'Wunschkarte';
     }
   }

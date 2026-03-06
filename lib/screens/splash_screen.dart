@@ -110,7 +110,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _onFirstTimeComplete() async {
     final name = _nameController.text.trim();
-    final saveName = name.isNotEmpty ? name : 'dir';
+    final saveName = name.isNotEmpty ? name : 'Du';
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('player_name', saveName);
     await prefs.setString(
@@ -179,17 +179,17 @@ class _SplashScreenState extends State<SplashScreen>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildCardFan(_fanCards),
-          const SizedBox(height: 24),
+          _buildCardFan(_fanCards, cardWidth: 78),
+          const SizedBox(height: 28),
           const Text(
             'Built von Flavio',
             style: TextStyle(
               color: Colors.white54,
-              fontSize: 14,
+              fontSize: 18,
               letterSpacing: 1.5,
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -197,7 +197,7 @@ class _SplashScreenState extends State<SplashScreen>
                 'with ',
                 style: TextStyle(
                   color: Colors.white54,
-                  fontSize: 14,
+                  fontSize: 18,
                   letterSpacing: 1.5,
                 ),
               ),
@@ -205,22 +205,22 @@ class _SplashScreenState extends State<SplashScreen>
                 '♥',
                 style: TextStyle(
                   color: Color(0xFFDC143C),
-                  fontSize: 16,
+                  fontSize: 22,
                 ),
               ),
-              const Text(
-                ' für ',
-                style: TextStyle(
+              Text(
+                _playerName == 'Du' ? ' für ' : ' für ',
+                style: const TextStyle(
                   color: Colors.white54,
-                  fontSize: 14,
+                  fontSize: 18,
                   letterSpacing: 1.5,
                 ),
               ),
               Text(
-                _playerName ?? '',
+                (_playerName == null || _playerName == 'Du') ? 'dich' : _playerName!,
                 style: const TextStyle(
                   color: Color(0xFFFFD700),
-                  fontSize: 16,
+                  fontSize: 20,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.5,
                 ),
