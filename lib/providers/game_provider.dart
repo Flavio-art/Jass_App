@@ -495,6 +495,7 @@ class GameProvider extends ChangeNotifier {
       roundNumber: currentState.roundNumber + 1,
       ansagerIndex: newAnsagerIndex,
       trumpSelectorIndex: null,
+      roundGeschoben: false,
       usedVariantsTeam1: newUsed1,
       usedVariantsTeam2: newUsed2,
       totalTeamScores: newTotal,
@@ -623,6 +624,7 @@ class GameProvider extends ChangeNotifier {
       ansagerIndex: newAnsagerIndex,
       lochPlayerIndex: newLochIndex,
       trumpSelectorIndex: null,
+      roundGeschoben: false,
       pendingNextPlayerIndex: null,
       currentPlayerIndex: newAnsagerIndex,
       molotofSubMode: null,
@@ -700,6 +702,7 @@ class GameProvider extends ChangeNotifier {
       roundNumber: currentState.roundNumber + 1,
       ansagerIndex: newAnsagerIndex,
       trumpSelectorIndex: null,
+      roundGeschoben: false,
       totalTeamScores: newTotal,
       pendingNextPlayerIndex: null,
       currentPlayerIndex: newAnsagerIndex,
@@ -754,6 +757,7 @@ class GameProvider extends ChangeNotifier {
       roundNumber: currentState.roundNumber + 1,
       ansagerIndex: newAnsagerIndex,
       trumpSelectorIndex: null,
+      roundGeschoben: false,
       pendingNextPlayerIndex: null,
       currentPlayerIndex: newAnsagerIndex,
       molotofSubMode: null,
@@ -773,7 +777,7 @@ class GameProvider extends ChangeNotifier {
       // Schieber: nur Ansager kann schieben (genau einmal, zum Partner)
       if (_state.trumpSelectorIndex != null) return;
       final partnerIndex = (_state.ansagerIndex + 2) % 4;
-      _state = _state.copyWith(trumpSelectorIndex: partnerIndex);
+      _state = _state.copyWith(trumpSelectorIndex: partnerIndex, roundGeschoben: true);
       notifyListeners();
       if (!_state.currentTrumpSelector.isHuman) _autoSelectMode();
       return;
@@ -785,7 +789,7 @@ class GameProvider extends ChangeNotifier {
       final nextIndex = (currentSelector + 1) % 4;
       // Zurück beim Ansager → muss spielen, kein weiteres Schieben
       if (nextIndex == _state.ansagerIndex) return;
-      _state = _state.copyWith(trumpSelectorIndex: nextIndex);
+      _state = _state.copyWith(trumpSelectorIndex: nextIndex, roundGeschoben: true);
       notifyListeners();
       if (!_state.currentTrumpSelector.isHuman) {
         _coiffeurKiDecideSchieben();
@@ -1201,8 +1205,12 @@ class GameProvider extends ChangeNotifier {
 
   /// Detektiert alle Weisen (Folgen + Vierling) für einen Spieler.
   List<WyssEntry> _detectWyssForPlayer(
-      List<JassCard> hand, Suit? trumpSuit, String playerId) {
+      List<JassCard> hand, Suit? trumpSuit, String playerId, GameMode mode) {
     final entries = <WyssEntry>[];
+
+    // Welche Vierlinge sind im aktuellen Modus wertlos?
+    final isOben = mode == GameMode.oben;
+    final isUnten = mode == GameMode.unten;
 
     // Vierling (4 gleiche Werte)
     final valueCounts = <CardValue, int>{};
@@ -1212,6 +1220,10 @@ class GameProvider extends ChangeNotifier {
     for (final ve in valueCounts.entries) {
       if (ve.value == 4) {
         final v = ve.key;
+        // 4×6 bei Obenabe = wertlos (6 zählt 0 Punkte)
+        if (v == CardValue.six && isOben) continue;
+        // 4×Ass bei Undenufe = wertlos (Ass zählt 0 Punkte)
+        if (v == CardValue.ace && isUnten) continue;
         final pts = v == CardValue.jack ? 200 : (v == CardValue.nine ? 150 : 100);
         entries.add(WyssEntry(
           playerId: playerId,
@@ -1686,7 +1698,7 @@ class GameProvider extends ChangeNotifier {
       nextPhase = GamePhase.wishCardSelection;
     } else if (_state.gameType == GameType.schieber) {
       for (final p in _state.players) {
-        final entries = _detectWyssForPlayer(p.hand, trumpSuit, p.id);
+        final entries = _detectWyssForPlayer(p.hand, trumpSuit, p.id, mode);
         if (entries.isNotEmpty) playerWyss[p.id] = entries;
       }
       if (playerWyss.isEmpty) {
@@ -1716,6 +1728,7 @@ class GameProvider extends ChangeNotifier {
       currentPlayerIndex: effectiveAnsagerIndex,
       ansagerIndex: effectiveAnsagerIndex,
       trumpSelectorIndex: null,
+      roundGeschoben: _state.roundGeschoben,
       slalomStartsOben: slalomStartsOben,
       wishCard: wishCard,
       friseurPartnerIndex: null,

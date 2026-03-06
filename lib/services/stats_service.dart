@@ -112,16 +112,19 @@ class StatsService {
           final variant = type == GameType.differenzler
               ? (rng.nextBool() ? 'trump_ss' : 'trump_re')
               : variants[rng.nextInt(variants.length)];
-          final center = (variantCenter[variant] ?? 100)
+          final announced = rng.nextBool();
+          final baseCenter = (variantCenter[variant] ?? 100)
               + (variantShift[variant] ?? 0)
               + (type == GameType.schieber ? schieberOffset : 0);
+          // Eigene Ansage: ~center Punkte; Gegner-Ansage: ~157-center
+          final center = announced ? baseCenter : (157 - baseCenter);
           final own = max(10, center - spread + rng.nextInt(spread * 2 + 1));
           final opp = max(0, 157 - own + rng.nextInt(30) - 15);
           rounds.add(RoundRecord(
             variantKey: variant,
             ownScore: own,
             opponentScore: opp,
-            wasAnnouncer: rng.nextBool(),
+            wasAnnouncer: announced,
           ));
           totalOwn += own;
           totalOpp += opp;

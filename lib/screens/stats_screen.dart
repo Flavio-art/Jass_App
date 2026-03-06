@@ -124,18 +124,26 @@ class _StatsScreenState extends State<StatsScreen> {
     // Schieber: nur diese Varianten erlaubt
     const schieberVariants = {'trump_ss', 'trump_re', 'oben', 'unten', 'slalom'};
 
-    final variantScores = <String, List<int>>{};
+    // Eigene Ansage vs Gegner-Ansage getrennt
+    final variantOwn = <String, List<int>>{};
+    final variantOpp = <String, List<int>>{};
     if (showVariantStats) {
       for (final r in records) {
         if (r.gameType == GameType.differenzler) continue;
+        final isSchieber = r.gameType == GameType.schieber;
         for (final round in r.rounds) {
-          // Bei Schieber-Filter nur Schieber-Varianten zeigen
-          if ((_filter == GameType.schieber || r.gameType == GameType.schieber)
+          // Bei Schieber nur Schieber-Varianten
+          if ((isSchieber || _filter == GameType.schieber)
               && !schieberVariants.contains(round.variantKey)) {
             continue;
           }
-          variantScores.putIfAbsent(round.variantKey, () => []);
-          variantScores[round.variantKey]!.add(round.ownScore);
+          if (round.wasAnnouncer) {
+            variantOwn.putIfAbsent(round.variantKey, () => []);
+            variantOwn[round.variantKey]!.add(round.ownScore);
+          } else {
+            variantOpp.putIfAbsent(round.variantKey, () => []);
+            variantOpp[round.variantKey]!.add(round.ownScore);
+          }
         }
       }
     }
@@ -186,11 +194,18 @@ class _StatsScreenState extends State<StatsScreen> {
           const SizedBox(height: 20),
         ],
 
-        // Variant stats (Teamspiele / Alle)
-        if (variantScores.isNotEmpty) ...[
-          _buildSectionTitle('Punkte pro Modus'),
+        // Eigene Ansage
+        if (variantOwn.isNotEmpty) ...[
+          _buildSectionTitle('Punkte pro Modus (eigene Ansage)'),
           const SizedBox(height: 8),
-          _buildVariantStats(variantScores),
+          _buildVariantStats(variantOwn),
+          const SizedBox(height: 20),
+        ],
+        // Gegner-Ansage
+        if (variantOpp.isNotEmpty) ...[
+          _buildSectionTitle('Punkte pro Modus (Gegner-Ansage)'),
+          const SizedBox(height: 8),
+          _buildVariantStats(variantOpp),
           const SizedBox(height: 20),
         ],
 

@@ -232,6 +232,7 @@ class GameState {
   final int ansagerIndex;
   final int lochPlayerIndex; // Friseur Solo: wer spielen MUSS wenn alle passen (rotiert unabhängig)
   final int? trumpSelectorIndex; // null = Ansager wählt; gesetzt = Partner wählt (nach Schieben)
+  final bool roundGeschoben; // true = in dieser Runde wurde geschoben (bleibt während ganzer Runde)
   final Set<String> usedVariantsTeam1;
   final Set<String> usedVariantsTeam2;
   final Map<String, int> totalTeamScores;
@@ -335,6 +336,7 @@ class GameState {
     this.ansagerIndex = 0,
     this.lochPlayerIndex = 0,
     this.trumpSelectorIndex,
+    this.roundGeschoben = false,
     this.usedVariantsTeam1 = const {},
     this.usedVariantsTeam2 = const {},
     this.totalTeamScores = const {'team1': 0, 'team2': 0},
@@ -543,6 +545,7 @@ class GameState {
     'ansagerIndex': ansagerIndex,
     'lochPlayerIndex': lochPlayerIndex,
     if (trumpSelectorIndex != null) 'trumpSelectorIndex': trumpSelectorIndex,
+    'roundGeschoben': roundGeschoben,
     'usedVariantsTeam1': usedVariantsTeam1.toList(),
     'usedVariantsTeam2': usedVariantsTeam2.toList(),
     'totalTeamScores': totalTeamScores,
@@ -597,6 +600,7 @@ class GameState {
       ansagerIndex: j['ansagerIndex'] as int,
       lochPlayerIndex: j['lochPlayerIndex'] as int? ?? 0,
       trumpSelectorIndex: j['trumpSelectorIndex'] as int?,
+      roundGeschoben: j['roundGeschoben'] as bool? ?? false,
       usedVariantsTeam1: Set<String>.from(j['usedVariantsTeam1'] as List),
       usedVariantsTeam2: Set<String>.from(j['usedVariantsTeam2'] as List),
       totalTeamScores: Map<String, int>.from(j['totalTeamScores'] as Map),
@@ -690,6 +694,7 @@ class GameState {
     int? ansagerIndex,
     int? lochPlayerIndex,
     Object? trumpSelectorIndex = _sentinel,
+    bool? roundGeschoben,
     Set<String>? usedVariantsTeam1,
     Set<String>? usedVariantsTeam2,
     Map<String, int>? totalTeamScores,
@@ -746,6 +751,7 @@ class GameState {
       trumpSelectorIndex: trumpSelectorIndex == _sentinel
           ? this.trumpSelectorIndex
           : trumpSelectorIndex as int?,
+      roundGeschoben: roundGeschoben ?? this.roundGeschoben,
       usedVariantsTeam1: usedVariantsTeam1 ?? this.usedVariantsTeam1,
       usedVariantsTeam2: usedVariantsTeam2 ?? this.usedVariantsTeam2,
       totalTeamScores: totalTeamScores ?? this.totalTeamScores,

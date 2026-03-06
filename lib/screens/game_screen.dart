@@ -612,9 +612,7 @@ class _GameScreenState extends State<GameScreen> {
                                     : null,
                                 gameType: state.gameType,
                                 cardType: state.cardType,
-                                geschoben: state.trumpSelectorIndex != null &&
-                                    (state.gameType == GameType.schieber ||
-                                        state.gameType == GameType.friseurTeam),
+                                geschoben: state.roundGeschoben,
                               ),
                             ),
                           ),
@@ -4206,7 +4204,7 @@ class _WyssOverlayState extends State<_WyssOverlay> {
         }
       }
     }
-    final winnerName = winner == 'team1' ? 'Euer Team' : 'Das gegnerische Team';
+    final isHumanTeam = winner == 'team1';
 
     // Only show winning team's players
     final winnerPlayers = winner == null
@@ -4248,7 +4246,9 @@ class _WyssOverlayState extends State<_WyssOverlay> {
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Text(
-                          '$winnerName gewinnt die Weisen! +$winnerPts Punkte',
+                          isHumanTeam
+                              ? 'Dein Team gewinnt +$winnerPts Punkte durch Weisen'
+                              : 'Das Gegner-Team gewinnt +$winnerPts Punkte durch Weisen',
                           style: const TextStyle(
                               color: Colors.white70, fontSize: 13),
                           textAlign: TextAlign.center,
@@ -4318,10 +4318,11 @@ class _WyssOverlayState extends State<_WyssOverlay> {
 
   Widget _playerWyssCards(Player player, List<WyssEntry>? entries) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         // Player name + points badge
         Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
               player.name,
