@@ -1560,20 +1560,45 @@ class GameProvider extends ChangeNotifier {
       );
     }
 
-    // Bei Obenabe: Ass wünschen
+    // Bei Obenabe: Ass wünschen, Fallback König/Ober/Zehner einer Farbe
+    // die man anspielen kann (z.B. König wünschen wo man Ass hat)
     if (mode == GameMode.oben) {
-      return available.firstWhere(
-        (c) => c.value == CardValue.ace,
-        orElse: () => available.first,
-      );
+      final handSuits = selector.hand.map((c) => c.suit).toSet();
+      for (final val in [CardValue.ace, CardValue.king, CardValue.queen, CardValue.ten]) {
+        // Bevorzuge Farben wo man eine höhere Karte hat zum Anspielen
+        final candidates = available.where((c) => c.value == val).toList();
+        if (candidates.isEmpty) continue;
+        // Farbe wo man die nächsthöhere Karte hat (z.B. Ass für König-Wunsch)
+        final withLead = candidates.where((c) =>
+            selector.hand.any((h) => h.suit == c.suit &&
+                GameLogic.cardPlayStrength(h, GameMode.oben, null) >
+                GameLogic.cardPlayStrength(c, GameMode.oben, null))).toList();
+        if (withLead.isNotEmpty) return withLead.first;
+        // Sonst: Farbe die man zumindest auf der Hand hat
+        final inHand = candidates.where((c) => handSuits.contains(c.suit)).toList();
+        if (inHand.isNotEmpty) return inHand.first;
+        return candidates.first;
+      }
+      return available.first;
     }
 
-    // Bei Undenufe: Sechs wünschen
+    // Bei Undenufe: Sechs wünschen, Fallback Sieben/Acht einer anspielbaren Farbe
     if (mode == GameMode.unten) {
-      return available.firstWhere(
-        (c) => c.value == CardValue.six,
-        orElse: () => available.first,
-      );
+      final handSuits = selector.hand.map((c) => c.suit).toSet();
+      for (final val in [CardValue.six, CardValue.seven, CardValue.eight]) {
+        final candidates = available.where((c) => c.value == val).toList();
+        if (candidates.isEmpty) continue;
+        // Farbe wo man die nächsttiefere Karte hat (z.B. 6 für 7er-Wunsch)
+        final withLead = candidates.where((c) =>
+            selector.hand.any((h) => h.suit == c.suit &&
+                GameLogic.cardPlayStrength(h, GameMode.unten, null) >
+                GameLogic.cardPlayStrength(c, GameMode.unten, null))).toList();
+        if (withLead.isNotEmpty) return withLead.first;
+        final inHand = candidates.where((c) => handSuits.contains(c.suit)).toList();
+        if (inHand.isNotEmpty) return inHand.first;
+        return candidates.first;
+      }
+      return available.first;
     }
 
     // Bei Misere: tiefste Karte (6 oder 7) von einer Farbe die man nicht hat
