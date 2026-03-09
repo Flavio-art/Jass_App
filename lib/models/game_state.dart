@@ -45,6 +45,8 @@ class RoundResult {
   final int team2Score;
   final int rawTeam1Score;   // tatsächliche Rohpunkte für Anzeige
   final int rawTeam2Score;
+  final int pureTeam1Score;  // reine Stichpunkte ohne Stöcke/Wyss/Match (für Statistik)
+  final int pureTeam2Score;
   final String announcerName; // Anzeige in Spielübersicht
   final String? partnerName;  // Partner des Ansagers (null = unbekannt)
   /// Wyss-Punkte (inkl. Multiplikator) die Team 1 erhalten hat (0 wenn Team 2 gewonnen hat).
@@ -61,6 +63,8 @@ class RoundResult {
     required this.team2Score,
     required this.rawTeam1Score,
     required this.rawTeam2Score,
+    this.pureTeam1Score = -1,
+    this.pureTeam2Score = -1,
     required this.announcerName,
     this.partnerName,
     this.wyssPoints1 = 0,
@@ -76,6 +80,8 @@ class RoundResult {
     'team2Score': team2Score,
     'rawTeam1Score': rawTeam1Score,
     'rawTeam2Score': rawTeam2Score,
+    'pureTeam1Score': pureTeam1Score,
+    'pureTeam2Score': pureTeam2Score,
     'announcerName': announcerName,
     if (partnerName != null) 'partnerName': partnerName,
     'wyssPoints1': wyssPoints1,
@@ -91,6 +97,8 @@ class RoundResult {
     team2Score: j['team2Score'] as int,
     rawTeam1Score: j['rawTeam1Score'] as int,
     rawTeam2Score: j['rawTeam2Score'] as int,
+    pureTeam1Score: j['pureTeam1Score'] as int? ?? -1,
+    pureTeam2Score: j['pureTeam2Score'] as int? ?? -1,
     announcerName: j['announcerName'] as String,
     partnerName: j['partnerName'] as String?,
     wyssPoints1: j['wyssPoints1'] as int? ?? 0,

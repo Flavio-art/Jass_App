@@ -147,10 +147,22 @@ class GameProvider extends ChangeNotifier {
       final sorted = s.differenzlerPenalties.values.toList()..sort();
       playerPlacement = sorted.indexOf(myPenalty) + 1;
     } else if (s.gameType == GameType.friseur) {
-      // Friseur Solo: Gesamtpunkte pro Spieler
+      // Friseur Solo: Durchschnitt pro Variante summieren (wie Game-End-Overlay)
+      final allVariants = ['trump_ss', 'trump_re', 'oben', 'unten', 'slalom',
+                           'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof'];
+      int avgTotal(String playerId) {
+        int total = 0;
+        for (final v in allVariants) {
+          final scores = s.friseurSoloScores[playerId]?[v] ?? [];
+          if (scores.isNotEmpty) {
+            total += (scores.reduce((a, b) => a + b) / scores.length).round();
+          }
+        }
+        return total;
+      }
       final playerTotals = <String, int>{};
-      for (final entry in s.friseurSoloScores.entries) {
-        playerTotals[entry.key] = entry.value.values.fold<int>(0, (a, list) => a + list.fold(0, (x, y) => x + y));
+      for (final pid in s.friseurSoloScores.keys) {
+        playerTotals[pid] = avgTotal(pid);
       }
       final myTotal = playerTotals['p1'] ?? 0;
       int bestOther = 0;
@@ -172,12 +184,31 @@ class GameProvider extends ChangeNotifier {
     }
 
     // Runden-Details aus roundHistory extrahieren
-    final rounds = s.roundHistory.map((r) => RoundRecord(
-      variantKey: r.variantKey,
-      ownScore: r.rawTeam1Score,
-      opponentScore: r.rawTeam2Score,
-      wasAnnouncer: r.isTeam1Ansager,
-    )).toList();
+    // pureTeamScore = reine Stichpunkte ohne Stöcke/Wyss/Match-Bonus
+    // Fallback auf rawTeamScore für alte Spielstände ohne pureTeamScore
+    final p1Name = s.players.firstWhere((p) => p.id == 'p1').name;
+    final rounds = s.roundHistory.map((r) {
+      final pure1 = r.pureTeam1Score >= 0 ? r.pureTeam1Score : r.rawTeam1Score;
+      final pure2 = r.pureTeam2Score >= 0 ? r.pureTeam2Score : r.rawTeam2Score;
+      if (s.gameType == GameType.friseur) {
+        // Wunschkarte: p1 kann Ansager, Partner oder Gegner sein
+        final isAnnouncer = r.announcerName == p1Name;
+        final isPartner = r.partnerName == p1Name;
+        final onAnnouncerTeam = isAnnouncer || isPartner;
+        return RoundRecord(
+          variantKey: r.variantKey,
+          ownScore: onAnnouncerTeam ? pure1 : pure2,
+          opponentScore: onAnnouncerTeam ? pure2 : pure1,
+          wasAnnouncer: onAnnouncerTeam, // Ansager ODER Partner (gewünscht)
+        );
+      }
+      return RoundRecord(
+        variantKey: r.variantKey,
+        ownScore: pure1,
+        opponentScore: pure2,
+        wasAnnouncer: r.isTeam1Ansager,
+      );
+    }).toList();
 
     final record = GameRecord(
       date: DateTime.now(),
@@ -1634,7 +1665,9 @@ class GameProvider extends ChangeNotifier {
       return available.first;
     }
 
-    // Slalom: Ass oder Sechs der Farbe mit den meisten Karten auf der Hand
+    // Slalom: Ass oder Sechs wünschen, aber NICHT von einer Farbe wo man
+    // selbst die Gegenrichtung hat (z.B. Ass wünschen wenn man die 6 hat
+    // → Partner muss eventuell seine 6 hergeben beim Oben-Stich).
     if (mode == GameMode.slalom) {
       final allSuits = selector.hand.first.cardType == CardType.french
           ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
@@ -1645,6 +1678,28 @@ class GameProvider extends ChangeNotifier {
       }
       final sortedSuits = [...allSuits]
         ..sort((a, b) => counts[b]!.compareTo(counts[a]!));
+
+      // Gegenkarten auf der eigenen Hand: Ass↔6
+      final hasAceOf = <Suit>{};
+      final hasSixOf = <Suit>{};
+      for (final c in selector.hand) {
+        if (c.value == CardValue.ace) hasAceOf.add(c.suit);
+        if (c.value == CardValue.six) hasSixOf.add(c.suit);
+      }
+
+      for (final suit in sortedSuits) {
+        for (final val in [CardValue.ace, CardValue.six]) {
+          // Nicht Ass wünschen wenn man selbst die 6 dieser Farbe hat (und umgekehrt)
+          if (val == CardValue.ace && hasSixOf.contains(suit)) continue;
+          if (val == CardValue.six && hasAceOf.contains(suit)) continue;
+          final card = available.firstWhere(
+            (c) => c.suit == suit && c.value == val,
+            orElse: () => available[0],
+          );
+          if (card.suit == suit && card.value == val) return card;
+        }
+      }
+      // Fallback: ohne Einschränkung
       for (final suit in sortedSuits) {
         for (final val in [CardValue.ace, CardValue.six]) {
           final card = available.firstWhere(
@@ -1967,6 +2022,9 @@ class GameProvider extends ChangeNotifier {
     if (roundOver) {
       final rawTeam1 = _state.teamScores['team1'] ?? 0;
       final rawTeam2 = _state.teamScores['team2'] ?? 0;
+      // Reine Stichpunkte ohne Stöcke/Wyss/Match (für Statistik)
+      int pureRaw1 = rawTeam1;
+      int pureRaw2 = rawTeam2;
 
       // Debug: Scoring-Anomalie erkennen
       if (_state.gameType != GameType.schieber &&
@@ -2003,8 +2061,8 @@ class GameProvider extends ChangeNotifier {
         final stocke1 = _state.stockeRoundPoints['team1'] ?? 0;
         final stocke2 = _state.stockeRoundPoints['team2'] ?? 0;
         // Stöcke aus Rohpunkten herausrechnen (werden als Wysspunkte gezeigt)
-        final pureRaw1 = rawTeam1 - stocke1;
-        final pureRaw2 = rawTeam2 - stocke2;
+        pureRaw1 = rawTeam1 - stocke1;
+        pureRaw2 = rawTeam2 - stocke2;
         finalTeam1 = ((pureRaw1 == 157 ? 257 : pureRaw1) + wyssBonus1 + stocke1) * mult;
         finalTeam2 = ((pureRaw2 == 157 ? 257 : pureRaw2) + wyssBonus2 + stocke2) * mult;
         roundWyssPoints1 = (wyssBonus1 + stocke1) * mult;
@@ -2125,6 +2183,8 @@ class GameProvider extends ChangeNotifier {
         team2Score: finalTeam2,
         rawTeam1Score: rawTeam1,
         rawTeam2Score: rawTeam2,
+        pureTeam1Score: pureRaw1,
+        pureTeam2Score: pureRaw2,
         announcerName: _state.players[_state.ansagerIndex].name,
         partnerName: partnerName,
         wyssPoints1: roundWyssPoints1,
@@ -2141,10 +2201,40 @@ class GameProvider extends ChangeNotifier {
       }
     }
 
-    // Schieber: Wenn Limit bereits erreicht, direkt zum Spielende
-    final skipRoundEnd = roundOver &&
-        _state.gameType == GameType.schieber &&
-        _state.schieberLimitReachedBy != null;
+    // Direkt zum Spielende wenn letzte Runde (keine Rundenzusammenfassung)
+    bool skipRoundEnd = false;
+    if (roundOver) {
+      // Schieber: Limit erreicht
+      if (_state.gameType == GameType.schieber &&
+          _state.schieberLimitReachedBy != null) {
+        skipRoundEnd = true;
+      }
+      // Friseur Team: letzte Variante gespielt (aktuelle Runde + bisherige)
+      if (_state.gameType == GameType.friseurTeam) {
+        final vc = _state.enabledVariants.length;
+        final u1 = _state.usedVariantsTeam1.length +
+            (_state.isTeam1Ansager ? 1 : 0);
+        final u2 = _state.usedVariantsTeam2.length +
+            (_state.isTeam1Ansager ? 0 : 1);
+        if (u1 >= vc && u2 >= vc) skipRoundEnd = true;
+      }
+      // Friseur Solo: alle Spieler haben alle Varianten angesagt
+      if (_state.gameType == GameType.friseur) {
+        final vc = _state.enabledVariants.length;
+        final scores = newFriseurSoloScores ?? _state.friseurSoloScores;
+        final allDone = _state.players.every((p) {
+          final variants = scores[p.id] ?? {};
+          return variants.length >= vc;
+        });
+        if (allDone) skipRoundEnd = true;
+      }
+      // Differenzler: letzte Runde
+      if (_state.gameType == GameType.differenzler) {
+        if (_state.roundNumber >= _state.differenzlerMaxRounds) {
+          skipRoundEnd = true;
+        }
+      }
+    }
     final endPhase = skipRoundEnd
         ? GamePhase.gameEnd
         : (roundOver ? GamePhase.roundEnd : GamePhase.playing);
@@ -2293,12 +2383,20 @@ class GameProvider extends ChangeNotifier {
                 _state.completedTricks.length >= 6))) {
       final otherValue =
           card.value == CardValue.king ? CardValue.queen : CardValue.king;
-      final otherAlreadyPlayed =
-          _state.completedTricks.any((t) => t.cards.values
-              .any((c) => c.suit == _state.trumpSuit && c.value == otherValue)) ||
-          _state.currentTrickCards.any(
-              (c) => c.suit == _state.trumpSuit && c.value == otherValue);
-      if (otherAlreadyPlayed) {
+      // Prüfen ob derSELBE Spieler die andere Karte bereits gespielt hat
+      final otherPlayedBySamePlayer =
+          _state.completedTricks.any((t) {
+            final playerCard = t.cards[playerId];
+            return playerCard != null &&
+                playerCard.suit == _state.trumpSuit &&
+                playerCard.value == otherValue;
+          }) ||
+          // Im aktuellen Stich: nur wenn derselbe Spieler sie gespielt hat
+          _state.currentTrickCards.asMap().entries.any((e) =>
+              _state.currentTrickPlayerIds[e.key] == playerId &&
+              e.value.suit == _state.trumpSuit &&
+              e.value.value == otherValue);
+      if (otherPlayedBySamePlayer) {
         final stocker = updatedPlayers.firstWhere((p) => p.id == playerId);
         final stockeName = stocker.name;
         final isTeam1 = _isAnnouncingTeam(stocker);

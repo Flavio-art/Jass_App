@@ -50,84 +50,105 @@ class _PlayerHandWidgetState extends State<PlayerHandWidget> {
 
   Widget _buildHumanHand(List<JassCard> cards) {
     final n = cards.length;
-    // Kartengrösse dynamisch: mehr Karten → schmaler
-    final cardWidth = n >= 9 ? 76.0 : n >= 7 ? 84.0 : 90.0;
-    final overlap = n >= 9 ? 33.0 : n >= 7 ? 40.0 : 44.0;
 
     if (n == 0) {
-      return const SizedBox(height: 160);
+      return const SizedBox(height: 184);
     }
 
-    // Fan (Fächer) layout: rotate cards around bottom center
-    final maxHalfAngle = (0.03 * n).clamp(0.0, 0.22);
-    final angleStep = n > 1 ? (2 * maxHalfAngle) / (n - 1) : 0.0;
-    final totalWidth = cardWidth + (n - 1) * overlap;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxHalfAngle = (0.03 * n).clamp(0.0, 0.22);
+        final angleStep = n > 1 ? (2 * maxHalfAngle) / (n - 1) : 0.0;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (widget.teamColor != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-              decoration: BoxDecoration(
-                color: widget.teamColor!.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: widget.teamColor!, width: 1),
-              ),
-              child: Text(
-                'Du',
-                style: TextStyle(
-                  color: widget.teamColor,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-        if (widget.isActive)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.amber.shade700,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Text(
-                'Dein Zug',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-        SizedBox(
-          height: 160,
-          width: totalWidth,
-          child: Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.bottomCenter,
-            children: [
-              for (int i = 0; i < n; i++)
-                Positioned(
-                  bottom: 0,
-                  left: i * overlap,
-                  child: Transform.rotate(
-                    angle: -maxHalfAngle + i * angleStep,
-                    alignment: Alignment.bottomCenter,
-                    child: CardWidget(
-                      card: cards[i],
-                      isPlayable: widget.playableCards.contains(cards[i]),
-                      isSelected: _selectedCard == cards[i],
-                      width: cardWidth,
-                      onTap: () => _onCardTap(cards[i]),
+        // Kartenhöhe ≈ cardWidth * 1.5; Rotation der äusseren Karte
+        // verschiebt die obere Ecke um ca. cardHeight * sin(maxHalfAngle)
+        // Wir reservieren diesen Platz + 2px Rand pro Seite
+        const cardAspect = 1.5;
+        final sinAngle = maxHalfAngle; // sin(x) ≈ x für kleine Winkel
+
+        // Kartengrösse: so gross wie möglich, aber Karten müssen reinpassen
+        const overlapRatio9 = 0.29;  // 9 Karten: stärkere Überlappung
+        const overlapRatio7 = 0.35;  // 7-8 Karten
+        const overlapRatio6 = 0.37;  // ≤6 Karten
+        final ratio = n >= 9 ? overlapRatio9 : n >= 7 ? overlapRatio7 : overlapRatio6;
+
+        // availableWidth = maxWidth - 2 * (cardHeight * sin(angle) + 2px)
+        // cardHeight = cardWidth * 1.5
+        // totalWidth = cardWidth * (1 + (n-1) * ratio)
+        // totalWidth + 2 * cardWidth * 1.5 * sin(angle) + 4 = maxWidth
+        // cardWidth * (1 + (n-1)*ratio + 2*1.5*sin) = maxWidth - 4
+        final maxW = (constraints.maxWidth > 0 ? constraints.maxWidth : 400.0) - 4.0;
+        final cardWidth = (maxW / (1 + (n - 1) * ratio + 2 * cardAspect * sinAngle)).clamp(40.0, 120.0);
+        final overlap = cardWidth * ratio;
+        final totalWidth = cardWidth + (n - 1) * overlap;
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (widget.teamColor != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: widget.teamColor!.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: widget.teamColor!, width: 1),
+                  ),
+                  child: Text(
+                    widget.player.name,
+                    style: TextStyle(
+                      color: widget.teamColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
-            ],
-          ),
-        ),
-      ],
+              ),
+            if (widget.isActive)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade700,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${widget.player.name} am Zug',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            SizedBox(
+              height: 184,
+              width: totalWidth,
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.bottomCenter,
+                children: [
+                  for (int i = 0; i < n; i++)
+                    Positioned(
+                      bottom: 0,
+                      left: i * overlap,
+                      child: Transform.rotate(
+                        angle: -maxHalfAngle + i * angleStep,
+                        alignment: Alignment.bottomCenter,
+                        child: CardWidget(
+                          card: cards[i],
+                          isPlayable: widget.playableCards.contains(cards[i]),
+                          isSelected: _selectedCard == cards[i],
+                          width: cardWidth,
+                          onTap: () => _onCardTap(cards[i]),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -135,7 +156,7 @@ class _PlayerHandWidgetState extends State<PlayerHandWidget> {
     final isVertical = widget.player.position == PlayerPosition.west ||
         widget.player.position == PlayerPosition.east;
     const cardWidth = 40.0;
-    const overlap = 22.0;
+    const overlap = 14.0;
     final count = cards.length;
 
     final nameColor = widget.teamColor ?? Colors.white70;

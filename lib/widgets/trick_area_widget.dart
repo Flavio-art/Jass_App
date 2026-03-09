@@ -121,15 +121,15 @@ class TrickAreaWidget extends StatelessWidget {
     );
 
     final alignment = switch (player.position) {
-      PlayerPosition.south => const Alignment(0, 0.75),
-      PlayerPosition.north => const Alignment(0, -0.75),
-      PlayerPosition.west  => const Alignment(-0.75, 0),
-      PlayerPosition.east  => const Alignment(0.75, 0),
+      PlayerPosition.south => const Alignment(0, 0.65),
+      PlayerPosition.north => const Alignment(0, -0.65),
+      PlayerPosition.west  => const Alignment(-0.65, 0),
+      PlayerPosition.east  => const Alignment(0.65, 0),
     };
 
     return Align(
       alignment: alignment,
-      child: CardWidget(card: card, width: 84),
+      child: CardWidget(card: card, width: 92),
     );
   }
 }

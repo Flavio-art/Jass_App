@@ -201,7 +201,6 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Oberer Abstand
                   const Spacer(flex: 3),
 
                   // ── 1. JASS Titel ──────────────────────────────────────

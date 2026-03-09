@@ -235,13 +235,16 @@ class _SplashScreenState extends State<SplashScreen>
   // ── Erststart: Setup inline ────────────────────────────────────────────────
 
   Widget _buildSetupScreen() {
-    return Center(
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const SizedBox(height: 20),
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const SizedBox(height: 20),
 
             // ── Willkommen + Name ──
             const Text(
@@ -406,7 +409,9 @@ class _SplashScreenState extends State<SplashScreen>
             ),
 
             const SizedBox(height: 20),
-          ],
+              ],
+            ),
+          ),
         ),
       ),
     );
