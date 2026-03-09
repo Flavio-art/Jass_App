@@ -112,7 +112,7 @@ Letzter Stich: **+5 Bonus**. Gesamtpunkte pro Runde: **157**.
 - **Flutter / Dart** – plattformübergreifend (aktuell Android)
 - **Provider** – State Management
 - **KI**: Monte-Carlo-Simulation mit Perfect-Information-Rollouts + trainiertes neuronales Netz (Modus-Wahl)
-- Karten vollständig in Flutter gezeichnet (keine externen Bild-Assets nötig)
+- Kartenbilder als PNG-Assets (französisch + deutsch)
 
 ---
 
@@ -135,7 +135,7 @@ lib/
 │   ├── trump_selection_screen.dart  # Spielmodus-Auswahl
 │   └── rules_screen.dart        # Vollständiges Regelwerk (4 Tabs)
 ├── widgets/
-│   ├── card_widget.dart         # Karte (gezeichnet in Flutter)
+│   ├── card_widget.dart         # Karten-Widget (PNG-Assets)
 │   ├── player_hand_widget.dart  # Fächer-Layout
 │   ├── trick_area_widget.dart   # Stich-Mitte
 │   └── score_board_widget.dart  # Punkteanzeige
