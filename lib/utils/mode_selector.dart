@@ -143,12 +143,41 @@ class ModeSelectorAI {
     }
 
     // ── Schritt 2: Mittelwert berechnen und Delta-Amplifikation anwenden ─
+    // Friseur Solo: bisherige Punkte berücksichtigen für Molotow/Misère
+    // Wenig Punkte → Molotow/Misère attraktiver (wenig zu verlieren)
+    double molotofPointsBoost = 1.0;
+    if (state.gameType == GameType.friseur) {
+      final myScores = state.friseurSoloScores[player.id] ?? {};
+      final myTotal = myScores.values
+          .where((v) => v.isNotEmpty)
+          .fold(0, (sum, v) => sum + (v.reduce((a, b) => a + b) ~/ v.length));
+      final allTotals = state.friseurSoloScores.entries.map((e) {
+        return e.value.values
+            .where((v) => v.isNotEmpty)
+            .fold(0, (sum, v) => sum + (v.reduce((a, b) => a + b) ~/ v.length));
+      }).toList();
+      if (allTotals.isNotEmpty) {
+        final avgTotal = allTotals.reduce((a, b) => a + b) / allTotals.length;
+        if (avgTotal > 0 && myTotal < avgTotal * 0.85) {
+          // Deutlich unter Durchschnitt → Molotow/Misère boosten
+          molotofPointsBoost = 1.25;
+        } else if (avgTotal > 0 && myTotal > avgTotal * 1.15) {
+          // Deutlich über Durchschnitt → Molotow/Misère dämpfen
+          molotofPointsBoost = 0.75;
+        }
+      }
+    }
+
     final rawMean = rawEntries.map((e) => e.raw).reduce((a, b) => a + b)
         / rawEntries.length;
 
     double bestScore = double.negativeInfinity;
     for (final e in rawEntries) {
-      final adjusted = rawMean + (e.raw - rawMean) * e.m;
+      var adjusted = rawMean + (e.raw - rawMean) * e.m;
+      if ((e.mode == GameMode.molotof || e.mode == GameMode.misere) &&
+          molotofPointsBoost != 1.0) {
+        adjusted *= molotofPointsBoost;
+      }
       if (adjusted > bestScore) {
         bestScore = adjusted;
         bestMode = e.mode;
@@ -231,6 +260,29 @@ class ModeSelectorAI {
       return m;
     }
 
+    // Friseur Solo: bisherige Punkte → Molotow/Misère Boost
+    double nnMolotofBoost = 1.0;
+    if (state.gameType == GameType.friseur) {
+      final myScores = state.friseurSoloScores[state.players
+          .firstWhere((p) => p.id == state.players[state.ansagerIndex].id).id] ?? {};
+      final myTotal = myScores.values
+          .where((v) => v.isNotEmpty)
+          .fold(0, (sum, v) => sum + (v.reduce((a, b) => a + b) ~/ v.length));
+      final allTotals = state.friseurSoloScores.entries.map((e) {
+        return e.value.values
+            .where((v) => v.isNotEmpty)
+            .fold(0, (sum, v) => sum + (v.reduce((a, b) => a + b) ~/ v.length));
+      }).toList();
+      if (allTotals.isNotEmpty) {
+        final avgTotal = allTotals.reduce((a, b) => a + b) / allTotals.length;
+        if (avgTotal > 0 && myTotal < avgTotal * 0.85) {
+          nnMolotofBoost = 1.25;
+        } else if (avgTotal > 0 && myTotal > avgTotal * 1.15) {
+          nnMolotofBoost = 0.75;
+        }
+      }
+    }
+
     for (final variant in available) {
       if (variant == 'trump_ss' || variant == 'trump_re') {
         final forced = (forcedTrumpFn ?? (vk) => state.forcedTrumpDirection(isTeam1, vk))(variant);
@@ -267,14 +319,13 @@ class ModeSelectorAI {
           }
         }
       } else if (variant == 'molotof') {
-        // NN-Index 14: Molotof
+        // NN-Index 14: Molotof (mit Punkte-Boost)
         if (14 < cs.length) {
-          final s = adj(cs[14], mult(variant));
+          final s = adj(cs[14], mult(variant)) * nnMolotofBoost;
           if (s > bestScore) { bestScore = s; bestMode = GameMode.molotof; bestTrump = null; }
         } else {
-          // Fallback Heuristik falls NN noch altes Format (14 Outputs)
           final hNorm = (_scoreMolotof(hand) / 110.0).clamp(0.0, 1.0);
-          final s = adj(nnMin + hNorm * nnRange, mult(variant));
+          final s = adj(nnMin + hNorm * nnRange, mult(variant)) * nnMolotofBoost;
           if (s > bestScore) { bestScore = s; bestMode = GameMode.molotof; bestTrump = null; }
         }
       } else {
@@ -289,6 +340,8 @@ class ModeSelectorAI {
                 !((aces >= 2 && sixes >= 1) || (sixes >= 2 && aces >= 1))) continue;
           }
           var s = adj(cs[nnIdx], mult(variant));
+          // Misère: bisherige Punkte berücksichtigen
+          if (variant == 'misere' && nnMolotofBoost != 1.0) s *= nnMolotofBoost;
           if (s > bestScore) {
             bestScore = s;
             bestMode  = GameMode.values.firstWhere((m) => m.name == variant,

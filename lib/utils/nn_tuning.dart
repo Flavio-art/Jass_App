@@ -63,13 +63,13 @@ class NNTuning {
   static const double friseurLochBoostMolotof = 1.35;
 
   // ── Friseur Solo Schiebe-Schwellenwerte ────────────────
-  // 2. Schiebe-Runde: Schwelle leicht senken, damit ~5-10% trotzdem ansagen.
-  static const double friseurSchiebenRound2Factor = 0.97;
+  // 2. Schiebe-Runde: Schwelle leicht senken, damit ~5% trotzdem ansagen.
+  static const double friseurSchiebenRound2Factor = 0.985;
   // NN-Score auf Original-Hand (ohne Wunschkarte).
   // Dynamisch: Schwelle = min + (max − min) × (offeneVarianten / 10)
   // Mehr Varianten offen → wählerischer (aufsparen lohnt sich)
-  static const double friseurSchiebenNNMin = 0.85;   // letzte Variante (~60% schieben)
-  static const double friseurSchiebenNNMax = 0.91;   // alle Varianten offen (~80% schieben)
+  static const double friseurSchiebenNNMin = 0.87;   // letzte Variante (~70% schieben)
+  static const double friseurSchiebenNNMax = 0.93;   // alle Varianten offen (~85% schieben)
   static const double friseurSchiebenHeuMin = 95.0;   // letzte Variante
   static const double friseurSchiebenHeuMax = 130.0;  // alle Varianten offen
 }

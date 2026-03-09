@@ -281,11 +281,12 @@ class _GameScreenState extends State<GameScreen> {
             final east = state.players
                 .firstWhere((p) => p.position == PlayerPosition.east);
 
-            // Schieber-Limit-Popup: wenn schieberLimitReachedBy gerade gesetzt wurde
+            // Schieber-Limit-Popup: nur mid-round (nicht am Rundenende/Spielende)
             if (state.schieberLimitReachedBy != null &&
                 _lastLimitReachedBy == null &&
                 !_limitDialogShowing &&
-                state.phase != GamePhase.gameEnd) {
+                state.phase != GamePhase.gameEnd &&
+                state.phase != GamePhase.roundEnd) {
               _limitDialogShowing = true;
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 _showSchieberLimitDialog(context, provider, state);
@@ -739,7 +740,7 @@ class _GameScreenState extends State<GameScreen> {
                     Padding(
                       padding: EdgeInsets.only(
                         bottom: 16 + MediaQuery.of(context).viewPadding.bottom,
-                        top: 6,
+                        top: 0,
                       ),
                       child: PlayerHandWidget(
                         player: human,
@@ -852,7 +853,7 @@ class _GameScreenState extends State<GameScreen> {
                     Positioned(
                       left: 0,
                       right: 0,
-                      bottom: 340,
+                      bottom: 360,
                       child: Center(
                         child: GestureDetector(
                           onTap: () {
@@ -894,7 +895,7 @@ class _GameScreenState extends State<GameScreen> {
                   Positioned(
                     left: 0,
                     right: 0,
-                    bottom: 265,
+                    bottom: 295,
                     child: Center(
                       child: GestureDetector(
                         onTap: _showTrumpSelection,
@@ -2465,7 +2466,9 @@ class _FriseurSoloGameEndOverlay extends StatelessWidget {
                         style: TextStyle(color: Colors.white, fontSize: 16)),
                     const SizedBox(height: 4),
                     Text(
-                      '${winner.name} gewinnt!',
+                      winner.isHuman && winner.name == 'Du'
+                          ? 'Du gewinnst!'
+                          : '${winner.name} gewinnt!',
                       style: const TextStyle(
                           color: AppColors.gold,
                           fontSize: 22,
@@ -3817,7 +3820,9 @@ class _DifferenzlerGameEndOverlay extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                '${winner.name} gewinnt!',
+                winner.isHuman && winner.name == 'Du'
+                    ? 'Du gewinnst!'
+                    : '${winner.name} gewinnt!',
                 style: const TextStyle(
                   color: AppColors.gold,
                   fontSize: 24,
