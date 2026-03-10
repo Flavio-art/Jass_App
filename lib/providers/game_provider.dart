@@ -1659,26 +1659,99 @@ class GameProvider extends ChangeNotifier {
       return available.first;
     }
 
-    // Elefant: Buur (Jack) oder Nell (9) der geplanten Trumpffarbe wünschen.
-    // Trumpffarbe = Farbe der restlichen Karten (nach Assen und 6ern).
+    // Elefant: Wunschkarte basierend auf Oben/Unten-Balance wählen.
+    // Schwache Richtung dem Partner übergeben: Oben schwach → Ass wünschen,
+    // Unten schwach → 6 wünschen. Bevorzugt von Farbe wo man die Gegenkarte hat.
     if (mode == GameMode.elefant) {
-      // Trumpffarbe bestimmen (gleiche Logik wie ModeSelectorAI._checkElefantGuaranteed)
+      final aces = selector.hand.where((c) => c.value == CardValue.ace).length;
+      final sixes = selector.hand.where((c) => c.value == CardValue.six).length;
+      // Farben wo man die Gegenkarte hat (beste Synergie)
+      final suitsWithSix = selector.hand
+          .where((c) => c.value == CardValue.six)
+          .map((c) => c.suit).toSet();
+      final suitsWithAce = selector.hand
+          .where((c) => c.value == CardValue.ace)
+          .map((c) => c.suit).toSet();
+
+      // Oben schwach (< 3 Asse) → Ass wünschen, Partner übernimmt Oben.
+      // Bevorzugt Farbe wo man eine 6 hat UND mind. 2 Karten (6 + etwas zum
+      // Anspielen im Oben, z.B. 9 → Partner gewinnt mit Ass, man selbst
+      // spielt die Farbe danach im Unten auf der 6).
+      if (aces < 3) {
+        final suitCounts = <Suit, int>{};
+        for (final c in selector.hand) {
+          suitCounts[c.suit] = (suitCounts[c.suit] ?? 0) + 1;
+        }
+        final suitsWithKing = selector.hand
+            .where((c) => c.value == CardValue.king)
+            .map((c) => c.suit).toSet();
+        // 1. Farbe wo man 6 + mind. 2 Karten hat (beste Synergie: Oben anspielen, Unten auf 6 gewinnen)
+        for (final suit in suitsWithSix) {
+          if (suitsWithAce.contains(suit)) continue;
+          if ((suitCounts[suit] ?? 0) < 2) continue;
+          final ace = available.firstWhere(
+            (c) => c.suit == suit && c.value == CardValue.ace,
+            orElse: () => available[0],
+          );
+          if (ace.value == CardValue.ace && ace.suit == suit) return ace;
+        }
+        // 2. Farbe wo man König hat (Partner übernimmt mit Ass, man kann Farbe wieder anspielen)
+        for (final suit in suitsWithKing) {
+          if (suitsWithAce.contains(suit)) continue;
+          final ace = available.firstWhere(
+            (c) => c.suit == suit && c.value == CardValue.ace,
+            orElse: () => available[0],
+          );
+          if (ace.value == CardValue.ace && ace.suit == suit) return ace;
+        }
+        // 3. Fallback: Ass von irgendeiner Farbe mit mind. 2 Karten
+        final handSuits = selector.hand.map((c) => c.suit).toSet();
+        for (final suit in handSuits) {
+          if (suitsWithAce.contains(suit)) continue;
+          if ((suitCounts[suit] ?? 0) < 2) continue;
+          final ace = available.firstWhere(
+            (c) => c.suit == suit && c.value == CardValue.ace,
+            orElse: () => available[0],
+          );
+          if (ace.value == CardValue.ace && ace.suit == suit) return ace;
+        }
+      }
+      // Unten schwach (< 3 Sechser) → 6 wünschen, Partner übernimmt Unten.
+      // Mind. 2 Karten der Farbe (z.B. 7 + 9), damit Partner nach seiner 6
+      // die Farbe an dich übergeben kann (du gewinnst mit deiner 7).
+      if (sixes < 3) {
+        final suitCounts = <Suit, int>{};
+        for (final c in selector.hand) {
+          suitCounts[c.suit] = (suitCounts[c.suit] ?? 0) + 1;
+        }
+        final handSuits = selector.hand.map((c) => c.suit).toSet();
+        for (final suit in handSuits) {
+          if (suitsWithSix.contains(suit)) continue;
+          if ((suitCounts[suit] ?? 0) < 2) continue; // braucht mind. 2 Karten
+          final six = available.firstWhere(
+            (c) => c.suit == suit && c.value == CardValue.six,
+            orElse: () => available[0],
+          );
+          if (six.value == CardValue.six && six.suit == suit) return six;
+        }
+      }
+
+      // Beide Richtungen gedeckt (>= 3 Asse UND >= 3 Sechser) → Buur/Nell
       final rest = selector.hand.where((c) =>
           c.value != CardValue.ace && c.value != CardValue.six).toList();
-      final suitCounts = <Suit, int>{};
+      final restCounts = <Suit, int>{};
       for (final c in rest) {
-        suitCounts[c.suit] = (suitCounts[c.suit] ?? 0) + 1;
+        restCounts[c.suit] = (restCounts[c.suit] ?? 0) + 1;
       }
       Suit? trumpSuitForWish;
       int bestWishScore = -1;
-      for (final entry in suitCounts.entries) {
+      for (final entry in restCounts.entries) {
         int score = entry.value * 10;
         if (rest.any((c) => c.suit == entry.key && c.value == CardValue.jack)) score += 100;
         if (rest.any((c) => c.suit == entry.key && c.value == CardValue.nine)) score += 50;
         if (score > bestWishScore) { bestWishScore = score; trumpSuitForWish = entry.key; }
       }
       trumpSuitForWish ??= selector.hand.first.suit;
-      // Buur oder Nell der Trumpffarbe wünschen
       for (final val in [CardValue.jack, CardValue.nine]) {
         final card = available.firstWhere(
           (c) => c.suit == trumpSuitForWish && c.value == val,
@@ -1738,8 +1811,27 @@ class GameProvider extends ChangeNotifier {
       return available.first;
     }
 
-    // Alles Trumpf: Buur (stärkste Karte), sonst Näll (9)
+    // Alles Trumpf: Buur oder Näll wünschen, aber NUR von einer Farbe
+    // die man selbst auf der Hand hat (damit man die Farbe anspielen kann).
     if (mode == GameMode.allesTrumpf) {
+      final handSuits = selector.hand.map((c) => c.suit).toSet();
+      // Bevorzuge Farben mit vielen Karten (stärkere Kontrolle)
+      final suitCounts = <Suit, int>{};
+      for (final c in selector.hand) {
+        suitCounts[c.suit] = (suitCounts[c.suit] ?? 0) + 1;
+      }
+      final sortedSuits = handSuits.toList()
+        ..sort((a, b) => (suitCounts[b] ?? 0).compareTo(suitCounts[a] ?? 0));
+      for (final val in [CardValue.jack, CardValue.nine]) {
+        for (final suit in sortedSuits) {
+          final card = available.firstWhere(
+            (c) => c.suit == suit && c.value == val,
+            orElse: () => available[0],
+          );
+          if (card.suit == suit && card.value == val) return card;
+        }
+      }
+      // Fallback: beliebige Farbe (sollte selten passieren)
       for (final val in [CardValue.jack, CardValue.nine]) {
         final card = available.firstWhere(
           (c) => c.value == val,
