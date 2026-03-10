@@ -161,6 +161,7 @@ class _SplashScreenState extends State<SplashScreen>
           ),
         ),
         child: SafeArea(
+          bottom: _isFirstTime, // Splash braucht kein bottom-padding
           child: _loaded
               ? FadeTransition(
                   opacity: _fade,
@@ -175,11 +176,14 @@ class _SplashScreenState extends State<SplashScreen>
   // ── Wiederkehrender User: normaler Splash ──────────────────────────────────
 
   Widget _buildSplashScreen() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    // Kartenfächer darf max 90% der Breite einnehmen (fan = cardWidth * 5.5)
+    final splashCardWidth = (screenWidth * 0.90 / 5.5).clamp(50.0, 78.0);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildCardFan(_fanCards, cardWidth: 78),
+          _buildCardFan(_fanCards, cardWidth: splashCardWidth),
           const SizedBox(height: 28),
           const Text(
             'Built von Flavio',

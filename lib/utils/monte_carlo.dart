@@ -39,7 +39,7 @@ class MonteCarloAI {
       return GameLogic.chooseCard(aiPlayer: aiPlayer, state: state);
     }
 
-    final playable = _getPlayable(aiPlayer, state);
+    var playable = _getPlayable(aiPlayer, state);
     if (playable.length == 1) return playable.first;
 
     // ── Trumpf-Heuristik: Anspielen ──────────────────────────────────────────
@@ -335,23 +335,37 @@ class MonteCarloAI {
         final wishSuitCards =
             playable.where((c) => c.suit == wishSuit).toList();
         if (wishSuitCards.isNotEmpty) {
-          return _weakest(wishSuitCards, effectMode, null);
+          // Max Spielstärke berücksichtigen: 10 vor 6/Ace opfern
+          wishSuitCards.sort((a, b) {
+            final aMax = math.max(
+              GameLogic.cardPlayStrength(a, GameMode.oben, null),
+              GameLogic.cardPlayStrength(a, GameMode.unten, null),
+            );
+            final bMax = math.max(
+              GameLogic.cardPlayStrength(b, GameMode.oben, null),
+              GameLogic.cardPlayStrength(b, GameMode.unten, null),
+            );
+            return aMax.compareTo(bMax);
+          });
+          return wishSuitCards.first;
         }
       }
-      // Keine sicheren Gewinner → Karte spielen, die in der ANDEREN Richtung
-      // am wenigsten wertvoll ist (wertvolle Karten für die passende Richtung
-      // aufsparen: z.B. 6er für Unten-Stiche, Asse für Oben-Stiche).
-      final otherMode = effectMode == GameMode.oben
-          ? GameMode.unten : GameMode.oben;
+      // Keine sicheren Gewinner → Stich abgeben: Karte mit niedrigster
+      // MAX-Spielstärke spielen (10=4, 9/Jack=5 → expendable; 6/Ace=8 → NIE).
       final sorted = List.of(playable)..sort((a, b) {
-        // Primär: höchste Spielstärke im aktuellen Modus (versuche zu gewinnen)
-        final aStr = GameLogic.cardPlayStrength(a, effectMode, null);
-        final bStr = GameLogic.cardPlayStrength(b, effectMode, null);
-        if (aStr != bStr) return bStr.compareTo(aStr);
-        // Tiebreak: geringster Wert im anderen Modus (spare wertvolle Karten)
-        final aOther = GameLogic.cardPoints(a, otherMode, null);
-        final bOther = GameLogic.cardPoints(b, otherMode, null);
-        return aOther.compareTo(bOther);
+        final aMax = math.max(
+          GameLogic.cardPlayStrength(a, GameMode.oben, null),
+          GameLogic.cardPlayStrength(a, GameMode.unten, null),
+        );
+        final bMax = math.max(
+          GameLogic.cardPlayStrength(b, GameMode.oben, null),
+          GameLogic.cardPlayStrength(b, GameMode.unten, null),
+        );
+        if (aMax != bMax) return aMax.compareTo(bMax);
+        // Tiebreak: niedrigste Punkte im aktuellen Modus
+        final aPts = GameLogic.cardPoints(a, effectMode, null);
+        final bPts = GameLogic.cardPoints(b, effectMode, null);
+        return aPts.compareTo(bPts);
       });
       return sorted.first;
     }
@@ -377,11 +391,12 @@ class MonteCarloAI {
     // ── Friseur Solo: Ansager spielt Wunschkarten-Farbe an ─────────────────
     // Wenn der Ansager keine sicheren Gewinner hat, spielt er die Farbe der
     // Wunschkarte an, damit der Partner mit der Wunschkarte stechen kann.
+    // Slalom/Elefant: nur wenn die aktuelle Richtung zur Wunschkarte passt.
     if (state.currentTrickCards.isEmpty &&
         state.gameType == GameType.friseur &&
         state.wishCard != null) {
       final announcerId = state.players[state.ansagerIndex].id;
-      if (aiPlayer.id == announcerId) {
+      if (aiPlayer.id == announcerId && _wishDirectionMatches(state)) {
         final wishSuit = state.wishCard!.suit;
         final wishSuitCards =
             playable.where((c) => c.suit == wishSuit).toList();
@@ -421,6 +436,23 @@ class MonteCarloAI {
       final effectMode = state.effectiveMode;
       final trump = state.trumpSuit;
 
+      // Alles Trumpf Friseur: Partner hält Wunsch-Jack zurück
+      if (state.gameMode == GameMode.allesTrumpf &&
+          state.gameType == GameType.friseur &&
+          state.wishCard != null) {
+        final partnerId = _friseurPartnerId(state);
+        if (aiPlayer.id == partnerId &&
+            playable.contains(state.wishCard) &&
+            !_shouldPartnerPlayWishCard(aiPlayer, state, state.wishCard!.suit)) {
+          final withoutWish = playable
+              .where((c) => c != state.wishCard)
+              .toList();
+          if (withoutWish.isNotEmpty) {
+            playable = withoutWish;
+          }
+        }
+      }
+
       // Misere: eigene Logik (inkl. billige Stiche)
       if (state.gameMode == GameMode.misere) {
         final isAnnouncerTeam = aiIsTeam1 == state.isTeam1Ansager;
@@ -433,23 +465,36 @@ class MonteCarloAI {
           if (!playable.any((c) => c.suit == ledSuit)) {
             return _misereDiscard(playable, aiPlayer);
           }
-          // Sonst: nicht gewinnen
+          // Sonst: nicht gewinnen, aber Punktwert-bewusst spielen
           final losing = playable
               .where((c) => !_wouldWin(c, state, trump))
               .toList();
-          return _weakest(
-              losing.isNotEmpty ? losing : playable, effectMode, trump);
+          if (losing.isEmpty) return _weakest(playable, effectMode, trump);
+          // Prüfe ob Gegner aktuell den Stich gewinnt
+          final curWinnerId4 = GameLogic.determineTrickWinner(
+            cards: state.currentTrickCards,
+            playerIds: state.currentTrickPlayerIds,
+            gameMode: state.gameMode, trumpSuit: trump,
+            trickNumber: state.currentTrickNumber,
+            molotofSubMode: state.molotofSubMode,
+            slalomStartsOben: state.slalomStartsOben,
+          );
+          final curWinner4 = state.players.firstWhere((p) => p.id == curWinnerId4);
+          final oppWins4 = !_sameTeamFor(aiPlayer, curWinner4, state);
+          return _pointAwareFollow(losing, effectMode, trump, oppWins4);
         } else {
           // Misere-Gegner als 4. Spieler
           final announcerWinning = _isAnnouncerWinning(state);
           if (announcerWinning) {
+            // Ansager gewinnt → höchsten Wert spielen (belastet Ansager)
             final notWinning = playable
                 .where((c) => !_wouldWin(c, state, trump))
                 .toList();
-            return _weakest(
+            return _pointAwareFollow(
                 notWinning.isNotEmpty ? notWinning : playable,
-                effectMode, trump);
+                effectMode, trump, false); // false = eigenes Team gewinnt nicht → Punkte AN Ansager
           } else {
+            // Ansager gewinnt nicht → Stich billig nehmen
             final winning = playable
                 .where((c) => _wouldWin(c, state, trump))
                 .toList();
@@ -513,7 +558,7 @@ class MonteCarloAI {
         if (schmierbar.isNotEmpty) {
           return _strongest(schmierbar, effectMode, trump);
         }
-        return _weakest(playable, effectMode, trump);
+        return _smartDiscard(playable, state, effectMode, trump);
       }
 
       // Gegner gewinnt → versuche billigst möglich zu übernehmen
@@ -522,8 +567,8 @@ class MonteCarloAI {
       if (winning.isNotEmpty) {
         return _weakest(winning, effectMode, trump);
       }
-      // Kann nicht gewinnen → billigste Karte wegwerfen
-      return _weakest(playable, effectMode, trump);
+      // Kann nicht gewinnen → intelligent abwerfen (wertvolle Karten behalten)
+      return _smartDiscard(playable, state, effectMode, trump);
     }
 
     // ── Obenabe/Undenufe Anführen: Greedy statt MC ─────────────────────────
@@ -673,6 +718,11 @@ class MonteCarloAI {
               (card.value == CardValue.ace &&
                   (em == GameMode.oben || gm == GameMode.slalom || gm == GameMode.elefant))) {
             avg -= 25.0; // Sichere Stichkarte nie abwerfen
+          }
+          // Misere: tiefe Karten (6, 7) nie abwerfen (sichere Verlierer!)
+          if (gm == GameMode.misere &&
+              (card.value == CardValue.six || card.value == CardValue.seven)) {
+            avg -= 20.0;
           }
         }
       }
@@ -1067,6 +1117,36 @@ class MonteCarloAI {
         (c) => c.suit == state.trumpSuit && c.value == CardValue.nine);
   }
 
+  /// Alles Trumpf / Friseur: Soll der Partner die Wunschkarte (Jack) jetzt spielen?
+  /// Nur wenn: (a) er nicht die höchste verbleibende Karte der Farbe hat, ODER
+  /// (b) >= 7 Karten der Farbe schon gespielt wurden (bald aufgedeckt).
+  static bool _shouldPartnerPlayWishCard(
+      Player partner, GameState state, Suit wishSuit) {
+    final played = _playedCards(state);
+    final suitPlayed = played.where((c) => c.suit == wishSuit).length;
+    // Viele Karten weg → Partner ruhig reingehen
+    if (suitPlayed >= 7) return true;
+    // Hat der Partner die höchste verbleibende Nicht-Jack-Karte der Farbe?
+    final partnerSuitCards = partner.hand
+        .where((c) => c.suit == wishSuit && c.value != CardValue.jack)
+        .toList();
+    if (partnerSuitCards.isEmpty) return true; // nur den Jack → muss spielen
+    // Höchste Nicht-Jack-Stärke in Alles-Trumpf
+    final bestStr = partnerSuitCards
+        .map((c) => GameLogic.cardPlayStrength(c, GameMode.allesTrumpf, null))
+        .reduce(math.max);
+    // Alle verbleibenden Nicht-Jack-Karten der Farbe (aller Spieler)
+    final allRemaining = state.players
+        .expand((p) => p.hand)
+        .where((c) => c.suit == wishSuit && c.value != CardValue.jack);
+    final highestRemaining = allRemaining.isEmpty ? 0 : allRemaining
+        .map((c) => GameLogic.cardPlayStrength(c, GameMode.allesTrumpf, null))
+        .reduce(math.max);
+    // Partner hat die höchste → muss nicht reingehen (gewinnt auch ohne Jack)
+    if (bestStr >= highestRemaining) return false;
+    return true;
+  }
+
   /// Ob [player] der einzige Spieler ist der noch Trumpfkarten hat.
   static bool _onlyPlayerWithTrump(Player player, GameState state, Suit trump) {
     return !state.players.any((p) =>
@@ -1125,13 +1205,15 @@ class MonteCarloAI {
     if (beatenBySameSuit) return false;
 
     // Wenn Trumpfmodus aktiv und Karte ist kein Trumpf:
-    // Nur unsicher wenn ein Spieler VOID in dieser Farbe ist UND Trumpf hat
-    // (sonst muss er die Farbe bedienen → kann nicht stechen)
+    // Nur unsicher wenn ein GEGNER VOID in dieser Farbe ist UND Trumpf hat
+    // (Partner würde nie das eigene Ass abstechen)
     if (trump != null &&
         card.suit != trump &&
         effectMode != GameMode.oben &&
         effectMode != GameMode.unten) {
+      final cardOwner = state.players.firstWhere((p) => p.hand.contains(card));
       final canBeTrumped = state.players.any((p) {
+        if (_sameTeam(cardOwner, p)) return false; // Partner trumpft nie eigenes Ass
         final others = p.hand.where((c) => c != card).toList();
         final hasLedSuit = others.any((c) => c.suit == card.suit);
         final hasTrump = others.any((c) => c.suit == trump);
@@ -1206,7 +1288,7 @@ class MonteCarloAI {
   /// • Kann gewinnen    → schwächste Gewinnerkarte (günstig gewinnen)
   /// • Sonst            → schwächste Karte (wegwerfen)
   static JassCard? _guidedCard(GameState state, Player player) {
-    final playable = _getPlayable(player, state);
+    var playable = _getPlayable(player, state);
     if (playable.isEmpty) return null;
     if (playable.length == 1) return playable.first;
 
@@ -1259,9 +1341,10 @@ class MonteCarloAI {
 
         if (player.id == announcerId) {
           // Ansager: Wunschkarten-Farbe anspielen wenn keine sicheren Gewinner
+          // Slalom/Elefant: nur wenn die aktuelle Richtung zur Wunschkarte passt
           final guaranteed =
               playable.where((c) => _isHighestRemaining(c, state)).toList();
-          if (guaranteed.isEmpty) {
+          if (guaranteed.isEmpty && _wishDirectionMatches(state)) {
             final wishSuitCards =
                 playable.where((c) => c.suit == wishSuit).toList();
             if (wishSuitCards.isNotEmpty) {
@@ -1428,17 +1511,21 @@ class MonteCarloAI {
             .where((c) => !_isNearMissLead(c, state, effectMode))
             .toList();
         if (safe.isNotEmpty && safe.length < playable.length) {
-          // Slalom: Karten für die andere Richtung aufsparen
+          // Slalom: Stich abgeben, Karten mit hoher max Spielstärke behalten
           if (state.gameMode == GameMode.slalom) {
-            final otherMode = effectMode == GameMode.oben
-                ? GameMode.unten : GameMode.oben;
             final sorted = List.of(safe)..sort((a, b) {
-              final aStr = GameLogic.cardPlayStrength(a, effectMode, null);
-              final bStr = GameLogic.cardPlayStrength(b, effectMode, null);
-              if (aStr != bStr) return bStr.compareTo(aStr);
-              final aOther = GameLogic.cardPoints(a, otherMode, null);
-              final bOther = GameLogic.cardPoints(b, otherMode, null);
-              return aOther.compareTo(bOther);
+              final aMax = math.max(
+                GameLogic.cardPlayStrength(a, GameMode.oben, null),
+                GameLogic.cardPlayStrength(a, GameMode.unten, null),
+              );
+              final bMax = math.max(
+                GameLogic.cardPlayStrength(b, GameMode.oben, null),
+                GameLogic.cardPlayStrength(b, GameMode.unten, null),
+              );
+              if (aMax != bMax) return aMax.compareTo(bMax);
+              final aPts = GameLogic.cardPoints(a, effectMode, null);
+              final bPts = GameLogic.cardPoints(b, effectMode, null);
+              return aPts.compareTo(bPts);
             });
             return sorted.first;
           }
@@ -1450,6 +1537,21 @@ class MonteCarloAI {
       // Stärkste Karte im aktuellen Modus, aber Bauern + wahrscheinliche Trumpffarbe aufsparen
       if (state.gameMode == GameMode.elefant &&
           state.currentTrickNumber <= 6) {
+        // Friseur: Wunschkarten-Farbe in passender Richtung anspielen
+        if (state.gameType == GameType.friseur &&
+            state.wishCard != null &&
+            player.id == state.players[state.ansagerIndex].id) {
+          final guaranteed =
+              playable.where((c) => _isHighestRemaining(c, state)).toList();
+          if (guaranteed.isEmpty && _wishDirectionMatches(state)) {
+            final wishSuit = state.wishCard!.suit;
+            final wishSuitCards =
+                playable.where((c) => c.suit == wishSuit).toList();
+            if (wishSuitCards.isNotEmpty) {
+              return _weakest(wishSuitCards, effectMode, null);
+            }
+          }
+        }
         final otherMode = effectMode == GameMode.oben
             ? GameMode.unten : GameMode.oben;
         // Wahrscheinliche Trumpffarbe aus Wunschkarte ableiten
@@ -1476,23 +1578,73 @@ class MonteCarloAI {
         return sorted.first;
       }
 
-      // Slalom: keine sicheren Gewinner → stärkste Karte im aktuellen Modus,
-      // aber Karten für die andere Richtung aufsparen
+      // Slalom: keine sicheren Gewinner → Stich abgeben
+      // Karte mit niedrigster MAX-Spielstärke beider Richtungen spielen
+      // (10=4, 9/Jack=5 → expendable; 6/Ace=8, 7/King=7 → NIE opfern)
       if (state.gameMode == GameMode.slalom) {
-        final otherMode = effectMode == GameMode.oben
-            ? GameMode.unten : GameMode.oben;
+        // Friseur: Wunschkarten-Farbe in passender Richtung anspielen
+        if (state.gameType == GameType.friseur &&
+            state.wishCard != null &&
+            player.id == state.players[state.ansagerIndex].id &&
+            _wishDirectionMatches(state)) {
+          final wishSuit = state.wishCard!.suit;
+          final wishSuitCards =
+              playable.where((c) => c.suit == wishSuit).toList();
+          if (wishSuitCards.isNotEmpty) {
+            // Auch bei Wish-Farbe: max Spielstärke berücksichtigen
+            wishSuitCards.sort((a, b) {
+              final aMax = math.max(
+                GameLogic.cardPlayStrength(a, GameMode.oben, null),
+                GameLogic.cardPlayStrength(a, GameMode.unten, null),
+              );
+              final bMax = math.max(
+                GameLogic.cardPlayStrength(b, GameMode.oben, null),
+                GameLogic.cardPlayStrength(b, GameMode.unten, null),
+              );
+              return aMax.compareTo(bMax);
+            });
+            return wishSuitCards.first;
+          }
+        }
         final sorted = List.of(playable)..sort((a, b) {
-          final aStr = GameLogic.cardPlayStrength(a, effectMode, null);
-          final bStr = GameLogic.cardPlayStrength(b, effectMode, null);
-          if (aStr != bStr) return bStr.compareTo(aStr);
-          final aOther = GameLogic.cardPoints(a, otherMode, null);
-          final bOther = GameLogic.cardPoints(b, otherMode, null);
-          return aOther.compareTo(bOther);
+          final aMax = math.max(
+            GameLogic.cardPlayStrength(a, GameMode.oben, null),
+            GameLogic.cardPlayStrength(a, GameMode.unten, null),
+          );
+          final bMax = math.max(
+            GameLogic.cardPlayStrength(b, GameMode.oben, null),
+            GameLogic.cardPlayStrength(b, GameMode.unten, null),
+          );
+          if (aMax != bMax) return aMax.compareTo(bMax);
+          final aPts = GameLogic.cardPoints(a, effectMode, null);
+          final bPts = GameLogic.cardPoints(b, effectMode, null);
+          return aPts.compareTo(bPts);
         });
         return sorted.first;
       }
 
       return _strongest(playable, effectMode, trump);
+    }
+
+    // ── Alles Trumpf Friseur: Partner hält Wunschkarte (Jack) zurück ────────
+    // Der Jack darf in Alles Trumpf zurückgehalten werden (wie Buur).
+    // Partner spielt ihn nur wenn er nicht die höchste Karte hat oder >= 7 weg.
+    if (state.gameMode == GameMode.allesTrumpf &&
+        state.gameType == GameType.friseur &&
+        state.wishCard != null &&
+        state.currentTrickCards.isNotEmpty) {
+      final partnerId = _friseurPartnerId(state);
+      if (player.id == partnerId &&
+          player.hand.contains(state.wishCard) &&
+          !_shouldPartnerPlayWishCard(player, state, state.wishCard!.suit)) {
+        // Jack zurückhalten: andere Karten der Farbe bevorzugen
+        final withoutWish = playable
+            .where((c) => c != state.wishCard)
+            .toList();
+        if (withoutWish.isNotEmpty) {
+          playable = withoutWish;
+        }
+      }
     }
 
     // Wer gewinnt gerade?
@@ -1526,21 +1678,26 @@ class MonteCarloAI {
       if (isDiscarding) {
         return _misereDiscard(playable, player);
       }
+      // Nicht gewinnen, aber Punktwert-bewusst: hoher Wert an Gegner, tiefer an Partner
       final losing = playable
           .where((c) => !_wouldWin(c, state, trump))
           .toList();
-      return _weakest(losing.isNotEmpty ? losing : playable, effectMode, trump);
+      if (losing.isEmpty) return _weakest(playable, effectMode, trump);
+      final oppWinsM = !partnerWins; // partnerWins = eigenes Team gewinnt
+      return _pointAwareFollow(losing, effectMode, trump, oppWinsM);
     }
 
     // Misere-Gegner: Ansager soll den Stich gewinnen
     if (state.gameMode == GameMode.misere && !isAnnouncer) {
       final announcerWinningNow = _isAnnouncerWinning(state);
       if (announcerWinningNow) {
-        // Ansager gewinnt gerade → nicht wegnehmen, schwächste Karte die nicht gewinnt
+        // Ansager gewinnt → höchsten Wert spielen (belastet Ansager mit Punkten)
         final notWinning = playable.where((c) => !_wouldWin(c, state, trump)).toList();
-        return _weakest(notWinning.isNotEmpty ? notWinning : playable, effectMode, trump);
+        return _pointAwareFollow(
+            notWinning.isNotEmpty ? notWinning : playable,
+            effectMode, trump, false); // false → Punkte AN Ansager maximieren
       } else {
-        // Ansager gewinnt nicht → stark spielen, Stich nehmen damit Ansager ihn nicht kriegt
+        // Ansager gewinnt nicht → Stich billig nehmen
         final winning = playable.where((c) => _wouldWin(c, state, trump)).toList();
         return _weakest(winning.isNotEmpty ? winning : playable, effectMode, trump);
       }
@@ -1633,42 +1790,44 @@ class MonteCarloAI {
     return _smartDiscard(playable, state, effectMode, trump);
   }
 
-  /// Misere-Discard: hohe gefährliche Karten von kurzen Farben zuerst loswerden.
-  /// Priorisierung: kürzeste Farbe → höchste Karte (gefährlichste zuerst).
+  /// Misere-Discard: gefährlichste Karten zuerst loswerden.
+  /// Priorisierung: höchste Spielstärke (gewinnt Stiche!) → kürzeste Farbe.
+  /// Tiefe Karten (6, 7) sind sicher und werden aufgespart.
   static JassCard _misereDiscard(List<JassCard> cards, Player player) {
-    // Farbverteilung in der gesamten Hand zählen
     final suitCounts = <Suit, int>{};
     for (final c in player.hand) {
       suitCounts[c.suit] = (suitCounts[c.suit] ?? 0) + 1;
     }
     final sorted = List.of(cards)..sort((a, b) {
+      // Primär: gefährlichste Karten zuerst (hohe Spielstärke = gewinnt Stiche)
+      final aStr = GameLogic.cardPlayStrength(a, GameMode.oben, null);
+      final bStr = GameLogic.cardPlayStrength(b, GameMode.oben, null);
+      if (aStr != bStr) return bStr.compareTo(aStr);
+      // Sekundär: kürzeste Farbe zuerst
       final aCount = suitCounts[a.suit] ?? 0;
       final bCount = suitCounts[b.suit] ?? 0;
-      // Primär: kürzeste Farbe zuerst (Singletons → Doubletons → ...)
-      if (aCount != bCount) return aCount.compareTo(bCount);
-      // Sekundär: höchste Karte zuerst (Ass → König → ...)
-      return b.value.index.compareTo(a.value.index);
+      return aCount.compareTo(bCount);
     });
     return sorted.first;
   }
 
-  /// Slalom-Discard: schwächste Karte im aktuellen Modus, aber Karten die
-  /// im ANDEREN Modus wertvoll sind, aufsparen.
+  /// Slalom-Discard: Karte mit niedrigster maximaler Spielstärke abwerfen.
+  /// 10er (max 4 in beiden Richtungen) → zuerst weg.
+  /// 6er/Asse (max 8) → NIE abwerfen (sichere Gewinner in einer Richtung).
   static JassCard _slalomDiscard(List<JassCard> cards, GameMode currentMode) {
-    final otherMode = currentMode == GameMode.oben
-        ? GameMode.unten : GameMode.oben;
     final sorted = List.of(cards)..sort((a, b) {
-      // Primär: kombinierte Punkte beider Richtungen (wenigste zuerst)
-      // Damit werden 10er (20 kombiniert) vor 6er (11) / Asse (11) abgeworfen
-      final aComb = GameLogic.cardPoints(a, GameMode.oben, null) +
-          GameLogic.cardPoints(a, GameMode.unten, null);
-      final bComb = GameLogic.cardPoints(b, GameMode.oben, null) +
-          GameLogic.cardPoints(b, GameMode.unten, null);
-      if (aComb != bComb) return aComb.compareTo(bComb);
-      // Tiebreak: geringste Spielstärke im aktuellen Modus
-      final aStr = GameLogic.cardPlayStrength(a, currentMode, null);
-      final bStr = GameLogic.cardPlayStrength(b, currentMode, null);
-      return aStr.compareTo(bStr);
+      // Primär: niedrigste maximale Spielstärke zuerst (in keiner Richtung nützlich)
+      final aMax = math.max(
+          GameLogic.cardPlayStrength(a, GameMode.oben, null),
+          GameLogic.cardPlayStrength(a, GameMode.unten, null));
+      final bMax = math.max(
+          GameLogic.cardPlayStrength(b, GameMode.oben, null),
+          GameLogic.cardPlayStrength(b, GameMode.unten, null));
+      if (aMax != bMax) return aMax.compareTo(bMax);
+      // Tiebreak: niedrigste Punkte im aktuellen Modus
+      final aPts = GameLogic.cardPoints(a, currentMode, null);
+      final bPts = GameLogic.cardPoints(b, currentMode, null);
+      return aPts.compareTo(bPts);
     });
     return sorted.first;
   }
@@ -1695,14 +1854,21 @@ class MonteCarloAI {
     final gm = state.gameMode;
     for (final c in cards) {
       if (safeWinners.contains(c)) continue; // bereits geschützt
+      // Slalom/Elefant: Karten mit hoher max Spielstärke schützen
+      // (6,7,8 = stark in Unten; Ace,King,Queen = stark in Oben; maxStr >= 6)
+      if (gm == GameMode.slalom || gm == GameMode.elefant) {
+        final maxStr = math.max(
+          GameLogic.cardPlayStrength(c, GameMode.oben, null),
+          GameLogic.cardPlayStrength(c, GameMode.unten, null),
+        );
+        if (maxStr >= 6) valuable.add(c);
+      }
       // Oben-Modi: Asse behalten (sichere Stichgewinner)
-      if (gm == GameMode.oben || gm == GameMode.slalom ||
-          gm == GameMode.elefant || gm == GameMode.trump) {
+      if (gm == GameMode.oben || gm == GameMode.trump) {
         if (c.value == CardValue.ace) valuable.add(c);
       }
       // Unten-Modi: 6er behalten (sichere Stichgewinner)
-      if (gm == GameMode.unten || gm == GameMode.slalom ||
-          gm == GameMode.elefant || gm == GameMode.trumpUnten) {
+      if (gm == GameMode.unten || gm == GameMode.trumpUnten) {
         if (c.value == CardValue.six) valuable.add(c);
       }
       // Elefant: Buben (Buur) sind extrem wertvoll für die Trumpf-Stiche
@@ -1713,6 +1879,13 @@ class MonteCarloAI {
         if (wish != null &&
             (wish.value == CardValue.jack || wish.value == CardValue.nine) &&
             c.suit == wish.suit) {
+          valuable.add(c);
+        }
+      }
+      // Misere: tiefe Karten behalten (6, 7, 8 = sichere Verlierer, nie abwerfen!)
+      if (gm == GameMode.misere) {
+        if (c.value == CardValue.six || c.value == CardValue.seven ||
+            c.value == CardValue.eight) {
           valuable.add(c);
         }
       }
@@ -1731,6 +1904,18 @@ class MonteCarloAI {
       // 6er (11 Pkt in Unten) nicht als "0 Pkt" im Oben-Stich geopfert werden
       final isMultiMode = gm == GameMode.slalom || gm == GameMode.elefant;
       fallback.sort((a, b) {
+        if (isMultiMode) {
+          // Niedrigste max Spielstärke zuerst abwerfen (10=4, 9/Jack=5 → expendable)
+          final aMax = math.max(
+            GameLogic.cardPlayStrength(a, GameMode.oben, null),
+            GameLogic.cardPlayStrength(a, GameMode.unten, null),
+          );
+          final bMax = math.max(
+            GameLogic.cardPlayStrength(b, GameMode.oben, null),
+            GameLogic.cardPlayStrength(b, GameMode.unten, null),
+          );
+          if (aMax != bMax) return aMax.compareTo(bMax);
+        }
         final aP = isMultiMode
             ? GameLogic.cardPoints(a, GameMode.oben, trump) + GameLogic.cardPoints(a, GameMode.unten, trump)
             : GameLogic.cardPoints(a, effectMode, trump);
@@ -1756,6 +1941,24 @@ class MonteCarloAI {
     return _weakest(discardable, effectMode, trump);
   }
 
+  /// Prüft ob die Wunschkarte zur aktuellen Richtung passt (Slalom/Elefant).
+  /// Tiefe Karten (6/7/8) → nur Unten, Hohe (Ass/König/Dame/10) → nur Oben,
+  /// Bauer/Nell → nur Trumpf. Andere Modi: immer true.
+  static bool _wishDirectionMatches(GameState state) {
+    if (state.wishCard == null) return false;
+    final gm = state.gameMode;
+    if (gm != GameMode.slalom && gm != GameMode.elefant) return true;
+    final em = state.effectiveMode;
+    final wv = state.wishCard!.value;
+    if (wv == CardValue.six || wv == CardValue.seven || wv == CardValue.eight) {
+      return em == GameMode.unten;
+    }
+    if (wv == CardValue.jack || wv == CardValue.nine) {
+      return em == GameMode.trump || em == GameMode.trumpUnten;
+    }
+    return em == GameMode.oben;
+  }
+
   /// Gibt true zurück, wenn [card] den aktuellen Teilstich gewinnen würde.
   static bool _wouldWin(JassCard card, GameState state, Suit? trump) {
     final playerId = state.players[state.currentPlayerIndex].id;
@@ -1771,6 +1974,26 @@ class MonteCarloAI {
       slalomStartsOben: state.slalomStartsOben,
     );
     return winnerId == playerId;
+  }
+
+  /// Punktwert-bewusstes Folgen (Misere/Molotof: Punkte minimieren).
+  /// [wantHighPoints] = true → höchsten Punktwert spielen (z.B. Gegner gewinnt in Misere)
+  /// [wantHighPoints] = false → niedrigsten Punktwert (z.B. Partner gewinnt in Misere)
+  static JassCard _pointAwareFollow(
+      List<JassCard> cards, GameMode effectMode, Suit? trump, bool wantHighPoints) {
+    if (cards.length == 1) return cards.first;
+    if (wantHighPoints) {
+      return cards.reduce((a, b) =>
+          GameLogic.cardPoints(a, effectMode, trump) >=
+                  GameLogic.cardPoints(b, effectMode, trump)
+              ? a
+              : b);
+    }
+    return cards.reduce((a, b) =>
+        GameLogic.cardPoints(a, effectMode, trump) <=
+                GameLogic.cardPoints(b, effectMode, trump)
+            ? a
+            : b);
   }
 
   /// Schwächste Karte nach Spielstärke (z.B. Ass in Undenufe).
