@@ -498,7 +498,7 @@ class _GameScreenState extends State<GameScreen> {
                               return w != null
                                   ? Padding(
                                       padding: const EdgeInsets.only(bottom: 2),
-                                      child: _WyssBubble(wyss: w, gameMode: state.gameMode, cardType: state.cardType),
+                                      child: _WyssBubble(wyss: w),
                                     )
                                   : const SizedBox.shrink();
                             }),
@@ -580,7 +580,7 @@ class _GameScreenState extends State<GameScreen> {
                                       return w != null
                                           ? Padding(
                                               padding: const EdgeInsets.only(top: 2),
-                                              child: _WyssBubble(wyss: w, gameMode: state.gameMode, cardType: state.cardType),
+                                              child: _WyssBubble(wyss: w),
                                             )
                                           : const SizedBox.shrink();
                                     }),
@@ -674,7 +674,7 @@ class _GameScreenState extends State<GameScreen> {
                                       return w != null
                                           ? Padding(
                                               padding: const EdgeInsets.only(top: 2),
-                                              child: _WyssBubble(wyss: w, gameMode: state.gameMode, cardType: state.cardType),
+                                              child: _WyssBubble(wyss: w),
                                             )
                                           : const SizedBox.shrink();
                                     }),
@@ -731,7 +731,7 @@ class _GameScreenState extends State<GameScreen> {
                         return w != null
                             ? Padding(
                                 padding: const EdgeInsets.only(top: 4),
-                                child: _WyssBubble(wyss: w, isHuman: true, gameMode: state.gameMode, cardType: state.cardType),
+                                child: _WyssBubble(wyss: w, isHuman: true),
                               )
                             : const SizedBox.shrink();
                       }),
@@ -3905,18 +3905,14 @@ class _DifferenzlerGameEndOverlay extends StatelessWidget {
 class _WyssBubble extends StatelessWidget {
   final WyssEntry wyss;
   final bool isHuman;
-  final GameMode gameMode;
-  final CardType cardType;
 
-  const _WyssBubble({required this.wyss, this.isHuman = false, required this.gameMode, required this.cardType});
+  const _WyssBubble({required this.wyss, this.isHuman = false});
 
   @override
   Widget build(BuildContext context) {
-    final isUnten = gameMode == GameMode.unten || gameMode == GameMode.trumpUnten;
-    final cardName = wyss.isFourOfAKind
-        ? wyss.topValueLabel(cardType)
-        : (isUnten ? wyss.bottomValueLabel(cardType) : wyss.topValueLabel(cardType));
-    final text = '💬 ${wyss.typeName} $cardName';
+    // Ansage: nur Typ nennen (z.B. "Vier gleiche", "Dreiblatt"), keine Details.
+    // Details werden erst bei der Auflösung im _WyssOverlay gezeigt.
+    final text = '💬 ${wyss.typeName}';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
@@ -4062,17 +4058,25 @@ class _WyssDeclarationOverlay extends StatelessWidget {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 12),
-                  // Karten-Preview
+                  // Karten-Preview (immer 1 Zeile, Breite anpassen)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Wrap(
-                      spacing: 4,
-                      runSpacing: 4,
-                      alignment: WrapAlignment.center,
-                      children: [
-                        for (final card in wyssCards)
-                          CardWidget(card: card, width: 68),
-                      ],
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final n = wyssCards.length;
+                        final spacing = 4.0;
+                        final maxW = (constraints.maxWidth - (n - 1) * spacing) / n;
+                        final cardW = maxW.clamp(36.0, 68.0);
+                        return Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            for (int i = 0; i < n; i++) ...[
+                              if (i > 0) SizedBox(width: spacing),
+                              CardWidget(card: wyssCards[i], width: cardW),
+                            ],
+                          ],
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -4353,14 +4357,25 @@ class _WyssOverlayState extends State<_WyssOverlay> {
           const Text('kein Weis',
               style: TextStyle(color: Colors.white30, fontSize: 12))
         else
-          // One row of cards per WyssEntry
+          // One row of cards per WyssEntry (immer 1 Zeile)
           for (final entry in entries) ...[
-            Wrap(
-              spacing: 3,
-              children: [
-                for (final card in _wyssCards(entry))
-                  CardWidget(card: card, width: 62),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final cards = _wyssCards(entry);
+                final n = cards.length;
+                const spacing = 3.0;
+                final maxW = (constraints.maxWidth - (n - 1) * spacing) / n;
+                final cardW = maxW.clamp(36.0, 62.0);
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    for (int i = 0; i < n; i++) ...[
+                      if (i > 0) const SizedBox(width: spacing),
+                      CardWidget(card: cards[i], width: cardW),
+                    ],
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 4),
           ],

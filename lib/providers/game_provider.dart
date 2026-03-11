@@ -353,8 +353,14 @@ class GameProvider extends ChangeNotifier {
     final mult = _schieberMultiplier(_state.gameMode, _state.trumpSuit);
     final raw1 = _state.teamScores['team1'] ?? 0;
     final raw2 = _state.teamScores['team2'] ?? 0;
-    final live1 = (_state.totalTeamScores['team1'] ?? 0) + raw1 * mult;
-    final live2 = (_state.totalTeamScores['team2'] ?? 0) + raw2 * mult;
+    // Stöck, Wyss, Stich: Wyss + Stöcke müssen eingerechnet werden
+    final stocke1 = _state.stockeRoundPoints['team1'] ?? 0;
+    final stocke2 = _state.stockeRoundPoints['team2'] ?? 0;
+    final wyssTotal = _state.wyssResolved ? _totalWyssPoints() : 0;
+    final wyss1 = (_state.wyssWinnerTeam == 'team1' ? wyssTotal : 0) + stocke1;
+    final wyss2 = (_state.wyssWinnerTeam == 'team2' ? wyssTotal : 0) + stocke2;
+    final live1 = (_state.totalTeamScores['team1'] ?? 0) + (raw1 + wyss1) * mult;
+    final live2 = (_state.totalTeamScores['team2'] ?? 0) + (raw2 + wyss2) * mult;
 
     String? winner;
     if (live1 >= _state.schieberWinTarget && live2 >= _state.schieberWinTarget) {

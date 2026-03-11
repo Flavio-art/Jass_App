@@ -120,30 +120,54 @@ class _PlayerHandWidgetState extends State<PlayerHandWidget> {
                   ),
                 ),
               ),
-            SizedBox(
-              height: 184,
-              width: totalWidth,
-              child: Stack(
-                clipBehavior: Clip.none,
-                alignment: Alignment.bottomCenter,
-                children: [
-                  for (int i = 0; i < n; i++)
-                    Positioned(
-                      bottom: 0,
-                      left: i * overlap,
-                      child: Transform.rotate(
-                        angle: -maxHalfAngle + i * angleStep,
-                        alignment: Alignment.bottomCenter,
-                        child: CardWidget(
-                          card: cards[i],
-                          isPlayable: widget.playableCards.contains(cards[i]),
-                          isSelected: _selectedCard == cards[i],
-                          width: cardWidth,
-                          onTap: () => _onCardTap(cards[i]),
+            GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTapUp: (details) {
+                // Tap ausserhalb der Karten → nächste Karte finden
+                final tapX = details.localPosition.dx;
+                final margin = (constraints.maxWidth - totalWidth) / 2;
+                final relX = tapX - margin;
+                int idx;
+                if (relX <= 0) {
+                  idx = 0; // links aussen → erste Karte
+                } else if (relX >= totalWidth) {
+                  idx = n - 1; // rechts aussen → letzte Karte
+                } else {
+                  // Karte unter dem Tap (von rechts nach links, da obere überdecken)
+                  idx = ((relX) / overlap).floor().clamp(0, n - 1);
+                  // Rechte Karten liegen oben → bevorzuge höheren Index
+                  if (idx < n - 1 && relX > (idx + 1) * overlap) {
+                    idx = (idx + 1).clamp(0, n - 1);
+                  }
+                }
+                _onCardTap(cards[idx]);
+              },
+              child: SizedBox(
+                height: 184,
+                width: constraints.maxWidth,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.bottomCenter,
+                  children: [
+                    for (int i = 0; i < n; i++)
+                      Positioned(
+                        bottom: 0,
+                        left: (constraints.maxWidth - totalWidth) / 2 + i * overlap,
+                        child: Transform.rotate(
+                          angle: -maxHalfAngle + i * angleStep,
+                          alignment: Alignment.bottomCenter,
+                          child: IgnorePointer(
+                            child: CardWidget(
+                              card: cards[i],
+                              isPlayable: widget.playableCards.contains(cards[i]),
+                              isSelected: _selectedCard == cards[i],
+                              width: cardWidth,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],
