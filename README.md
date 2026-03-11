@@ -1,14 +1,16 @@
 # Jass App ♥️
 
-Eine Flutter-App für das Schweizer Kartenspiel **Jass** – spielbar auf Android.
+Eine Flutter-App für das Schweizer Kartenspiel **Jass** – spielbar auf **Android** und **iOS**.
 
 ---
 
 ## Download
 
-**[Android App Herunterladen (neuste Version)](https://github.com/Flavio-art/Jass_App/releases/latest/download/app-release.apk)**
-
+**Android:** [App Herunterladen (neuste Version)](https://github.com/Flavio-art/Jass_App/releases/latest/download/app-release.apk)
 > **Android 8.0+** · APK öffnen, einmalig „Unbekannte Quelle" erlauben, fertig.
+
+**iOS:** [TestFlight Beta](https://testflight.apple.com/join/fmMRVZFt)
+> Über TestFlight installieren. Einladungslink öffnen, TestFlight App folgen.
 
 [📋 Alle Releases & Versionshistorie](https://github.com/Flavio-art/Jass_App/releases)
 
