@@ -20,6 +20,7 @@ class TrickAreaWidget extends StatelessWidget {
   final GameType gameType;
   final CardType cardType;
   final bool geschoben;
+  final bool hideModeIndicator;
 
   const TrickAreaWidget({
     super.key,
@@ -38,6 +39,7 @@ class TrickAreaWidget extends StatelessWidget {
     this.gameType = GameType.friseurTeam,
     this.cardType = CardType.french,
     this.geschoben = false,
+    this.hideModeIndicator = false,
   });
 
   @override
@@ -53,7 +55,8 @@ class TrickAreaWidget extends StatelessWidget {
         child: Stack(
           alignment: Alignment.center,
           children: [
-            // Modus-Indikator oben rechts
+            // Modus-Indikator oben rechts (ausgeblendet wenn extern angezeigt)
+            if (!hideModeIndicator)
             Positioned(
               top: 6,
               right: 8,

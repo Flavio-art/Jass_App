@@ -505,14 +505,19 @@ class ModeSelectorAI {
         score = _scoreForMode(best9, cand.mode, cand.trump);
       }
 
-      // Slalom-Richtung bestimmen
+      // Slalom-Richtung bestimmen: sichere Stiche zählen
       var slalomOben = true;
       if (cand.mode == GameMode.slalom) {
-        if (nnScores.isNotEmpty && nnScores.length > 9) {
-          slalomOben = nnScores[8] >= nnScores[9];
-        } else {
-          slalomOben = _scoreOben(best9) >= _scoreUnten(best9);
+        final allSuits = cardType == CardType.french
+            ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
+            : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
+        int safeOben = 0, safeUnten = 0;
+        for (final s in allSuits) {
+          safeOben += _safeTricksOben(best9, s);
+          safeUnten += _safeTricksUnten(best9, s);
         }
+        // Richtung mit mehr sicheren Stichen zuerst (5 Stiche in dieser Richtung)
+        slalomOben = safeOben >= safeUnten;
       }
 
       // Multiplikator: Trumpf dämpfen, Nicht-Trump boosten
@@ -709,22 +714,66 @@ class ModeSelectorAI {
       );
     }
 
-    // Slalom: Ass oder Sechs der längsten Farbe
+    // Slalom: Sichere Stiche zählen und schwächere Richtung verstärken.
+    // Wunschkarte in einer Farbe die man anspielen kann (Karten in Hand hat).
     if (mode == GameMode.slalom) {
       final allSuits = cardType == CardType.french
           ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
           : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
-      final counts = {for (final s in allSuits) s: 0};
-      for (final c in hand) counts[c.suit] = (counts[c.suit] ?? 0) + 1;
-      final sortedSuits = [...allSuits]..sort((a, b) => counts[b]!.compareTo(counts[a]!));
-      for (final suit in sortedSuits) {
-        for (final val in [CardValue.ace, CardValue.six]) {
+      // Farben in denen man Karten hat (kann man anspielen)
+      final handSuits = hand.map((c) => c.suit).toSet();
+
+      // Sichere Stiche zählen
+      int totalSafeOben = 0;
+      int totalSafeUnten = 0;
+      for (final s in allSuits) {
+        totalSafeOben += _safeTricksOben(hand, s);
+        totalSafeUnten += _safeTricksUnten(hand, s);
+      }
+
+      // Schwächere Seite verstärken
+      if (totalSafeOben <= totalSafeUnten) {
+        // Oben schwächer → Ass wünschen in einer anspielbaren Farbe
+        // Bevorzuge Farbe wo man König hat (Ass+König = 2 sichere)
+        final suitsByPriority = [...allSuits]
+          ..sort((a, b) {
+            final aHasKing = hand.any((c) => c.suit == a && c.value == CardValue.king) ? 1 : 0;
+            final bHasKing = hand.any((c) => c.suit == b && c.value == CardValue.king) ? 1 : 0;
+            if (aHasKing != bHasKing) return bHasKing - aHasKing;
+            return handSuits.contains(b) ? 1 : -1;
+          });
+        for (final suit in suitsByPriority) {
+          if (!handSuits.contains(suit)) continue; // Nur anspielbare Farben
           final card = available.firstWhere(
-            (c) => c.suit == suit && c.value == val,
+            (c) => c.suit == suit && c.value == CardValue.ace,
             orElse: () => available[0],
           );
-          if (card.suit == suit && card.value == val) return card;
+          if (card.suit == suit && card.value == CardValue.ace) return card;
         }
+      } else {
+        // Unten schwächer → 6 wünschen in einer anspielbaren Farbe
+        final suitsByPriority = [...allSuits]
+          ..sort((a, b) {
+            final aHas7 = hand.any((c) => c.suit == a && c.value == CardValue.seven) ? 1 : 0;
+            final bHas7 = hand.any((c) => c.suit == b && c.value == CardValue.seven) ? 1 : 0;
+            if (aHas7 != bHas7) return bHas7 - aHas7;
+            return handSuits.contains(b) ? 1 : -1;
+          });
+        for (final suit in suitsByPriority) {
+          if (!handSuits.contains(suit)) continue;
+          final card = available.firstWhere(
+            (c) => c.suit == suit && c.value == CardValue.six,
+            orElse: () => available[0],
+          );
+          if (card.suit == suit && card.value == CardValue.six) return card;
+        }
+      }
+      // Fallback: irgendein Ass oder 6
+      for (final val in [CardValue.ace, CardValue.six]) {
+        final card = available.firstWhere(
+            (c) => c.value == val && handSuits.contains(c.suit),
+            orElse: () => available[0]);
+        if (card.value == val) return card;
       }
       return available.first;
     }
@@ -794,46 +843,66 @@ class ModeSelectorAI {
       return available.first;
     }
 
-    // Elefant: 3× Oben + 3× Trumpf + 3× Unten
-    // Wunschkarte soll die schwächste Seite verstärken:
-    //   Oben schwach → Ass wünschen
-    //   Unten schwach → 6 wünschen
-    //   Beides ok → Buur/Nell für Trumpf
+    // Elefant: 3× Oben + 3× Unten + 3× Trumpf
+    // Strategie:
+    //   1. Keine 3 sicheren Oben-Stiche → Ass wünschen (anspielbare Farbe)
+    //   2. 3 sichere Oben-Stiche aber keine 3 Unten → 6 wünschen
+    //   3. Beides ≥3 sichere Stiche → Buur/Nell für Trumpf
     if (mode == GameMode.elefant) {
-      final obenScore = _scoreOben(hand);
-      final untenScore = _scoreUnten(hand);
+      final allSuits = cardType == CardType.french
+          ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
+          : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
+      final handSuits = hand.map((c) => c.suit).toSet();
 
-      if (obenScore < untenScore) {
-        // Oben ist schwächer → Ass wünschen (bevorzugt Farbe mit König)
-        final hasKing = <Suit>{};
-        for (final c in hand) {
-          if (c.value == CardValue.king) hasKing.add(c.suit);
-        }
-        final aceCard = available.firstWhere(
-          (c) => c.value == CardValue.ace && hasKing.contains(c.suit),
-          orElse: () => available.firstWhere(
-            (c) => c.value == CardValue.ace,
-            orElse: () => available.first,
-          ),
-        );
-        if (aceCard.value == CardValue.ace) return aceCard;
-      } else if (untenScore < obenScore) {
-        // Unten ist schwächer → 6 wünschen (bevorzugt Farbe mit 7)
-        final hasSeven = <Suit>{};
-        for (final c in hand) {
-          if (c.value == CardValue.seven) hasSeven.add(c.suit);
-        }
-        final sixCard = available.firstWhere(
-          (c) => c.value == CardValue.six && hasSeven.contains(c.suit),
-          orElse: () => available.firstWhere(
-            (c) => c.value == CardValue.six,
-            orElse: () => available.first,
-          ),
-        );
-        if (sixCard.value == CardValue.six) return sixCard;
+      int totalSafeOben = 0;
+      int totalSafeUnten = 0;
+      for (final s in allSuits) {
+        totalSafeOben += _safeTricksOben(hand, s);
+        totalSafeUnten += _safeTricksUnten(hand, s);
       }
 
-      // Oben und Unten ausgeglichen → Buur/Nell für Trumpf
+      if (totalSafeOben < 3) {
+        // Oben unsicher → Ass wünschen in anspielbarer Farbe (bevorzuge König-Farbe)
+        final suitsByPriority = [...allSuits]
+          ..sort((a, b) {
+            final aK = hand.any((c) => c.suit == a && c.value == CardValue.king) ? 1 : 0;
+            final bK = hand.any((c) => c.suit == b && c.value == CardValue.king) ? 1 : 0;
+            return bK - aK;
+          });
+        for (final suit in suitsByPriority) {
+          if (!handSuits.contains(suit)) continue;
+          final card = available.firstWhere(
+            (c) => c.suit == suit && c.value == CardValue.ace,
+            orElse: () => available[0],
+          );
+          if (card.suit == suit && card.value == CardValue.ace) return card;
+        }
+        // Fallback: irgendein Ass
+        final anyAce = available.firstWhere(
+            (c) => c.value == CardValue.ace, orElse: () => available.first);
+        if (anyAce.value == CardValue.ace) return anyAce;
+      } else if (totalSafeUnten < 3) {
+        // Oben ok, Unten unsicher → 6 wünschen in anspielbarer Farbe
+        final suitsByPriority = [...allSuits]
+          ..sort((a, b) {
+            final a7 = hand.any((c) => c.suit == a && c.value == CardValue.seven) ? 1 : 0;
+            final b7 = hand.any((c) => c.suit == b && c.value == CardValue.seven) ? 1 : 0;
+            return b7 - a7;
+          });
+        for (final suit in suitsByPriority) {
+          if (!handSuits.contains(suit)) continue;
+          final card = available.firstWhere(
+            (c) => c.suit == suit && c.value == CardValue.six,
+            orElse: () => available[0],
+          );
+          if (card.suit == suit && card.value == CardValue.six) return card;
+        }
+        final anySix = available.firstWhere(
+            (c) => c.value == CardValue.six, orElse: () => available.first);
+        if (anySix.value == CardValue.six) return anySix;
+      }
+
+      // Beides ≥3 sichere Stiche → Buur/Nell für Trumpf
       final rest = hand.where((c) =>
           c.value != CardValue.ace && c.value != CardValue.six).toList();
       final suitCounts = <Suit, int>{};
@@ -1059,6 +1128,41 @@ class ModeSelectorAI {
     return score;
   }
 
+  /// Zählt sichere Oben-Stiche in einer Farbe (Ass, Ass+König=2, Ass+König+Dame=3, etc.)
+  static int _safeTricksOben(List<JassCard> hand, Suit suit) {
+    final vals = hand.where((c) => c.suit == suit).map((c) => c.value).toSet();
+    // Von oben nach unten: Ass → König → Dame → Bauer → Zehn → ...
+    const obenOrder = [CardValue.ace, CardValue.king, CardValue.queen,
+        CardValue.jack, CardValue.ten, CardValue.nine, CardValue.eight,
+        CardValue.seven, CardValue.six];
+    int count = 0;
+    for (final v in obenOrder) {
+      if (vals.contains(v)) {
+        count++;
+      } else {
+        break; // Lücke → nicht mehr sicher
+      }
+    }
+    return count;
+  }
+
+  /// Zählt sichere Unten-Stiche in einer Farbe (6, 6+7=2, 6+7+8=3, etc.)
+  static int _safeTricksUnten(List<JassCard> hand, Suit suit) {
+    final vals = hand.where((c) => c.suit == suit).map((c) => c.value).toSet();
+    const untenOrder = [CardValue.six, CardValue.seven, CardValue.eight,
+        CardValue.nine, CardValue.ten, CardValue.jack, CardValue.queen,
+        CardValue.king, CardValue.ace];
+    int count = 0;
+    for (final v in untenOrder) {
+      if (vals.contains(v)) {
+        count++;
+      } else {
+        break;
+      }
+    }
+    return count;
+  }
+
   /// Misere: Möglichst wenig Punkte → keine gefährlichen Hohen.
   static double _scoreMisere(List<JassCard> hand) {
     // Starte bei 120; gefährliche Karten ziehen ab
@@ -1161,6 +1265,87 @@ class ModeSelectorAI {
       }
     }
     return score;
+  }
+
+  /// Bewertet wie gut eine Hand in einem bestimmten Molotow-SubMode ist.
+  /// Höherer Score = besser für den Spieler (= weniger Punkte kassieren).
+  /// Öffentlich, damit GameLogic die Trigger-Entscheidung treffen kann.
+  static double scoreMolotowSubMode(List<JassCard> hand, GameMode subMode, Suit? trump) {
+    if (subMode == GameMode.oben) {
+      // Obenabe: wenige hohe Karten = gut (wir verlieren Stiche = gut in Molotow)
+      // → Invertiere: viele tiefe Karten = hoher Score
+      double score = 80;
+      for (final c in hand) {
+        switch (c.value) {
+          case CardValue.ace:
+            score -= 25; // Ass gewinnt sicher → schlecht
+          case CardValue.king:
+            score -= 12;
+          case CardValue.queen:
+            score -= 6;
+          case CardValue.ten:
+            score -= 15; // 10er Pkt + oft Stichgewinner
+          case CardValue.six:
+          case CardValue.seven:
+            score += 8; // Tiefe Karten = sicher verlieren
+          case CardValue.eight:
+            score += 5;
+          default:
+            break;
+        }
+      }
+      return score;
+    } else if (subMode == GameMode.unten) {
+      // Undenufe: wenige tiefe Karten = gut
+      double score = 80;
+      for (final c in hand) {
+        switch (c.value) {
+          case CardValue.six:
+            score -= 25; // 6 gewinnt sicher → schlecht
+          case CardValue.seven:
+            score -= 12;
+          case CardValue.eight:
+            score -= 6;
+          case CardValue.ten:
+            score -= 10;
+          case CardValue.ace:
+          case CardValue.king:
+            score += 8;
+          case CardValue.queen:
+            score += 5;
+          default:
+            break;
+        }
+      }
+      return score;
+    } else {
+      // Trumpf: wenige Trümpfe = gut, viele Nicht-Trumpf = gut
+      double score = 80;
+      if (trump == null) return score;
+      for (final c in hand) {
+        if (c.suit == trump) {
+          // Jede Trumpfkarte ist schlecht (kann Stiche gewinnen)
+          switch (c.value) {
+            case CardValue.jack:
+              score -= 30; // Buur = sicherer Stich
+            case CardValue.nine:
+              score -= 20; // Nell = fast sicher
+            case CardValue.ace:
+              score -= 15;
+            default:
+              score -= 8;
+          }
+        } else {
+          // Nicht-Trumpf: tiefe Karten gut, hohe schlecht
+          if (c.value == CardValue.ace || c.value == CardValue.ten) {
+            score -= 5; // Können trotzdem Stiche gewinnen
+          } else if (c.value == CardValue.six || c.value == CardValue.seven) {
+            score += 3;
+          }
+        }
+      }
+      return score;
+    }
   }
 
   // ─── Elefant-Sofortentscheid ──────────────────────────────────────────────

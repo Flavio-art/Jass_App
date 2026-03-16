@@ -393,21 +393,28 @@ class _RulesScreenState extends State<RulesScreen>
             'Stiche 1–3: Obenabe. Stiche 4–6: Undenufe. '
             'Ab Stich 7: erste gespielte Karte bestimmt die Trumpffarbe.'),
         _ModeCard('😶  Misere',
-            'Ziel: möglichst wenige Punkte sammeln. '
-            'Gutschrift = 157 − eigene Kartenpunkte.'),
+            'Ziel: möglichst wenige Punkte sammeln – wer am wenigsten Kartenpunkte macht, erhält die beste Gutschrift.\n'
+            'Gutschrift = 157 − eigene Kartenpunkte.\n'
+            'Es wird nach Obenabe-Regeln gespielt (kein Trumpf, Ass ist hoch). '
+            'Farbzwang gilt, aber es gibt keine Trumpfpflicht.\n'
+            'Match (0 Punkte gemacht) = 170 Punkte Gutschrift für das ansagende Team.'),
         _ModeCard('👑  Alles Trumpf',
             'Kein fester Trumpf – die angespielte Farbe entscheidet. '
             'Nur Buur (20 Pkt), Näll (14 Pkt) und König (4 Pkt) zählen.'),
         _ModeCard('🐑  Schafkopf',
-            '15 Trumpfkarten: alle vier ${isGerman ? "Ober" : "Damen"} + alle vier Achter + alle Karten der Trumpffarbe.\n'
+            'Es gibt 15 Trumpfkarten: alle vier ${isGerman ? "Ober" : "Damen"}, alle vier Achter und alle Karten der gewählten Trumpffarbe.\n'
             '$schafTrumpfReihe\n'
             '$schafNonTrumpOrder\n'
-            'Punktesystem: Obenabe-Werte.'),
+            'Punktesystem: Obenabe-Werte (Achter = 8 Punkte).\n'
+            '${isGerman ? "Ober" : "Damen"} und Achter gelten IMMER als Trumpf – auch wenn sie in einer anderen Farbe sind. '
+            'Wer eine Nicht-Trumpf-Farbe bedienen muss, darf ${isGerman ? "Ober" : "Damen"}/Achter dieser Farbe trotzdem behalten.'),
         _ModeCard('💣  Molotow',
-            'Strenge Farbenpflicht für alle. Der erste Spieler der nicht Farbe angeben kann, '
-            'bestimmt den Spielmodus:\n'
-            '• 6 → Undenufe  • Ass → Obenabe  • Andere → Trumpf (Farbe der Karte)\n\n'
-            'Ziel: möglichst wenige Punkte. Wertung: 157 − eigene Punkte.'),
+            'Strenge Farbenpflicht für ALLE Spieler – auch der erste Spieler muss Farbe angeben, wenn er kann.\n'
+            'Der erste Spieler, der nicht Farbe angeben kann, bestimmt mit seiner Karte den restlichen Spielmodus:\n'
+            '• 6 → Undenufe  • Ass → Obenabe  • Andere Karte → Trumpf (die Farbe dieser Karte wird Trumpf)\n\n'
+            'Ziel: möglichst wenige Punkte sammeln. Gutschrift = 157 − eigene Kartenpunkte.\n'
+            'Solange kein Modus bestimmt wurde, gelten Obenabe-Regeln.\n'
+            'Match (0 Punkte) = 170 Punkte Gutschrift für das ansagende Team.'),
 
         const SizedBox(height: 8),
       ];
