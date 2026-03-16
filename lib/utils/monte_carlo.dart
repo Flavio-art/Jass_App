@@ -197,6 +197,44 @@ class MonteCarloAI {
       }
     }
 
+    // ── Partner-Weis-Strategie: Ass spielen wenn Partner Folge geweist hat ────
+    // Wenn Partner z.B. König-Dame-Bauer in einer Farbe geweist hat und man
+    // das Ass dieser Farbe hat → Ass spielen, damit Partner danach die höchste
+    // Karte hat und den nächsten Stich sicher gewinnt.
+    if (state.currentTrickCards.isEmpty && state.wyssResolved) {
+      final partnerSeqs = _wyssPartnerSequences(state, aiPlayer);
+      if (partnerSeqs.isNotEmpty) {
+        final effectMode = state.effectiveMode;
+        final isOben = effectMode == GameMode.oben ||
+            effectMode == GameMode.trump ||
+            effectMode == GameMode.schafkopf;
+        final isUnten = effectMode == GameMode.unten;
+
+        for (final entry in partnerSeqs.entries) {
+          final suit = entry.key;
+          final topValue = entry.value;
+          // Trumpffarbe überspringen (andere Regeln)
+          if (suit == state.trumpSuit &&
+              (state.gameMode == GameMode.trump ||
+                  state.gameMode == GameMode.trumpUnten)) {
+            continue;
+          }
+
+          if (isOben && topValue == CardValue.king) {
+            // Partner hat König als höchste → Ass spielen macht König zum Höchsten
+            final ace = playable.where((c) =>
+                c.suit == suit && c.value == CardValue.ace).toList();
+            if (ace.isNotEmpty) return ace.first;
+          } else if (isUnten && topValue == CardValue.seven) {
+            // Partner hat 7 als tiefste geweiste → 6 spielen macht 7 zur Stärksten
+            final six = playable.where((c) =>
+                c.suit == suit && c.value == CardValue.six).toList();
+            if (six.isNotEmpty) return six.first;
+          }
+        }
+      }
+    }
+
     // ── Trumpf: nur eigenes Team hat Trumpf → Nicht-Trumpf-Gewinner sicher ──
     // Gegner können nicht stechen → Asse/hohe Karten sind garantierte Gewinner.
     // Greift auch wenn der KI-Spieler selbst keinen Trumpf mehr hat.
@@ -520,8 +558,8 @@ class MonteCarloAI {
 
       if (partnerWins) {
         // Partner gewinnt → nicht mit Trumpf überstechen!
-        // Besonders als letzter Spieler oder wenn meiste Trümpfe weg sind.
-        if (trump != null && (effectMode == GameMode.trump || effectMode == GameMode.trumpUnten)) {
+        if (trump != null && (effectMode == GameMode.trump || effectMode == GameMode.trumpUnten ||
+            effectMode == GameMode.allesTrumpf || effectMode == GameMode.schafkopf)) {
           final ledSuit = state.currentTrickCards.first.suit;
           final isDiscarding = !playable.any((c) => c.suit == ledSuit);
           if (isDiscarding) {
@@ -531,6 +569,15 @@ class MonteCarloAI {
               return _weakest(nonTrump, effectMode, trump);
             }
             // Nur Trumpf auf der Hand → schwächsten Trumpf abwerfen
+            return _weakest(playable, effectMode, trump);
+          }
+          // Trumpf angespielt: nicht mit höherem Trumpf überstechen
+          if (ledSuit == trump || effectMode == GameMode.allesTrumpf) {
+            // Schwächste spielbare Karte (nicht übertrumpfen)
+            final notWinning = playable.where((c) => !_wouldWin(c, state, trump)).toList();
+            if (notWinning.isNotEmpty) {
+              return _weakest(notWinning, effectMode, trump);
+            }
             return _weakest(playable, effectMode, trump);
           }
         }
@@ -562,6 +609,24 @@ class MonteCarloAI {
       }
 
       // Gegner gewinnt → versuche billigst möglich zu übernehmen
+      // Aber: nicht trumpfen wenn nur eigenes Team Trumpf hat und Partner noch spielen muss
+      // (Partner wird selber stechen → eigenen Trumpf sparen)
+      if (trump != null && _onlyTeamHasTrump(aiPlayer, state, trump)) {
+        final trickLen = state.currentTrickCards.length;
+        final isLast = trickLen == 3;
+        if (!isLast) {
+          // Partner kommt noch → nicht trumpfen, schwach abwerfen
+          final ledSuit = state.currentTrickCards.first.suit;
+          final isDiscarding = !playable.any((c) => c.suit == ledSuit);
+          if (isDiscarding) {
+            final nonTrump = playable.where((c) => c.suit != trump).toList();
+            if (nonTrump.isNotEmpty) {
+              return _smartDiscard(nonTrump, state, effectMode, trump);
+            }
+          }
+        }
+      }
+
       final winning =
           playable.where((c) => _wouldWin(c, state, trump)).toList();
       if (winning.isNotEmpty) {
@@ -692,9 +757,36 @@ class MonteCarloAI {
         }
       }
 
+      // Partner-Stich nicht übertrumpfen (allgemein): starker Malus
+      if (state.currentTrickCards.isNotEmpty && state.trumpSuit != null) {
+        final currentWinnerId2 = GameLogic.determineTrickWinner(
+          cards: state.currentTrickCards,
+          playerIds: state.currentTrickPlayerIds,
+          gameMode: state.gameMode,
+          trumpSuit: state.trumpSuit,
+          trickNumber: state.currentTrickNumber,
+          molotofSubMode: state.molotofSubMode,
+          slalomStartsOben: state.slalomStartsOben,
+        );
+        final currentWinner2 = state.players.firstWhere((p) => p.id == currentWinnerId2);
+        if (_sameTeamFor(aiPlayer, currentWinner2, state) &&
+            _wouldWin(card, state, state.trumpSuit) &&
+            card.suit == state.trumpSuit) {
+          avg -= 30.0; // Partner-Stich nicht mit Trumpf überstechen
+        }
+      }
+
       // Geweiste Gegner-Farben beim Anspielen leicht bestrafen
       if (penalizeWyss && mcWyssOppSuits.contains(card.suit)) {
         avg -= 5.0; // Gegner hat starke Karten in dieser Farbe
+      }
+
+      // Partner-Weis-Farben beim Anspielen bevorzugen
+      if (state.currentTrickCards.isEmpty && state.wyssResolved) {
+        final partnerSeqs = _wyssPartnerSequences(state, aiPlayer);
+        if (partnerSeqs.containsKey(card.suit)) {
+          avg += 8.0; // Partner hat starke Karten → Farbe bevorzugen
+        }
       }
 
       // Near-miss Karten beim Anspielen bestrafen (7 ohne 6 in Unten, König ohne Ass in Oben)
@@ -1706,7 +1798,7 @@ class MonteCarloAI {
     // Partner gewinnt → nicht mit Trumpf überstechen!
     if (partnerWins && trump != null &&
         (effectMode == GameMode.trump || effectMode == GameMode.trumpUnten ||
-         effectMode == GameMode.schafkopf)) {
+         effectMode == GameMode.schafkopf || effectMode == GameMode.allesTrumpf)) {
       final ledSuit = state.currentTrickCards.first.suit;
       final isDiscarding = !playable.any((c) => c.suit == ledSuit);
       if (isDiscarding) {
@@ -1716,6 +1808,14 @@ class MonteCarloAI {
           return _weakest(nonTrump, effectMode, trump);
         }
         // Nur Trumpf auf der Hand → schwächsten Trumpf abwerfen
+        return _weakest(playable, effectMode, trump);
+      }
+      // Trumpf angespielt oder Alles Trumpf: nicht mit höherem Trumpf überstechen
+      if (ledSuit == trump || effectMode == GameMode.allesTrumpf) {
+        final notWinning = playable.where((c) => !_wouldWin(c, state, trump)).toList();
+        if (notWinning.isNotEmpty) {
+          return _weakest(notWinning, effectMode, trump);
+        }
         return _weakest(playable, effectMode, trump);
       }
     }
@@ -1777,6 +1877,23 @@ class MonteCarloAI {
         return _weakest(winning, effectMode, null);
       }
       return _smartDiscard(playable, state, effectMode, null);
+    }
+
+    // Gegner gewinnt → aber nicht trumpfen wenn nur eigenes Team Trumpf hat
+    // und Partner noch spielen muss (Partner sticht selber)
+    if (trump != null && _onlyTeamHasTrump(player, state, trump)) {
+      final trickLen = state.currentTrickCards.length;
+      final isLast = trickLen == 3;
+      if (!isLast) {
+        final ledSuit = state.currentTrickCards.first.suit;
+        final isDiscarding = !playable.any((c) => c.suit == ledSuit);
+        if (isDiscarding) {
+          final nonTrump = playable.where((c) => c.suit != trump).toList();
+          if (nonTrump.isNotEmpty) {
+            return _smartDiscard(nonTrump, state, effectMode, trump);
+          }
+        }
+      }
     }
 
     // Gegner gewinnt → versuche mit billigster Karte zu gewinnen
@@ -2311,6 +2428,36 @@ class MonteCarloAI {
       for (final w in entry.value) {
         if (!w.isFourOfAKind && w.suit != null) {
           result.add(w.suit!);
+        }
+      }
+    }
+    return result;
+  }
+
+  /// Gibt die Suits zurück, in denen der PARTNER Folge-Weisen hat.
+  /// Inkl. der höchsten Karte der Folge (topValue) für strategische Entscheidungen.
+  /// Nur relevant wenn wyssResolved UND das eigene Team den Weis gewonnen hat.
+  static Map<Suit, CardValue> _wyssPartnerSequences(GameState state, Player aiPlayer) {
+    final result = <Suit, CardValue>{};
+    if (!state.wyssResolved) return result;
+
+    final winnerTeam = state.wyssWinnerTeam;
+    final aiIsTeam1 = aiPlayer.position == PlayerPosition.south ||
+        aiPlayer.position == PlayerPosition.north;
+    final aiTeam = aiIsTeam1 ? 'team1' : 'team2';
+    // Wenn das gegnerische Team gewonnen hat, kennen wir die Partner-Karten nicht öffentlich
+    if (winnerTeam != aiTeam) return result;
+
+    for (final entry in state.playerWyss.entries) {
+      final p = state.players.firstWhere((p) => p.id == entry.key);
+      if (!_sameTeam(p, aiPlayer) || p.id == aiPlayer.id) continue; // Nur Partner
+      for (final w in entry.value) {
+        if (!w.isFourOfAKind && w.suit != null) {
+          // Höchste topValue pro Suit merken
+          if (!result.containsKey(w.suit) ||
+              CardValue.values.indexOf(w.topValue) > CardValue.values.indexOf(result[w.suit]!)) {
+            result[w.suit!] = w.topValue;
+          }
         }
       }
     }

@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/card_model.dart';
 import '../models/player.dart';
@@ -28,11 +27,18 @@ class PlayerHandWidget extends StatefulWidget {
 
 class _PlayerHandWidgetState extends State<PlayerHandWidget> {
   JassCard? _selectedCard;
-  Timer? _autoPlayTimer;
+
+  @override
+  void didUpdateWidget(covariant PlayerHandWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Auswahl zurücksetzen wenn sich die Hand ändert (Karte wurde gespielt)
+    if (_selectedCard != null && !widget.player.hand.contains(_selectedCard)) {
+      _selectedCard = null;
+    }
+  }
 
   @override
   void dispose() {
-    _autoPlayTimer?.cancel();
     super.dispose();
   }
 
@@ -143,7 +149,7 @@ class _PlayerHandWidgetState extends State<PlayerHandWidget> {
                 _onCardTap(cards[idx]);
               },
               child: SizedBox(
-                height: 184,
+                height: 228,
                 width: constraints.maxWidth,
                 child: Stack(
                   clipBehavior: Clip.none,
@@ -226,20 +232,13 @@ class _PlayerHandWidgetState extends State<PlayerHandWidget> {
   }
 
   void _onCardTap(JassCard card) {
-    _autoPlayTimer?.cancel();
     if (_selectedCard == card) {
       // 2. Tap → sofort spielen
       setState(() => _selectedCard = null);
       widget.onCardTap?.call(card);
     } else {
-      // 1. Tap → auswählen + Auto-Play nach 2 Sekunden
+      // 1. Tap → auswählen (Karte bleibt oben bis 2. Tap)
       setState(() => _selectedCard = card);
-      _autoPlayTimer = Timer(const Duration(seconds: 2), () {
-        if (mounted && _selectedCard == card) {
-          setState(() => _selectedCard = null);
-          widget.onCardTap?.call(card);
-        }
-      });
     }
   }
 }

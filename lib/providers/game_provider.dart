@@ -373,7 +373,10 @@ class GameProvider extends ChangeNotifier {
     }
 
     if (winner != null) {
-      _state = _state.copyWith(schieberLimitReachedBy: winner);
+      _state = _state.copyWith(
+        schieberLimitReachedBy: winner,
+        schieberLimitScores: {'team1': live1, 'team2': live2},
+      );
       notifyListeners();
     }
   }
@@ -2005,7 +2008,10 @@ class GameProvider extends ChangeNotifier {
         winner = (winner != null && live1 >= live2) ? 'team1' : 'team2';
       }
       if (winner != null) {
-        _state = _state.copyWith(schieberLimitReachedBy: winner);
+        _state = _state.copyWith(
+          schieberLimitReachedBy: winner,
+          schieberLimitScores: {'team1': live1, 'team2': live2},
+        );
       }
     }
 
@@ -2295,6 +2301,16 @@ class GameProvider extends ChangeNotifier {
         }
       }
 
+      // Wenn Limit mid-round erreicht wurde: Rundenpunkte = eingefrorener Stand minus vorherige Gesamtpunkte
+      int resultTeam1 = finalTeam1;
+      int resultTeam2 = finalTeam2;
+      if (_state.gameType == GameType.schieber &&
+          _state.schieberLimitReachedBy != null &&
+          _state.schieberLimitScores != null) {
+        resultTeam1 = (_state.schieberLimitScores!['team1'] ?? 0) - (_state.totalTeamScores['team1'] ?? 0);
+        resultTeam2 = (_state.schieberLimitScores!['team2'] ?? 0) - (_state.totalTeamScores['team2'] ?? 0);
+      }
+
       final result = RoundResult(
         roundNumber: _state.roundNumber,
         variantKey: varKey,
@@ -2302,8 +2318,8 @@ class GameProvider extends ChangeNotifier {
         isTeam1Ansager: _state.gameType == GameType.friseur
             ? true  // Friseur Solo: team1 = ansager team
             : _state.isTeam1Ansager,
-        team1Score: finalTeam1,
-        team2Score: finalTeam2,
+        team1Score: resultTeam1,
+        team2Score: resultTeam2,
         rawTeam1Score: rawTeam1,
         rawTeam2Score: rawTeam2,
         pureTeam1Score: pureRaw1,
@@ -2317,10 +2333,15 @@ class GameProvider extends ChangeNotifier {
 
       // Schieber: Gesamtstand sofort aktualisieren (für Rundenende-Overlay)
       if (_state.gameType == GameType.schieber) {
-        newTotalTeamScores = {
-          'team1': (_state.totalTeamScores['team1'] ?? 0) + finalTeam1,
-          'team2': (_state.totalTeamScores['team2'] ?? 0) + finalTeam2,
-        };
+        if (_state.schieberLimitReachedBy != null && _state.schieberLimitScores != null) {
+          // Eingefrorene Punkte vom Zeitpunkt des Limit-Erreichens verwenden
+          newTotalTeamScores = Map<String, int>.from(_state.schieberLimitScores!);
+        } else {
+          newTotalTeamScores = {
+            'team1': (_state.totalTeamScores['team1'] ?? 0) + finalTeam1,
+            'team2': (_state.totalTeamScores['team2'] ?? 0) + finalTeam2,
+          };
+        }
       }
     }
 

@@ -1,6 +1,7 @@
 import '../models/card_model.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
+import 'mode_selector.dart';
 
 class GameLogic {
   // ─── Spielbare Karten ────────────────────────────────────────────────────
@@ -670,6 +671,19 @@ class GameLogic {
       // Anführen: niedrigste Karte
       return _weakest(playable, effectiveMode, trump);
     }
+
+    // ── Molotow-Trigger: bewusst den besten Modus auslösen ──────────────
+    // Wenn wir nicht Farbe angeben können UND kein SubMode gesetzt ist,
+    // lösen wir den Trigger aus. Wähle die Karte die zum besten Modus führt.
+    if (state.gameMode == GameMode.molotof && molotofSubMode == null) {
+      final ledSuit = state.currentTrickCards.first.suit;
+      final triggerCards = playable.where((c) => c.suit != ledSuit).toList();
+
+      if (triggerCards.isNotEmpty) {
+        return _bestMolotowTrigger(triggerCards, playable, state);
+      }
+    }
+
     // Karten die NICHT gewinnen würden
     final losing = playable.where((c) {
       final testCards = [...state.currentTrickCards, c];
@@ -688,6 +702,66 @@ class GameLogic {
     if (losing.isNotEmpty) return _weakest(losing, effectiveMode, trump);
     // Muss gewinnen → niedrigste Karte mit minimalen Punkten
     return _weakest(playable, effectiveMode, trump);
+  }
+
+  /// Wählt die beste Trigger-Karte für Molotow.
+  /// Bewertet für jede mögliche Karte, welcher Sub-Modus entsteht und
+  /// wie gut die verbleibende Hand in diesem Modus ist.
+  static JassCard _bestMolotowTrigger(
+    List<JassCard> triggerCards,
+    List<JassCard> allPlayable,
+    GameState state,
+  ) {
+    JassCard? bestCard;
+    double bestScore = double.negativeInfinity;
+
+    // Restliche Hand nach dem Spielen der Trigger-Karte
+    final aiPlayer = state.players.firstWhere((p) =>
+        p.hand.any((c) => allPlayable.contains(c)));
+    final hand = aiPlayer.hand;
+
+    for (final card in triggerCards) {
+      // Welcher Modus wird ausgelöst?
+      final GameMode subMode;
+      final Suit? newTrump;
+
+      if (card.value == CardValue.six) {
+        subMode = GameMode.unten;
+        newTrump = null;
+      } else if (card.value == CardValue.ace) {
+        subMode = GameMode.oben;
+        newTrump = null;
+      } else {
+        subMode = GameMode.trump;
+        newTrump = card.suit;
+      }
+
+      // Restliche Hand bewerten (ohne die gespielte Karte)
+      final remainingHand = hand.where((c) => c != card).toList();
+
+      // Molotow = Misere-ähnlich → Score invertieren (weniger Punkte = besser)
+      // Für Oben/Unten: wie schlecht können wir sein (= wenig Stiche gewinnen)?
+      // Für Trumpf: wie wenige Punkte sammeln wir?
+      double score;
+      if (subMode == GameMode.oben) {
+        // Unten-Score nutzen: je mehr tiefe Karten, desto besser zum Verlieren in Oben
+        // Invertiert: hoher _scoreUnten = wir haben viele tiefe Karten = gut für Molotow-Oben
+        score = ModeSelectorAI.scoreMolotowSubMode(remainingHand, subMode, newTrump);
+      } else if (subMode == GameMode.unten) {
+        // Oben-Score nutzen: je mehr hohe Karten, desto besser zum Verlieren in Unten
+        score = ModeSelectorAI.scoreMolotowSubMode(remainingHand, subMode, newTrump);
+      } else {
+        // Trumpf: Misere-Logik → wenige Trümpfe + tiefe Karten = gut
+        score = ModeSelectorAI.scoreMolotowSubMode(remainingHand, subMode, newTrump);
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestCard = card;
+      }
+    }
+
+    return bestCard ?? triggerCards.first;
   }
 
   /// Schmieren: beste Nicht-Trumpf-Karte mit hohem Punktwert

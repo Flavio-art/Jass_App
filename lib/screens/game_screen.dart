@@ -70,11 +70,9 @@ class _GameScreenState extends State<GameScreen> {
     final winner = state.schieberLimitReachedBy;
     final isTeam1 = winner == 'team1';
     final winnerLabel = isTeam1 ? 'Ihr habt' : 'Gegner haben';
-    final mult = _schieberMultiplier(state);
-    final raw1 = state.teamScores['team1'] ?? 0;
-    final raw2 = state.teamScores['team2'] ?? 0;
-    final live1 = (state.totalTeamScores['team1'] ?? 0) + raw1 * mult;
-    final live2 = (state.totalTeamScores['team2'] ?? 0) + raw2 * mult;
+    // Eingefrorene Scores verwenden (inkl. Weis/Stöcke)
+    final live1 = state.schieberLimitScores?['team1'] ?? (state.totalTeamScores['team1'] ?? 0);
+    final live2 = state.schieberLimitScores?['team2'] ?? (state.totalTeamScores['team2'] ?? 0);
 
     showDialog<bool>(
       context: ctx,
@@ -477,44 +475,90 @@ class _GameScreenState extends State<GameScreen> {
                     // ── North player + won pile ───────────────────────
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 2),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          if (ansagerId == north.id && lochId == north.id)
-                            const _AnsagerLochBadge()
-                          else if (ansagerId == north.id)
-                            const _AnsagerBadge()
-                          else if (lochId == north.id)
-                            const _LochBadge(),
-                          if (geschobenId == north.id)
-                            const _GeschobenBubble(),
-                          if (state.wyssDeclarationPending &&
-                              state.completedTricks.isEmpty &&
-                              state.phase == GamePhase.playing &&
-                              (state.currentPlayer.id == north.id ||
-                                  state.currentTrickPlayerIds.contains(north.id)))
-                            Builder(builder: (_) {
-                              final w = _bestWyssFor(state, north.id);
-                              return w != null
-                                  ? Padding(
-                                      padding: const EdgeInsets.only(bottom: 2),
-                                      child: _WyssBubble(wyss: w),
-                                    )
-                                  : const SizedBox.shrink();
-                            }),
-                          PlayerHandWidget(
-                            player: north,
-                            isActive:
-                                state.currentPlayer.id == north.id &&
-                                    state.phase == GamePhase.playing,
-                            teamColor: teamColors[north.id],
+                          // Links: Angesagtes Spiel (Friseur Solo)
+                          SizedBox(
+                            width: 88,
+                            child: state.gameType == GameType.friseur &&
+                                    (state.phase == GamePhase.playing || state.phase == GamePhase.trickClearPending)
+                                ? _FriseurModeLabel(
+                                    gameMode: state.gameMode,
+                                    molotofSubMode: state.molotofSubMode,
+                                    trumpSuit: state.trumpSuit,
+                                    trickNumber: displayTrickNumber,
+                                    slalomStartsOben: state.slalomStartsOben,
+                                    cardType: state.cardType,
+                                    geschoben: state.roundGeschoben,
+                                    announcerName: state.currentAnsager.name,
+                                  )
+                                : const SizedBox.shrink(),
                           ),
-                          if ((wonByPlayer[PlayerPosition.north] ?? 0) > 0)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: _WonPile(
-                                  wonByPlayer[PlayerPosition.north]!),
+                          // Mitte: North Player
+                          Expanded(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (ansagerId == north.id && lochId == north.id)
+                                  const _AnsagerLochBadge()
+                                else if (ansagerId == north.id)
+                                  const _AnsagerBadge()
+                                else if (lochId == north.id)
+                                  const _LochBadge(),
+                                if (geschobenId == north.id)
+                                  const _GeschobenBubble(),
+                                if (state.wyssDeclarationPending &&
+                                    state.completedTricks.isEmpty &&
+                                    state.phase == GamePhase.playing &&
+                                    (state.currentPlayer.id == north.id ||
+                                        state.currentTrickPlayerIds.contains(north.id)))
+                                  Builder(builder: (_) {
+                                    final w = _bestWyssFor(state, north.id);
+                                    return w != null
+                                        ? Padding(
+                                            padding: const EdgeInsets.only(bottom: 2),
+                                            child: _WyssBubble(wyss: w),
+                                          )
+                                        : const SizedBox.shrink();
+                                  }),
+                                PlayerHandWidget(
+                                  player: north,
+                                  isActive:
+                                      state.currentPlayer.id == north.id &&
+                                          state.phase == GamePhase.playing,
+                                  teamColor: teamColors[north.id],
+                                ),
+                                if ((wonByPlayer[PlayerPosition.north] ?? 0) > 0)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: _WonPile(
+                                        wonByPlayer[PlayerPosition.north]!),
+                                  ),
+                              ],
                             ),
+                          ),
+                          // Rechts: Wunschkarte (Friseur Solo)
+                          SizedBox(
+                            width: 88,
+                            child: state.gameType == GameType.friseur && state.wishCard != null
+                                ? GestureDetector(
+                                    onTap: () => setState(() => _showWishCardDetail = true),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Text('Wunschkarte',
+                                            style: TextStyle(
+                                                color: Colors.amber,
+                                                fontSize: 8,
+                                                fontWeight: FontWeight.bold)),
+                                        const SizedBox(height: 2),
+                                        CardWidget(card: state.wishCard!, width: 36),
+                                      ],
+                                    ),
+                                  )
+                                : const SizedBox.shrink(),
+                          ),
                         ],
                       ),
                     ),
@@ -605,15 +649,12 @@ class _GameScreenState extends State<GameScreen> {
                                 isClearPending: isClearPending,
                                 slalomStartsOben: state.slalomStartsOben,
                                 onTap: () => provider.clearTrick(),
-                                wishCard: state.gameType == GameType.friseur
-                                    ? state.wishCard
-                                    : null,
-                                onWishCardTap: state.wishCard != null
-                                    ? () => setState(() => _showWishCardDetail = true)
-                                    : null,
+                                wishCard: null, // Wunschkarte wird bei East-Spieler angezeigt
+                                onWishCardTap: null,
                                 gameType: state.gameType,
                                 cardType: state.cardType,
                                 geschoben: state.roundGeschoben,
+                                hideModeIndicator: state.gameType == GameType.friseur,
                               ),
                             ),
                           ),
@@ -1080,6 +1121,7 @@ class _GameScreenState extends State<GameScreen> {
                           ? _SchieberGameEndOverlay(
                               totalTeamScores: state.totalTeamScores,
                               winTarget: state.schieberWinTarget,
+                              limitReachedBy: state.schieberLimitReachedBy,
                               onNewGame: () {
                                 GameProvider.clearSavedGame(state.gameType);
                                 provider.startNewGame(
@@ -3688,12 +3730,14 @@ class _DifferenzlerRoundEndOverlay extends StatelessWidget {
 class _SchieberGameEndOverlay extends StatelessWidget {
   final Map<String, int> totalTeamScores;
   final int winTarget;
+  final String? limitReachedBy;
   final VoidCallback onNewGame;
   final VoidCallback onHome;
 
   const _SchieberGameEndOverlay({
     required this.totalTeamScores,
     required this.winTarget,
+    this.limitReachedBy,
     required this.onNewGame,
     required this.onHome,
   });
@@ -3702,7 +3746,10 @@ class _SchieberGameEndOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     final tot1 = totalTeamScores['team1'] ?? 0;
     final tot2 = totalTeamScores['team2'] ?? 0;
-    final team1Wins = tot1 >= tot2;
+    // Gewinner: eingefrorener Limit-Gewinner hat Vorrang
+    final team1Wins = limitReachedBy != null
+        ? limitReachedBy == 'team1'
+        : tot1 >= tot2;
 
     return Container(
       color: Colors.black87,
@@ -3973,6 +4020,120 @@ class _WishCardDetailOverlay extends StatelessWidget {
       ),
     );
   }
+}
+
+// ── Friseur Solo: Angesagtes Spiel Label (beim West-Spieler) ──────────────────
+
+class _FriseurModeLabel extends StatelessWidget {
+  final GameMode gameMode;
+  final GameMode? molotofSubMode;
+  final Suit? trumpSuit;
+  final int trickNumber;
+  final bool slalomStartsOben;
+  final CardType cardType;
+  final bool geschoben;
+  final String announcerName;
+
+  const _FriseurModeLabel({
+    required this.gameMode,
+    this.molotofSubMode,
+    this.trumpSuit,
+    required this.trickNumber,
+    this.slalomStartsOben = true,
+    this.cardType = CardType.french,
+    this.geschoben = false,
+    required this.announcerName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.black45,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white24, width: 0.5),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(announcerName,
+              style: const TextStyle(color: Colors.amber, fontSize: 8, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 2),
+          _buildMode(),
+          if (geschoben)
+            const Text('Geschoben',
+                style: TextStyle(color: Colors.white38, fontSize: 7, fontStyle: FontStyle.italic)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMode() {
+    switch (gameMode) {
+      case GameMode.trump:
+        return _trumpWidget('Trumpf ⬇️', Colors.amber);
+      case GameMode.trumpUnten:
+        return _trumpWidget('Trumpf ⬆️', Colors.orange);
+      case GameMode.oben:
+        return _text('Oben ⬇️', Colors.blue.shade300);
+      case GameMode.unten:
+        return _text('Unten ⬆️', Colors.orange.shade300);
+      case GameMode.slalom:
+        final isOben = slalomStartsOben ? trickNumber % 2 == 1 : trickNumber % 2 == 0;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _text('Slalom ↕️', Colors.purple.shade300),
+            _text(isOben ? 'Oben ⬇️' : 'Unten ⬆️',
+                isOben ? Colors.blue.shade300 : Colors.orange.shade300),
+          ],
+        );
+      case GameMode.elefant:
+        return _text('Elefant 🐘', Colors.teal.shade300);
+      case GameMode.misere:
+        return _text('Misere 😶', Colors.red.shade300);
+      case GameMode.allesTrumpf:
+        return _text('Alles Trumpf 👑', Colors.yellow.shade300);
+      case GameMode.molotof:
+        if (molotofSubMode == null) {
+          return _text('Molotow 💣', Colors.deepOrange.shade300);
+        }
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _text('Molotow 💣', Colors.deepOrange.shade300),
+            if (molotofSubMode == GameMode.oben)
+              _text('Obenabe ⬇️', Colors.blue.shade300)
+            else if (molotofSubMode == GameMode.unten)
+              _text('Undenufe ⬆️', Colors.orange.shade300)
+            else if (molotofSubMode == GameMode.trump)
+              _trumpWidget('Trumpf', Colors.amber),
+          ],
+        );
+      case GameMode.schafkopf:
+        return _trumpWidget('Schafkopf 🐑', Colors.green);
+    }
+  }
+
+  Widget _text(String text, Color color) => Text(text,
+      style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold));
+
+  Widget _trumpWidget(String label, Color color) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _text(label, color),
+          if (trumpSuit != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 1),
+              child: cardType == CardType.german
+                  ? Image.asset('assets/suit_icons/${trumpSuit!.name}.png',
+                      width: 18, height: 18)
+                  : Text(trumpSuit!.symbol,
+                      style: const TextStyle(fontSize: 14)),
+            ),
+        ],
+      );
 }
 
 // ── Wyss Entscheidung Overlay ──────────────────────────────────────────────────
