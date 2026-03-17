@@ -2825,9 +2825,15 @@ class GameProvider extends ChangeNotifier {
   // ─── Hilfsmethoden für UI ────────────────────────────────────────────────
 
   Set<JassCard> get humanPlayableCards {
-    if (_state.phase != GamePhase.playing) return {};
-    if (!_state.currentPlayer.isHuman) return {};
-    final human = _state.players.firstWhere((p) => p.isHuman);
+    if (_state.phase != GamePhase.playing &&
+        _state.phase != GamePhase.trickClearPending) return {};
+    final human = _state.players.firstWhere((p) => p.isHuman,
+        orElse: () => _state.players.first);
+    if (!human.isHuman) return {};
+    // Wenn Spieler nicht dran: alle Karten als spielbar markieren (Vorschau)
+    if (_state.currentPlayer.id != human.id) {
+      return human.hand.toSet();
+    }
     return GameLogic.getPlayableCards(human.hand, _state.currentTrickCards,
         mode: _state.effectiveMode,
         trumpSuit: (_state.effectiveMode == GameMode.trump ||

@@ -583,7 +583,10 @@ class MonteCarloAI {
         }
 
         // Partner gewinnt → schmieren (teuerste nicht-höchste Karte)
+        // KEINE Trumpfkarten schmieren (10er, König etc. im Trumpf aufsparen)
         final schmierbar = playable.where((c) {
+          // Trumpfkarten nie schmieren
+          if (trump != null && c.suit == trump) return false;
           final pts = GameLogic.cardPoints(c, effectMode, trump);
           if (pts < 8) return false;
           if (_isHighestRemaining(c, state)) return false;
@@ -754,6 +757,32 @@ class MonteCarloAI {
             tc.suit == state.trumpSuit && tc.value == CardValue.jack);
         if (partnerBuur) {
           avg -= 20.0; // Nell aufsparen (14 Pkt + Stichkontrolle)
+        }
+      }
+
+      // Buur-Schutz: Buur NICHT spielen wenn Partner mit Nell den Stich hat.
+      // Nell ist 2.-stärkster Trumpf → Partner gewinnt eh, Buur aufsparen.
+      if (state.trumpSuit != null &&
+          card.suit == state.trumpSuit &&
+          card.value == CardValue.jack &&
+          state.currentTrickCards.isNotEmpty) {
+        final partnerNell = state.currentTrickCards.any((tc) =>
+            tc.suit == state.trumpSuit && tc.value == CardValue.nine);
+        if (partnerNell) {
+          // Prüfe ob Partner mit Nell gerade gewinnt
+          final winnerId = GameLogic.determineTrickWinner(
+            cards: state.currentTrickCards,
+            playerIds: state.currentTrickPlayerIds,
+            gameMode: state.gameMode,
+            trumpSuit: state.trumpSuit,
+            trickNumber: state.currentTrickNumber,
+            molotofSubMode: state.molotofSubMode,
+            slalomStartsOben: state.slalomStartsOben,
+          );
+          final winner = state.players.firstWhere((p) => p.id == winnerId);
+          if (_sameTeamFor(aiPlayer, winner, state)) {
+            avg -= 30.0; // Buur aufsparen, Partner hat Stich mit Nell
+          }
         }
       }
 
@@ -1833,7 +1862,9 @@ class MonteCarloAI {
       }
 
       if (canSchmier) {
+        // KEINE Trumpfkarten schmieren (10er, König etc. im Trumpf aufsparen)
         final schmierbar = playable.where((c) {
+          if (trump != null && c.suit == trump) return false;
           final pts = GameLogic.cardPoints(c, effectMode, trump);
           if (pts < 8) return false;
           if (_isHighestRemaining(c, state)) return false;
