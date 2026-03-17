@@ -140,6 +140,27 @@ class MonteCarloAI {
       }
     }
 
+    // ── Molotow nach Trigger: intelligentes Anspielen ──────────────────────
+    // Alle Spieler wollen möglichst wenig Punkte → wie Misere spielen.
+    if (state.currentTrickCards.isEmpty &&
+        state.gameMode == GameMode.molotof &&
+        state.molotofSubMode != null &&
+        state.molotofSubMode != GameMode.trump) {
+      // Oben/Unten: keine Farbe anspielen die nur man selbst hat
+      final otherPlayersCards = state.players
+          .where((p) => p.id != aiPlayer.id)
+          .expand((p) => p.hand)
+          .toSet();
+      final suitsOthersHave = otherPlayersCards.map((c) => c.suit).toSet();
+      final safeLead = playable
+          .where((c) => suitsOthersHave.contains(c.suit))
+          .toList();
+      if (safeLead.isNotEmpty) {
+        return _weakest(safeLead, state.effectiveMode, state.trumpSuit);
+      }
+      return _weakest(playable, state.effectiveMode, state.trumpSuit);
+    }
+
     // ── Molotow-Trump: keine sicheren Gewinner früh ausspielen ──────────────
     // Bauer/Nell/sichere Stiche geben Gegnern die Möglichkeit, wertlose
     // Karten abzuwerfen. Stattdessen niedrige Nicht-Trumpf-Karten spielen,
@@ -461,6 +482,34 @@ class MonteCarloAI {
             playable, state, aiPlayer, effectMode, state.trumpSuit);
         if (cheapTrick != null) return cheapTrick;
       }
+    }
+
+    // ── Molotow nach Trigger: alle Spieler wollen möglichst wenig Punkte ──
+    if (state.gameMode == GameMode.molotof &&
+        state.molotofSubMode != null &&
+        state.currentTrickCards.isNotEmpty) {
+      final effectMode = state.effectiveMode;
+      final trump = state.trumpSuit;
+      final ledSuit = state.currentTrickCards.first.suit;
+      final isDiscarding = !playable.any((c) => c.suit == ledSuit);
+      if (isDiscarding) {
+        return _misereDiscard(playable, aiPlayer);
+      }
+      final losing = playable
+          .where((c) => !_wouldWin(c, state, trump))
+          .toList();
+      if (losing.isEmpty) return _weakest(playable, effectMode, trump);
+      final curWinnerId = GameLogic.determineTrickWinner(
+        cards: state.currentTrickCards,
+        playerIds: state.currentTrickPlayerIds,
+        gameMode: state.gameMode, trumpSuit: trump,
+        trickNumber: state.currentTrickNumber,
+        molotofSubMode: state.molotofSubMode,
+        slalomStartsOben: state.slalomStartsOben,
+      );
+      final curWinner = state.players.firstWhere((p) => p.id == curWinnerId);
+      final oppWins = !_sameTeamFor(aiPlayer, curWinner, state);
+      return _pointAwareFollow(losing, effectMode, trump, oppWins);
     }
 
     // Deterministische Endphase: letzte 2 Stiche → exakter Minimax statt MC
@@ -1781,6 +1830,24 @@ class MonteCarloAI {
     final currentWinner =
         state.players.firstWhere((p) => p.id == currentWinnerId);
     final partnerWins = _sameTeamFor(player, currentWinner, state);
+
+    // Molotow (nach Trigger): ALLE Spieler wollen möglichst wenig Punkte
+    if (state.gameMode == GameMode.molotof && state.molotofSubMode != null) {
+      final ledSuit = state.currentTrickCards.first.suit;
+      final isDiscarding = !playable.any((c) => c.suit == ledSuit);
+      if (isDiscarding) {
+        // Fehlfarbe: hohe/gefährliche Karten loswerden
+        return _misereDiscard(playable, player);
+      }
+      // Nicht gewinnen wenn möglich
+      final losing = playable
+          .where((c) => !_wouldWin(c, state, trump))
+          .toList();
+      if (losing.isEmpty) return _weakest(playable, effectMode, trump);
+      // Punktwert-bewusst: hohen Wert an Gegner geben
+      final oppWins = !partnerWins;
+      return _pointAwareFollow(losing, effectMode, trump, oppWins);
+    }
 
     // Misere-Ansager: will den Stich NICHT gewinnen
     final isAnnouncer = (player.position == PlayerPosition.south ||
