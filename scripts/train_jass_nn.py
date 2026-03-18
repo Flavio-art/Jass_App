@@ -245,28 +245,60 @@ def _is_protected_card(c, mode, eff_mode):
             return True
     return False
 
+def _only_team_has_trump(p_idx, hands, trump):
+    """True wenn nur das eigene Team (p_idx % 2) noch Trumpf hat."""
+    if trump is None:
+        return False
+    for i, h in enumerate(hands):
+        if i % 2 != p_idx % 2:  # Gegner
+            if any(suit_of(c) == trump for c in h):
+                return False
+    return True
+
 def pick_card(p_idx, hand, led_suit, mode, eff_mode, trump, el_trump,
               best_card, best_player_abs, hands):
-    """Verbesserte Kartenwahl mit App-konformen Regeln:
-    • Anspielen: garantierte Gewinner zuerst, sichere Leads (7 nur mit 6, K nur mit Q)
-    • Folgen: Schmieren wenn Partner gewinnt; billigste Gewinnerkarte
-    • Abwurf: 6er/Asse in Slalom/Elefant schützen, kombinierte Punkte
+    """Kartenwahl mit allen App-konformen Regeln:
+    • Misere/Molotow: Stiche vermeiden, keine exklusiven Farben anspielen
+    • Partner nicht übertrumpfen (auch bei Trumpf-Anspiel, Alles Trumpf, Schafkopf)
+    • Keine Trumpfkarten schmieren
+    • Buur nicht spielen wenn Partner mit Nell gewinnt
+    • Nicht trumpfen wenn nur Team Trumpf hat und Partner noch kommt
+    • Anspielen: garantierte Gewinner zuerst, sichere Leads
+    • Abwurf: 6er/Asse in Slalom/Elefant schützen
     """
     allowed = legal_cards(hand, led_suit, mode, trump)
     is_team0   = p_idx % 2 == 0
     eff_trump  = trump if eff_mode < 8 else el_trump
+    is_misere_like = (eff_mode == 11 or mode == 14)  # Misere oder Molotow
 
     # ── Anspielen ───────────────────────────────────────────────────────────
     if led_suit is None:
-        # Misere: schwächste Karte (Stich vermeiden)
-        if eff_mode == 11:
-            return min(allowed, key=lambda c: card_pts(c, mode, el_trump))
+        # Misere/Molotow: schwächste Karte, keine exklusiven Farben
+        if is_misere_like:
+            other_suits = set()
+            for i, h in enumerate(hands):
+                if i != p_idx:
+                    for c in h:
+                        other_suits.add(suit_of(c))
+            safe = [c for c in allowed if suit_of(c) in other_suits]
+            pool = safe if safe else allowed
+            return min(pool, key=lambda c: card_pts(c, mode, el_trump))
+
+        # Trumpf-Modi: spezielle Führungslogik
+        if eff_trump is not None and eff_mode < 8:
+            trump_cards = [c for c in allowed if suit_of(c) == eff_trump]
+            non_trump = [c for c in allowed if suit_of(c) != eff_trump]
+            # Nur Team hat Trumpf → Trumpf sparen, Nebenfarbe spielen
+            if _only_team_has_trump(p_idx, hands, eff_trump) and non_trump:
+                safe_nt = [c for c in non_trump
+                           if not _has_stronger_remaining(c, p_idx, hands, eff_mode, eff_trump)]
+                return max(safe_nt if safe_nt else non_trump,
+                           key=lambda c: card_strength(c, suit_of(c), eff_mode, eff_trump))
 
         # Garantierter Gewinner: keine stärkere Karte mehr bei anderen Spielern
         guaranteed = [c for c in allowed
                       if not _has_stronger_remaining(c, p_idx, hands, eff_mode, eff_trump)]
         if guaranteed:
-            # Nur sichere Leads (7 mit 6, K mit Q)
             safe_guaranteed = [c for c in guaranteed if _is_safe_lead(c, hand, eff_mode)]
             candidates = safe_guaranteed if safe_guaranteed else guaranteed
             return max(candidates,
@@ -287,12 +319,64 @@ def pick_card(p_idx, hand, led_suit, mode, eff_mode, trump, el_trump,
     best_s  = card_strength(best_card, led_suit, eff_mode, eff_trump) if best_card else (0, 0)
     partner = best_player_abs is not None and (best_player_abs % 2 == is_team0)
 
+    # Misere/Molotow: versuche NICHT zu gewinnen
+    if is_misere_like:
+        losing = [c for c in allowed if my_str(c) <= best_s]
+        if losing:
+            return min(losing, key=lambda c: card_pts(c, mode, el_trump))
+        return min(allowed, key=lambda c: card_pts(c, mode, el_trump))
+
     if partner:
-        # Partner gewinnt: Schmieren (höchste Punkte ohne zu gewinnen)
+        is_trump_mode = (eff_mode < 8 or eff_mode == 12 or eff_mode >= 15)
+        is_discarding = not any(suit_of(c) == led_suit for c in allowed if suit_of(c) == led_suit)
+        # Korrektur: prüfe ob allowed Karten der led_suit hat
+        has_led_suit = any(suit_of(c) == led_suit for c in allowed)
+
+        # Partner gewinnt → nicht mit Trumpf überstechen!
+        if eff_trump is not None and is_trump_mode:
+            if not has_led_suit:
+                # Fehlfarbe: nicht trumpfen wenn Partner gewinnt
+                non_trump = [c for c in allowed if suit_of(c) != eff_trump]
+                if non_trump:
+                    return min(non_trump, key=lambda c: card_pts(c, mode, el_trump))
+                return min(allowed, key=lambda c: card_pts(c, mode, el_trump))
+            # Trumpf angespielt oder Alles Trumpf: nicht übertrumpfen
+            if led_suit == eff_trump or eff_mode == 12:
+                not_winning = [c for c in allowed if my_str(c) <= best_s]
+                if not_winning:
+                    return min(not_winning, key=lambda c: card_pts(c, mode, el_trump))
+                return min(allowed, key=lambda c: card_pts(c, mode, el_trump))
+
+        # Buur nicht spielen wenn Partner mit Nell gewinnt
+        if eff_trump is not None and best_card is not None:
+            if val_of(best_card) == V9 and suit_of(best_card) == eff_trump:
+                buur = card(eff_trump, VJ)
+                if buur in allowed and len(allowed) > 1:
+                    allowed_no_buur = [c for c in allowed if c != buur]
+                    if allowed_no_buur:
+                        allowed = allowed_no_buur
+
+        # Partner gewinnt → Schmieren (KEINE Trumpfkarten schmieren)
         not_winning = [c for c in allowed if my_str(c) <= best_s]
         if not_winning:
+            schmierbar = [c for c in not_winning
+                          if card_pts(c, mode, el_trump) >= 8
+                          and (eff_trump is None or suit_of(c) != eff_trump)]
+            if schmierbar:
+                return max(schmierbar, key=lambda c: card_pts(c, mode, el_trump))
             return max(not_winning, key=lambda c: card_pts(c, mode, el_trump))
         return min(allowed, key=lambda c: card_pts(c, mode, el_trump))
+
+    # Gegner gewinnt: nicht trumpfen wenn nur Team Trumpf hat + Partner kommt noch
+    if eff_trump is not None and _only_team_has_trump(p_idx, hands, eff_trump):
+        has_led_suit = any(suit_of(c) == led_suit for c in allowed)
+        if not has_led_suit:
+            # Zähle Spieler die noch kommen
+            played_count = len([c for c in [best_card] if c is not None]) + 1  # inkl. current
+            # Vereinfacht: wenn nicht letzter Spieler → Partner kommt noch
+            non_trump = [c for c in allowed if suit_of(c) != eff_trump]
+            if non_trump and played_count < 4:
+                return min(non_trump, key=lambda c: _combined_pts(c, mode, el_trump))
 
     # Gegner gewinnt: billigste Gewinnerkarte spielen
     winning = [c for c in allowed if my_str(c) > best_s]
@@ -300,7 +384,6 @@ def pick_card(p_idx, hand, led_suit, mode, eff_mode, trump, el_trump,
         return min(winning, key=my_str)
 
     # Kann nicht gewinnen: Abwurf mit Schutz für 6er/Asse
-    # Geschützte Karten nur wegwerfen wenn nichts anderes da ist
     unprotected = [c for c in allowed if not _is_protected_card(c, mode, eff_mode)]
     discard_pool = unprotected if unprotected else allowed
     return min(discard_pool, key=lambda c: _combined_pts(c, mode, el_trump))
@@ -312,14 +395,17 @@ def pick_card(p_idx, hand, led_suit, mode, eff_mode, trump, el_trump,
 def simulate(hands_in, mode):
     """Simuliert ein vollständiges Spiel. Gibt Team-0-Score zurück (Spieler 0+2).
 
-    Modi 14 (Molotof):  Jeder Stich nutzt zufälligen Sub-Modus.
-                        Score = 157 - team0_pts (weniger = besser für Team 0).
+    Modi 14 (Molotof):  Erster Spieler der nicht Farbe angeben kann bestimmt Modus:
+                        6 → Undenufe, Ass → Obenabe, andere → Trumpf (Farbe der Karte).
+                        Vor Trigger: Obenabe als Default. Score invertiert (weniger = besser).
     Modi 15-18 (Schafkopf): Trumpf = mode-15; Q+8 aller Farben immer Trumpf.
     """
     hands    = [list(h) for h in hands_in]
     team0    = 0
     leader   = 0
     el_trump = None
+    molotof_sub = None  # Sub-Modus für Molotow (None = noch nicht bestimmt)
+    molotof_trump = None
 
     # Basis-Trumpf je nach Modus
     if mode < 4:       trump = mode
@@ -332,11 +418,18 @@ def simulate(hands_in, mode):
         if mode == 10:        eff = 8 if trick_n % 2 == 1 else 9   # Slalom
         elif mode == 13:                                              # Elefant
             eff = 8 if trick_n <= 3 else (9 if trick_n <= 6 else 13)
-        elif mode == 14:      eff = random.choice(MOLOTOF_SUBMODES)  # Molotof
+        elif mode == 14:                                              # Molotof
+            if molotof_sub is not None:
+                eff = molotof_sub
+            else:
+                eff = 8  # Vor Trigger: Obenabe als Default
         else:                 eff = mode
 
-        # Molotof: Trumpf wechselt pro Stich
-        trick_trump = (eff if eff < 4 else None) if mode == 14 else trump
+        # Trumpf für diesen Stich
+        if mode == 14:
+            trick_trump = molotof_trump
+        else:
+            trick_trump = trump
 
         played          = []
         led_suit        = None
@@ -354,6 +447,20 @@ def simulate(hands_in, mode):
                           trick_trump, el_trump, best_card, best_player_abs, hands)
             if i == 0:
                 led_suit = suit_of(c)
+            # Molotow-Trigger: erster Spieler der nicht Farbe angeben kann
+            elif mode == 14 and molotof_sub is None and suit_of(c) != led_suit:
+                v = val_of(c)
+                if v == V6:
+                    molotof_sub = 9   # Undenufe
+                    molotof_trump = None
+                elif v == VA:
+                    molotof_sub = 8   # Obenabe
+                    molotof_trump = None
+                else:
+                    molotof_sub = suit_of(c)  # Trumpf (0-3)
+                    molotof_trump = suit_of(c)
+                eff = molotof_sub
+                trick_trump = molotof_trump
             played.append(c)
             hands[p].remove(c)
             w               = winner_of(played, led_suit, eff, trick_trump)

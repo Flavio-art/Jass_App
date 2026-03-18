@@ -26,34 +26,33 @@
 ///   Alles Tr.  ~2%  |  Elefant    ~1%
 class NNTuning {
   // ── NN Score-Korrekturen (Bias-Fixes) ──────────────────
-  static const double untenBias = 0.075; // Index 9: Undenufe
-  static const double trumpUntenBias = 0.10; // Index 4-7: Trump Unten
+  static const double untenBias = 0.10; // Index 9: Undenufe
+  static const double trumpUntenBias = 0.00; // Index 4-7: Trump Unten
   static const double misereDampening = 0.6; // Index 11
   static const double molotofDampening = 0.6; // Index 14
   static const bool slalomFromObenUnten = true; // Index 10 = (8+9)/2
 
   // ── Schieber Moduswahl-Multiplikatoren ─────────────────
-  static const double schieberMultTrump = 1.25;
-  static const double schieberMultOben = 2.2;
-  static const double schieberMultUnten = 2.8;
-  static const double schieberMultSlalom = 4.0;
+  static const double schieberMultTrump = 1.58;
+  static const double schieberMultOben = 1.48;
+  static const double schieberMultUnten = 1.72;
+  static const double schieberMultSlalom = 1.80;
   static const double schiebenSlalomPenalty = 0.85;
   static const double schieberMultMisere = 0.7;    // Misere im Schieber ~10%
   static const double schieberMultMolotof = 0.7;   // Molotof im Schieber ~10%
 
   // ── Friseur Solo Moduswahl-Multiplikatoren ─────────────
-  // Trumpf ist "einfach" (Buur wünschen) → aufsparen, nur bei starker Hand.
-  // Nicht-Trump-Modi brauchen Boost damit sie gegen Trump+Buur ankommen.
+  // Angepasst nach NN-Retraining (2026-03-18): neue Heuristiken in Simulation.
   // Formel: adjusted = raw × mult (direkte Multiplikation)
-  static const double friseurMultTrumpOben = 0.92;
-  static const double friseurMultTrumpUnten = 0.97;
-  static const double friseurMultAllesTrumpf = 0.92;
-  static const double friseurMultOben = 1.0;
-  static const double friseurMultUnten = 1.05;
-  static const double friseurMultSlalom = 1.15;
-  static const double friseurMultSchafkopf = 1.05;
-  static const double friseurMultMisere = 1.35;
-  static const double friseurMultMolotof = 1.70;
+  static const double friseurMultTrumpOben = 1.10;
+  static const double friseurMultTrumpUnten = 1.08;
+  static const double friseurMultAllesTrumpf = 0.78;
+  static const double friseurMultOben = 0.90;
+  static const double friseurMultUnten = 1.06;
+  static const double friseurMultSlalom = 1.08;
+  static const double friseurMultSchafkopf = 0.94;
+  static const double friseurMultMisere = 0.80;
+  static const double friseurMultMolotof = 0.80;
   static const double friseurMultElefant = 3.0;
 
   // ── Friseur Solo Im-Loch-Boost (2× geschoben) ───────────
