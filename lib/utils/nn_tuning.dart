@@ -26,7 +26,7 @@
 ///   Alles Tr.  ~2%  |  Elefant    ~1%
 class NNTuning {
   // ── NN Score-Korrekturen (Bias-Fixes) ──────────────────
-  static const double untenBias = 0.10; // Index 9: Undenufe
+  static const double untenBias = 0.0; // Index 9: Undenufe
   static const double trumpUntenBias = 0.00; // Index 4-7: Trump Unten
   static const double misereDampening = 0.6; // Index 11
   static const double molotofDampening = 0.6; // Index 14

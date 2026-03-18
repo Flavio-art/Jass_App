@@ -607,22 +607,21 @@ class MonteCarloAI {
 
       if (partnerWins) {
         // Partner gewinnt → nicht mit Trumpf überstechen!
-        if (trump != null && (effectMode == GameMode.trump || effectMode == GameMode.trumpUnten ||
-            effectMode == GameMode.allesTrumpf || effectMode == GameMode.schafkopf)) {
+        final isTrumpLike = trump != null && (effectMode == GameMode.trump ||
+            effectMode == GameMode.trumpUnten || effectMode == GameMode.schafkopf);
+        if (isTrumpLike || effectMode == GameMode.allesTrumpf) {
           final ledSuit = state.currentTrickCards.first.suit;
           final isDiscarding = !playable.any((c) => c.suit == ledSuit);
-          if (isDiscarding) {
+          if (isDiscarding && trump != null) {
             // Fehlfarbe: nicht mit Trumpf stechen wenn Partner gewinnt
             final nonTrump = playable.where((c) => c.suit != trump).toList();
             if (nonTrump.isNotEmpty) {
               return _weakest(nonTrump, effectMode, trump);
             }
-            // Nur Trumpf auf der Hand → schwächsten Trumpf abwerfen
             return _weakest(playable, effectMode, trump);
           }
-          // Trumpf angespielt: nicht mit höherem Trumpf überstechen
+          // Trumpf angespielt oder Alles Trumpf: nicht mit höherem überstechen
           if (ledSuit == trump || effectMode == GameMode.allesTrumpf) {
-            // Schwächste spielbare Karte (nicht übertrumpfen)
             final notWinning = playable.where((c) => !_wouldWin(c, state, trump)).toList();
             if (notWinning.isNotEmpty) {
               return _weakest(notWinning, effectMode, trump);
@@ -633,9 +632,10 @@ class MonteCarloAI {
 
         // Partner gewinnt → schmieren (teuerste nicht-höchste Karte)
         // KEINE Trumpfkarten schmieren (10er, König etc. im Trumpf aufsparen)
+        // In Alles Trumpf: nie schmieren (jede Karte ist potentiell Trumpf/Stichgewinner)
         final schmierbar = playable.where((c) {
-          // Trumpfkarten nie schmieren
           if (trump != null && c.suit == trump) return false;
+          if (effectMode == GameMode.allesTrumpf) return false;
           final pts = GameLogic.cardPoints(c, effectMode, trump);
           if (pts < 8) return false;
           if (_isHighestRemaining(c, state)) return false;
@@ -836,7 +836,8 @@ class MonteCarloAI {
       }
 
       // Partner-Stich nicht übertrumpfen (allgemein): starker Malus
-      if (state.currentTrickCards.isNotEmpty && state.trumpSuit != null) {
+      if (state.currentTrickCards.isNotEmpty &&
+          (state.trumpSuit != null || state.gameMode == GameMode.allesTrumpf)) {
         final currentWinnerId2 = GameLogic.determineTrickWinner(
           cards: state.currentTrickCards,
           playerIds: state.currentTrickPlayerIds,
@@ -848,9 +849,13 @@ class MonteCarloAI {
         );
         final currentWinner2 = state.players.firstWhere((p) => p.id == currentWinnerId2);
         if (_sameTeamFor(aiPlayer, currentWinner2, state) &&
-            _wouldWin(card, state, state.trumpSuit) &&
-            card.suit == state.trumpSuit) {
-          avg -= 30.0; // Partner-Stich nicht mit Trumpf überstechen
+            _wouldWin(card, state, state.trumpSuit)) {
+          // In Alles Trumpf: jede übertrumpfende Karte bestrafen
+          // Sonst: nur Trumpfkarten bestrafen
+          if (state.gameMode == GameMode.allesTrumpf ||
+              card.suit == state.trumpSuit) {
+            avg -= 30.0; // Partner-Stich nicht überstechen
+          }
         }
       }
 
@@ -1892,21 +1897,20 @@ class MonteCarloAI {
     }
 
     // Partner gewinnt → nicht mit Trumpf überstechen!
-    if (partnerWins && trump != null &&
-        (effectMode == GameMode.trump || effectMode == GameMode.trumpUnten ||
-         effectMode == GameMode.schafkopf || effectMode == GameMode.allesTrumpf)) {
+    final isTrumpLike2 = trump != null && (effectMode == GameMode.trump ||
+        effectMode == GameMode.trumpUnten || effectMode == GameMode.schafkopf);
+    if (partnerWins && (isTrumpLike2 || effectMode == GameMode.allesTrumpf)) {
       final ledSuit = state.currentTrickCards.first.suit;
       final isDiscarding = !playable.any((c) => c.suit == ledSuit);
-      if (isDiscarding) {
+      if (isDiscarding && trump != null) {
         // Fehlfarbe: nicht mit Trumpf stechen wenn Partner gewinnt
         final nonTrump = playable.where((c) => c.suit != trump).toList();
         if (nonTrump.isNotEmpty) {
           return _weakest(nonTrump, effectMode, trump);
         }
-        // Nur Trumpf auf der Hand → schwächsten Trumpf abwerfen
         return _weakest(playable, effectMode, trump);
       }
-      // Trumpf angespielt oder Alles Trumpf: nicht mit höherem Trumpf überstechen
+      // Trumpf angespielt oder Alles Trumpf: nicht mit höherem überstechen
       if (ledSuit == trump || effectMode == GameMode.allesTrumpf) {
         final notWinning = playable.where((c) => !_wouldWin(c, state, trump)).toList();
         if (notWinning.isNotEmpty) {
@@ -1930,8 +1934,10 @@ class MonteCarloAI {
 
       if (canSchmier) {
         // KEINE Trumpfkarten schmieren (10er, König etc. im Trumpf aufsparen)
+        // In Alles Trumpf: nie schmieren (jede Karte ist potentiell Stichgewinner)
         final schmierbar = playable.where((c) {
           if (trump != null && c.suit == trump) return false;
+          if (effectMode == GameMode.allesTrumpf) return false;
           final pts = GameLogic.cardPoints(c, effectMode, trump);
           if (pts < 8) return false;
           if (_isHighestRemaining(c, state)) return false;
