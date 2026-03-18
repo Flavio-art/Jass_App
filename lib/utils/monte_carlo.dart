@@ -12,10 +12,10 @@ import 'game_logic.dart';
 /// Pro Kandidatenkarte werden [simulations] Welten gezogen und simuliert.
 class MonteCarloAI {
   /// Anzahl äusserer Simulationen pro Kandidatenkarte.
-  static const int simulations = 50;
+  static const int simulations = 80;
 
   /// Anzahl innerer Rollouts pro Option im Rollout-Schritt.
-  static const int innerSimulations = 3;
+  static const int innerSimulations = 5;
 
   static final math.Random _rng = math.Random();
 
@@ -512,8 +512,8 @@ class MonteCarloAI {
       return _pointAwareFollow(losing, effectMode, trump, oppWins);
     }
 
-    // Deterministische Endphase: letzte 2 Stiche → exakter Minimax statt MC
-    if (state.completedTricks.length >= 7) {
+    // Deterministische Endphase: letzte 3 Stiche → exakter Minimax statt MC
+    if (state.completedTricks.length >= 6) {
       return _exactBestCard(aiPlayer, state, aiIsTeam1);
     }
 
@@ -744,7 +744,7 @@ class MonteCarloAI {
 
     // Budget: ~200 Gesamt-Simulationen, verteilt auf alle Karten
     // Bei Match-Verfolgung mehr Simulationen für bessere Entscheidungen
-    final baseBudget = myTeamHasAllTricks ? 300 : 200;
+    final baseBudget = myTeamHasAllTricks ? 400 : 300;
     final simsPerCard = math.max(10, baseBudget ~/ playable.length);
 
     // Geweiste Gegner-Farben: beim Anspielen leicht bestrafen (nur Schieber)
