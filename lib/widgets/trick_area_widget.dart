@@ -200,7 +200,13 @@ class _ModeIndicator extends StatelessWidget {
       case GameMode.misere:
         return _label('Misere 😶', Colors.red.shade300);
       case GameMode.allesTrumpf:
-        return _label('Alles Trumpf 👑', Colors.yellow.shade300);
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _label('Alles Trumpf', Colors.yellow.shade300),
+            const Text('👑', style: TextStyle(fontSize: 18)),
+          ],
+        );
       case GameMode.molotof:
         return _molotofLabel();
       case GameMode.schafkopf:

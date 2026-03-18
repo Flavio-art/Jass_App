@@ -160,6 +160,11 @@ def winner_of(played, led_suit, eff_mode, trump=None):
 def legal_cards(hand, led_suit, mode, trump=None):
     if led_suit is None:
         return hand[:]
+    # Molotow: strenge Farbpflicht für ALLE Spieler
+    # Man darf nur untertrumpfen wenn man die angespielte Farbe nicht hat
+    if mode == 14:
+        same = [c for c in hand if suit_of(c) == led_suit]
+        return same if same else hand[:]
     # Schafkopf: Trump = Q aller Farben + 8 aller Farben + Trumpf-Farbe
     if mode >= 15:
         t = mode - 15
@@ -284,6 +289,44 @@ def pick_card(p_idx, hand, led_suit, mode, eff_mode, trump, el_trump,
             pool = safe if safe else allowed
             return min(pool, key=lambda c: card_pts(c, mode, el_trump))
 
+        # Elefant: sichere Stiche in der richtigen Phase anspielen
+        if mode == 13:
+            trick_n = 9 - len(hand)  # ungefähre Stich-Nummer
+            is_oben = trick_n <= 3
+            is_unten = 4 <= trick_n <= 6
+            if is_oben:
+                # Asse zuerst (sichere Oben-Stiche)
+                aces = [c for c in allowed if val_of(c) == VA
+                        and not _has_stronger_remaining(c, p_idx, hands, 8, None)]
+                if aces:
+                    return max(aces, key=lambda c: card_strength(c, suit_of(c), 8, None))
+                safe = [c for c in allowed
+                        if not _has_stronger_remaining(c, p_idx, hands, 8, None)]
+                if safe:
+                    return max(safe, key=lambda c: card_strength(c, suit_of(c), 8, None))
+            elif is_unten:
+                # 6er zuerst (sichere Unten-Stiche)
+                sixes = [c for c in allowed if val_of(c) == V6]
+                if sixes:
+                    return sixes[0]
+                safe = [c for c in allowed
+                        if not _has_stronger_remaining(c, p_idx, hands, 9, None)]
+                if safe:
+                    return max(safe, key=lambda c: card_strength(c, suit_of(c), 9, None))
+            # Keine sicheren Stiche → fall through zu normalem Anspielen
+
+        # Alles Trumpf: keine exklusiven Farben (Gegner können nicht abwerfen)
+        if eff_mode == 12:
+            other_suits = set()
+            for i, h in enumerate(hands):
+                if i != p_idx:
+                    for c in h:
+                        other_suits.add(suit_of(c))
+            safe = [c for c in allowed if suit_of(c) in other_suits]
+            pool = safe if safe else allowed
+            # Schwächste Karte anspielen (9er/Bauern aufsparen)
+            return min(pool, key=lambda c: card_strength(c, suit_of(c), 12, None))
+
         # Trumpf-Modi: spezielle Führungslogik
         if eff_trump is not None and eff_mode < 8:
             trump_cards = [c for c in allowed if suit_of(c) == eff_trump]
@@ -333,15 +376,16 @@ def pick_card(p_idx, hand, led_suit, mode, eff_mode, trump, el_trump,
         has_led_suit = any(suit_of(c) == led_suit for c in allowed)
 
         # Partner gewinnt → nicht mit Trumpf überstechen!
-        if eff_trump is not None and is_trump_mode:
-            if not has_led_suit:
+        is_trump_like = eff_trump is not None and is_trump_mode
+        if is_trump_like or eff_mode == 12:
+            if not has_led_suit and eff_trump is not None:
                 # Fehlfarbe: nicht trumpfen wenn Partner gewinnt
                 non_trump = [c for c in allowed if suit_of(c) != eff_trump]
                 if non_trump:
                     return min(non_trump, key=lambda c: card_pts(c, mode, el_trump))
                 return min(allowed, key=lambda c: card_pts(c, mode, el_trump))
             # Trumpf angespielt oder Alles Trumpf: nicht übertrumpfen
-            if led_suit == eff_trump or eff_mode == 12:
+            if (eff_trump is not None and led_suit == eff_trump) or eff_mode == 12:
                 not_winning = [c for c in allowed if my_str(c) <= best_s]
                 if not_winning:
                     return min(not_winning, key=lambda c: card_pts(c, mode, el_trump))
@@ -356,12 +400,13 @@ def pick_card(p_idx, hand, led_suit, mode, eff_mode, trump, el_trump,
                     if allowed_no_buur:
                         allowed = allowed_no_buur
 
-        # Partner gewinnt → Schmieren (KEINE Trumpfkarten schmieren)
+        # Partner gewinnt → Schmieren (KEINE Trumpfkarten schmieren, nicht in Alles Trumpf)
         not_winning = [c for c in allowed if my_str(c) <= best_s]
         if not_winning:
             schmierbar = [c for c in not_winning
                           if card_pts(c, mode, el_trump) >= 8
-                          and (eff_trump is None or suit_of(c) != eff_trump)]
+                          and (eff_trump is None or suit_of(c) != eff_trump)
+                          and eff_mode != 12]  # Alles Trumpf: nie schmieren
             if schmierbar:
                 return max(schmierbar, key=lambda c: card_pts(c, mode, el_trump))
             return max(not_winning, key=lambda c: card_pts(c, mode, el_trump))
@@ -384,6 +429,19 @@ def pick_card(p_idx, hand, led_suit, mode, eff_mode, trump, el_trump,
         return min(winning, key=my_str)
 
     # Kann nicht gewinnen: Abwurf mit Schutz für 6er/Asse
+    # Elefant: 6er IMMER schützen (auch in Oben-Phase), 7er wenn 6 vorhanden
+    if mode == 13:
+        protected = set()
+        for c in allowed:
+            if val_of(c) == V6:
+                protected.add(c)
+            if val_of(c) == V7 and any(val_of(x) == V6 and suit_of(x) == suit_of(c) for x in hand):
+                protected.add(c)
+            if val_of(c) == VA:
+                protected.add(c)
+        unprotected = [c for c in allowed if c not in protected]
+        if unprotected:
+            return min(unprotected, key=lambda c: _combined_pts(c, mode, el_trump))
     unprotected = [c for c in allowed if not _is_protected_card(c, mode, eff_mode)]
     discard_pool = unprotected if unprotected else allowed
     return min(discard_pool, key=lambda c: _combined_pts(c, mode, el_trump))

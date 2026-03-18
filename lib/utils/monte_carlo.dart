@@ -201,6 +201,58 @@ class MonteCarloAI {
       return _weakest(playable, state.effectiveMode, state.trumpSuit);
     }
 
+    // ── Elefant: sichere Stiche in der richtigen Phase anspielen ────────────
+    // Oben (1-3): Asse zuerst, dann Könige mit Ass-Backup
+    // Unten (4-6): 6er zuerst, dann 7er mit 6-Backup
+    // Wunschkarte-Farbe in der passenden Phase anspielen
+    if (state.currentTrickCards.isEmpty &&
+        state.gameMode == GameMode.elefant) {
+      final trick = state.currentTrickNumber;
+      final isOben = trick <= 3;
+      final isUnten = trick >= 4 && trick <= 6;
+
+      if (isOben) {
+        // Oben-Phase: sichere Gewinner anspielen (Asse, dann Ass+König Farben)
+        final aces = playable.where((c) =>
+            c.value == CardValue.ace && _isHighestRemaining(c, state)).toList();
+        if (aces.isNotEmpty) {
+          // Wunschkarte-Farbe bevorzugen wenn Ass
+          if (state.wishCard != null && state.wishCard!.value == CardValue.ace) {
+            final wishAce = aces.where((c) => c.suit == state.wishCard!.suit).toList();
+            if (wishAce.isNotEmpty) return wishAce.first;
+          }
+          return aces.first;
+        }
+        // Keine Asse → sichere Gewinner
+        final safe = playable.where((c) => _isHighestRemaining(c, state)).toList();
+        if (safe.isNotEmpty) {
+          safe.sort((a, b) => GameLogic.cardPlayStrength(b, GameMode.oben, null)
+              .compareTo(GameLogic.cardPlayStrength(a, GameMode.oben, null)));
+          return safe.first;
+        }
+      } else if (isUnten) {
+        // Unten-Phase: 6er zuerst, dann 6+7 Farben
+        final sixes = playable.where((c) =>
+            c.value == CardValue.six).toList();
+        if (sixes.isNotEmpty) {
+          // Wunschkarte-Farbe bevorzugen wenn 6
+          if (state.wishCard != null && state.wishCard!.value == CardValue.six) {
+            final wishSix = sixes.where((c) => c.suit == state.wishCard!.suit).toList();
+            if (wishSix.isNotEmpty) return wishSix.first;
+          }
+          return sixes.first;
+        }
+        // Keine 6er → 7er wenn sichere Gewinner
+        final safe = playable.where((c) => _isHighestRemaining(c, state)).toList();
+        if (safe.isNotEmpty) {
+          safe.sort((a, b) => GameLogic.cardPlayStrength(b, GameMode.unten, null)
+              .compareTo(GameLogic.cardPlayStrength(a, GameMode.unten, null)));
+          return safe.first;
+        }
+      }
+      // Keine sicheren Stiche → MC entscheidet (fall-through)
+    }
+
     // ── Systematisches Trumpfziehen: Gegner-Trümpfe rausziehen ────────────
     // Beim Anspielen: wenn eigenes Team mehr Trumpf hat als Gegner,
     // niedrigsten Trumpf spielen um Gegner-Trümpfe zu eliminieren.
@@ -774,8 +826,11 @@ class MonteCarloAI {
         if (card.value == CardValue.jack) {
           avg -= 15.0; // Bauer könnte Buur werden (20 Pkt)
         }
-        if (card.value == CardValue.six && elefantTrick <= 3) {
-          avg -= 8.0; // 6er wertvoll in Unten-Phase (Stiche 4-6)
+        if (card.value == CardValue.six && elefantTrick <= 6) {
+          avg -= 20.0; // 6er IMMER schützen bis Unten-Phase vorbei ist
+        }
+        if (card.value == CardValue.ace && elefantTrick > 3) {
+          avg -= 15.0; // Asse schützen wenn Oben-Phase vorbei (für Trumpf-Phase)
         }
 
         // Wunschkarte = Bauer/Nell → wahrscheinliche Trumpffarbe bekannt
@@ -885,14 +940,26 @@ class MonteCarloAI {
           if (_isHighestRemaining(card, state)) {
             avg -= 15.0; // Sicheren zukünftigen Stich nicht verschenken
           }
-          // Sichere Stichkarten (6er im Unten, Asse im Oben) nie abwerfen
+          // Sichere Stichkarten nie abwerfen
           final gm = state.gameMode;
           final em = state.effectiveMode;
-          if ((card.value == CardValue.six &&
-                  (em == GameMode.unten || gm == GameMode.slalom || gm == GameMode.elefant)) ||
-              (card.value == CardValue.ace &&
-                  (em == GameMode.oben || gm == GameMode.slalom || gm == GameMode.elefant))) {
-            avg -= 25.0; // Sichere Stichkarte nie abwerfen
+          if (card.value == CardValue.six &&
+              (em == GameMode.unten || gm == GameMode.slalom || gm == GameMode.elefant)) {
+            avg -= 30.0; // 6er: sicherer Unten-Stich
+          }
+          if (card.value == CardValue.ace &&
+              (em == GameMode.oben || gm == GameMode.slalom || gm == GameMode.elefant)) {
+            avg -= 30.0; // Ass: sicherer Oben-Stich
+          }
+          // Elefant: 6er auch in Oben-Phase nicht abwerfen (brauche sie für Unten!)
+          if (gm == GameMode.elefant && card.value == CardValue.six) {
+            avg -= 30.0;
+          }
+          // Elefant: 7er schützen wenn 6 der gleichen Farbe vorhanden
+          if (gm == GameMode.elefant && card.value == CardValue.seven) {
+            final hasSix = aiPlayer.hand.any((c) =>
+                c.suit == card.suit && c.value == CardValue.six);
+            if (hasSix) avg -= 20.0;
           }
           // Misere: tiefe Karten (6, 7) nie abwerfen (sichere Verlierer!)
           if (gm == GameMode.misere &&

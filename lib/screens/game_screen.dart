@@ -4094,7 +4094,13 @@ class _FriseurModeLabel extends StatelessWidget {
       case GameMode.misere:
         return _text('Misere 😶', Colors.red.shade300);
       case GameMode.allesTrumpf:
-        return _text('Alles Trumpf 👑', Colors.yellow.shade300);
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _text('Alles Trumpf', Colors.yellow.shade300),
+            const Text('👑', style: TextStyle(fontSize: 12)),
+          ],
+        );
       case GameMode.molotof:
         if (molotofSubMode == null) {
           return _text('Molotow 💣', Colors.deepOrange.shade300);

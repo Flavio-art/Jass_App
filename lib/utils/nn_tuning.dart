@@ -46,14 +46,14 @@ class NNTuning {
   // Formel: adjusted = raw × mult (direkte Multiplikation)
   static const double friseurMultTrumpOben = 1.10;
   static const double friseurMultTrumpUnten = 1.08;
-  static const double friseurMultAllesTrumpf = 0.78;
+  static const double friseurMultAllesTrumpf = 1.00;
   static const double friseurMultOben = 0.90;
   static const double friseurMultUnten = 1.06;
   static const double friseurMultSlalom = 1.08;
   static const double friseurMultSchafkopf = 0.94;
   static const double friseurMultMisere = 0.80;
   static const double friseurMultMolotof = 0.80;
-  static const double friseurMultElefant = 3.0;
+  static const double friseurMultElefant = 3.5;
 
   // ── Friseur Solo Im-Loch-Boost (2× geschoben) ───────────
   // Im Loch wird Misère/Molotof als Fallback attraktiver.
