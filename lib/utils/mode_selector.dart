@@ -861,8 +861,12 @@ class ModeSelectorAI {
         totalSafeUnten += _safeTricksUnten(hand, s);
       }
 
-      if (totalSafeOben < 3) {
-        // Oben unsicher → Ass wünschen in anspielbarer Farbe (bevorzuge König-Farbe)
+      if (totalSafeOben >= 3 && totalSafeUnten >= 3) {
+        // Beides ≥3 sichere Stiche → Trumpf wünschen (Buur/Nell)
+        // → fällt durch zum Trumpf-Block unten
+      } else if (totalSafeOben < 3) {
+        // Oben unsicher → Ass wünschen in anspielbarer Farbe
+        // Bevorzuge Farbe wo König vorhanden (Ass+König = 2 sichere Stiche)
         final suitsByPriority = [...allSuits]
           ..sort((a, b) {
             final aK = hand.any((c) => c.suit == a && c.value == CardValue.king) ? 1 : 0;
@@ -877,12 +881,12 @@ class ModeSelectorAI {
           );
           if (card.suit == suit && card.value == CardValue.ace) return card;
         }
-        // Fallback: irgendein Ass
         final anyAce = available.firstWhere(
             (c) => c.value == CardValue.ace, orElse: () => available.first);
         if (anyAce.value == CardValue.ace) return anyAce;
-      } else if (totalSafeUnten < 3) {
-        // Oben ok, Unten unsicher → 6 wünschen in anspielbarer Farbe
+      } else {
+        // Oben ≥3 aber Unten <3 → 6 wünschen in anspielbarer Farbe!
+        // Bevorzuge Farbe wo 7 vorhanden (6+7 = 2 sichere Stiche)
         final suitsByPriority = [...allSuits]
           ..sort((a, b) {
             final a7 = hand.any((c) => c.suit == a && c.value == CardValue.seven) ? 1 : 0;
