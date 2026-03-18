@@ -12,10 +12,10 @@ import 'game_logic.dart';
 /// Pro Kandidatenkarte werden [simulations] Welten gezogen und simuliert.
 class MonteCarloAI {
   /// Anzahl äusserer Simulationen pro Kandidatenkarte.
-  static const int simulations = 80;
+  static const int simulations = 60;
 
   /// Anzahl innerer Rollouts pro Option im Rollout-Schritt.
-  static const int innerSimulations = 5;
+  static const int innerSimulations = 4;
 
   static final math.Random _rng = math.Random();
 
@@ -744,7 +744,7 @@ class MonteCarloAI {
 
     // Budget: ~200 Gesamt-Simulationen, verteilt auf alle Karten
     // Bei Match-Verfolgung mehr Simulationen für bessere Entscheidungen
-    final baseBudget = myTeamHasAllTricks ? 400 : 300;
+    final baseBudget = myTeamHasAllTricks ? 350 : 250;
     final simsPerCard = math.max(10, baseBudget ~/ playable.length);
 
     // Geweiste Gegner-Farben: beim Anspielen leicht bestrafen (nur Schieber)
@@ -2562,9 +2562,67 @@ class MonteCarloAI {
     return result;
   }
 
+  /// Berechnet Wahrscheinlichkeits-Gewichte pro (Spieler, Farbe) basierend auf
+  /// beobachtetem Spielverhalten. Höherer Wert = wahrscheinlicher dass der
+  /// Spieler Karten dieser Farbe hat.
+  static Map<String, Map<Suit, double>> _inferSuitWeights(
+      GameState state, String aiPlayerId) {
+    final weights = <String, Map<Suit, double>>{};
+    for (final p in state.players) {
+      weights[p.id] = {};
+    }
+
+    final trump = state.trumpSuit;
+    if (trump == null) return weights;
+    final isTrumpMode = state.gameMode == GameMode.trump ||
+        state.gameMode == GameMode.trumpUnten ||
+        state.gameMode == GameMode.schafkopf;
+    if (!isTrumpMode) return weights;
+
+    for (final trick in state.completedTricks) {
+      if (trick.cards.length < 2) continue;
+      final entries = trick.cards.entries.toList();
+      final ledSuit = entries.first.value.suit;
+      final leaderId = entries.first.key;
+
+      // Beobachtung 1: Spieler spielt Trumpf an → hat wahrscheinlich viele Trümpfe
+      if (ledSuit == trump && leaderId != aiPlayerId) {
+        weights[leaderId]![trump] = (weights[leaderId]![trump] ?? 1.0) * 1.4;
+      }
+
+      for (int i = 1; i < entries.length; i++) {
+        final playerId = entries[i].key;
+        final card = entries[i].value;
+        if (playerId == aiPlayerId) continue;
+
+        if (ledSuit == trump && card.suit == trump) {
+          // Beobachtung 2: Spieler folgt mit hohem Trumpf → hat wenige Trümpfe
+          // (Buur/Nell ausgenommen – die spielt man bewusst)
+          if (card.value != CardValue.jack && card.value != CardValue.nine) {
+            final strength = GameLogic.cardPlayStrength(
+                card, state.effectiveMode, trump);
+            if (strength > 5) {
+              // Hoher Trumpf (König, Dame, 10) → wahrscheinlich wenige Trümpfe
+              weights[playerId]![trump] =
+                  (weights[playerId]![trump] ?? 1.0) * 0.7;
+            }
+          }
+        } else if (ledSuit != trump && card.suit == trump) {
+          // Beobachtung 3: Spieler trumpft → hat Trumpf aber ist void in ledSuit
+          // (void wird schon separat getrackt, hier nur Trumpf-Boost)
+          weights[playerId]![trump] =
+              (weights[playerId]![trump] ?? 1.0) * 1.2;
+        }
+      }
+    }
+
+    return weights;
+  }
+
   /// Erstellt eine zufällige Welt: eigene Hand bleibt, unbekannte Karten
   /// werden unter den anderen Spielern neu verteilt (Fehlfarben respektiert).
-  /// Bekannte Weis-Karten werden dem richtigen Spieler fest zugewiesen.
+  /// Bekannte Weis-Karten und durch Void-Tracking ableitbare Karten werden
+  /// dem richtigen Spieler fest zugewiesen.
   static GameState _sampleWorld(
     GameState state,
     String aiPlayerId,
@@ -2580,7 +2638,7 @@ class MonteCarloAI {
     final fixedAssignments = <String, List<JassCard>>{};
     final fixedCardSet = <JassCard>{};
     for (final entry in wyssKnown.entries) {
-      if (entry.key == aiPlayerId) continue; // Eigene Karten nicht nochmal
+      if (entry.key == aiPlayerId) continue;
       final playerCards = entry.value
           .where((c) => allOtherCards.contains(c))
           .toList();
@@ -2590,7 +2648,45 @@ class MonteCarloAI {
       }
     }
 
-    // Pool = fremde Karten MINUS bekannte Weis-Karten
+    // Void-Deduktion: Wenn nur noch EIN Spieler eine Farbe haben kann,
+    // müssen alle verbleibenden Karten dieser Farbe bei ihm sein.
+    // z.B.: 2 von 3 Gegnern sind void in Trumpf → der 3. hat ALLE Trümpfe.
+    final remainingCards = allOtherCards
+        .where((c) => !fixedCardSet.contains(c))
+        .toList();
+
+    // Gruppiere verbleibende Karten nach Farbe
+    final cardsBySuit = <Suit, List<JassCard>>{};
+    for (final c in remainingCards) {
+      (cardsBySuit[c.suit] ??= []).add(c);
+    }
+
+    for (final suitEntry in cardsBySuit.entries) {
+      final suit = suitEntry.key;
+      final suitCards = suitEntry.value;
+      // Welche Spieler können diese Farbe noch haben?
+      final eligible = others.where((p) =>
+          !(voidSuits[p.id]?.contains(suit) ?? false) &&
+          (fixedAssignments[p.id]?.length ?? 0) < p.hand.length).toList();
+      if (eligible.length == 1) {
+        // Nur ein Spieler kann diese Farbe haben → fix zuweisen
+        final playerId = eligible.first.id;
+        final available = suitCards.where((c) => !fixedCardSet.contains(c)).toList();
+        // Nur zuweisen wenn genug Platz in der Hand
+        final currentFixed = fixedAssignments[playerId]?.length ?? 0;
+        final maxSlots = eligible.first.hand.length - currentFixed;
+        final toAssign = available.length <= maxSlots
+            ? available
+            : available.sublist(0, maxSlots);
+        if (toAssign.isNotEmpty) {
+          fixedAssignments.putIfAbsent(playerId, () => []);
+          fixedAssignments[playerId]!.addAll(toAssign);
+          fixedCardSet.addAll(toAssign);
+        }
+      }
+    }
+
+    // Pool = fremde Karten MINUS alle fixierten Karten (Weis + Void-Deduktion)
     final pool = allOtherCards
         .where((c) => !fixedCardSet.contains(c))
         .toList()
@@ -2605,7 +2701,11 @@ class MonteCarloAI {
       return p.copyWith(hand: List<JassCard>.filled(remaining, p.hand.first));
     }).toList();
 
-    final randomAssignments = _dealCards(pool, adjustedOthers, voidSuits);
+    // Probabilistische Gewichte für Kartenverteilung
+    final suitWeights = _inferSuitWeights(state, aiPlayerId);
+
+    final randomAssignments = _dealCards(pool, adjustedOthers, voidSuits,
+        suitWeights: suitWeights);
 
     final newPlayers = state.players.map((p) {
       if (p.id == aiPlayerId) return p.copyWith(hand: List<JassCard>.from(p.hand));
@@ -2688,14 +2788,14 @@ class MonteCarloAI {
         .length;
   }
 
-  /// Verteilt [pool] auf [players] unter Berücksichtigung von Fehlfarben.
-  /// Jeder Spieler bekommt genau so viele Karten wie er aktuell hat.
-  /// Falls Fehlfarben-Constraints nicht vollständig erfüllbar: Fallback ohne Constraints.
+  /// Verteilt [pool] auf [players] unter Berücksichtigung von Fehlfarben
+  /// und probabilistischen Gewichten (wer hat wahrscheinlich welche Farbe).
   static Map<String, List<JassCard>> _dealCards(
     List<JassCard> pool,
     List<Player> players,
-    Map<String, Set<Suit>> voidSuits,
-  ) {
+    Map<String, Set<Suit>> voidSuits, {
+    Map<String, Map<Suit, double>>? suitWeights,
+  }) {
     final result = <String, List<JassCard>>{
       for (final p in players) p.id: [],
     };
@@ -2718,15 +2818,36 @@ class MonteCarloAI {
       }
     }
 
-    // Pass 2: restliche Karten zufällig an erlaubte Spieler
+    // Pass 2: restliche Karten gewichtet an erlaubte Spieler
     for (final card in [...unassigned]) {
       final eligible = players.where((p) =>
           result[p.id]!.length < p.hand.length &&
           !(voidSuits[p.id]?.contains(card.suit) ?? false)).toList();
-      final target = eligible.isNotEmpty
-          ? eligible[_rng.nextInt(eligible.length)]
-          : players.firstWhere((p) => result[p.id]!.length < p.hand.length,
-              orElse: () => players.first);
+      if (eligible.isEmpty) {
+        final fallback = players.firstWhere(
+            (p) => result[p.id]!.length < p.hand.length,
+            orElse: () => players.first);
+        result[fallback.id]!.add(card);
+        continue;
+      }
+      if (eligible.length == 1 || suitWeights == null) {
+        result[eligible[_rng.nextInt(eligible.length)].id]!.add(card);
+        continue;
+      }
+      // Gewichtete Auswahl: Spieler mit höherem Weight für diese Farbe
+      // bekommen die Karte wahrscheinlicher
+      final weights = eligible.map((p) =>
+          suitWeights[p.id]?[card.suit] ?? 1.0).toList();
+      final totalWeight = weights.fold(0.0, (a, b) => a + b);
+      var roll = _rng.nextDouble() * totalWeight;
+      Player target = eligible.first;
+      for (int i = 0; i < eligible.length; i++) {
+        roll -= weights[i];
+        if (roll <= 0) {
+          target = eligible[i];
+          break;
+        }
+      }
       result[target.id]!.add(card);
     }
 
