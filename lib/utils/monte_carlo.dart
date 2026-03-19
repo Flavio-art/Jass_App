@@ -601,28 +601,49 @@ class MonteCarloAI {
       final partnerWins = _sameTeamFor(aiPlayer, currentWinner, state);
 
       if (partnerWins) {
-        // Partner hat den Stich → NIE wegnehmen
-        final ledSuit = state.currentTrickCards.first.suit;
-        final hasLedSuit = playable.any((c) => c.suit == ledSuit);
-        final isTrumpMode = trump != null || effectMode == GameMode.allesTrumpf;
+        // Misere/Molotow: kein Partner-Schutz (Stich gehört eh Team, überspielen OK)
+        final isMisereLike = state.gameMode == GameMode.misere ||
+            state.gameMode == GameMode.molotof;
+        if (isMisereLike) {
+          // Normal weiterspielen → fall through zu MC/Minimax
+        } else {
+          // Partner hat den Stich → nicht wegnehmen, aber schmieren!
+          final ledSuit = state.currentTrickCards.first.suit;
+          final hasLedSuit = playable.any((c) => c.suit == ledSuit);
+          final isTrumpMode = trump != null || effectMode == GameMode.allesTrumpf;
 
-        if (isTrumpMode && !hasLedSuit) {
-          // Fehlfarbe: nicht trumpfen
-          final nonTrump = trump != null
-              ? playable.where((c) => c.suit != trump).toList()
-              : <JassCard>[];
-          if (nonTrump.isNotEmpty) {
-            return _weakest(nonTrump, effectMode, trump);
+          if (isTrumpMode && !hasLedSuit) {
+            // Fehlfarbe: nicht trumpfen, aber Nicht-Trumpf schmieren
+            final nonTrump = trump != null
+                ? playable.where((c) => c.suit != trump).toList()
+                : <JassCard>[];
+            if (nonTrump.isNotEmpty) {
+              // Schmieren: höchste Punkte die nicht Trumpf sind
+              nonTrump.sort((a, b) =>
+                  GameLogic.cardPoints(b, effectMode, trump)
+                      .compareTo(GameLogic.cardPoints(a, effectMode, trump)));
+              return nonTrump.first;
+            }
+            return _weakest(playable, effectMode, trump);
+          }
+
+          // Gleiche Farbe oder Trumpf: nicht überstechen, aber schmieren
+          final notWinning = playable.where((c) => !_wouldWin(c, state, trump)).toList();
+          if (notWinning.isNotEmpty) {
+            // Schmieren: höchste Punkte unter den nicht-gewinnenden Karten
+            // Aber keine Trumpfkarten schmieren
+            final schmierbar = notWinning.where((c) =>
+                trump == null || c.suit != trump || effectMode == GameMode.allesTrumpf).toList();
+            if (schmierbar.isNotEmpty) {
+              schmierbar.sort((a, b) =>
+                  GameLogic.cardPoints(b, effectMode, trump)
+                      .compareTo(GameLogic.cardPoints(a, effectMode, trump)));
+              return schmierbar.first;
+            }
+            return _weakest(notWinning, effectMode, trump);
           }
           return _weakest(playable, effectMode, trump);
         }
-
-        // Gleiche Farbe oder Trumpf: nicht überstechen (schwächste Karte)
-        final notWinning = playable.where((c) => !_wouldWin(c, state, trump)).toList();
-        if (notWinning.isNotEmpty) {
-          return _weakest(notWinning, effectMode, trump);
-        }
-        return _weakest(playable, effectMode, trump);
       }
 
       // Nicht trumpfen wenn nur Team Trumpf hat und Partner noch kommt
