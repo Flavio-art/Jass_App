@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/card_model.dart';
 import '../models/player.dart';
@@ -27,18 +28,36 @@ class PlayerHandWidget extends StatefulWidget {
 
 class _PlayerHandWidgetState extends State<PlayerHandWidget> {
   JassCard? _selectedCard;
+  Timer? _autoPlayTimer;
 
   @override
   void didUpdateWidget(covariant PlayerHandWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Auswahl zurücksetzen wenn sich die Hand ändert (Karte wurde gespielt)
     if (_selectedCard != null && !widget.player.hand.contains(_selectedCard)) {
+      _autoPlayTimer?.cancel();
       _selectedCard = null;
+    }
+    // Vorselektierte Karte nicht mehr spielbar → abwählen
+    if (_selectedCard != null && !widget.playableCards.contains(_selectedCard)) {
+      _autoPlayTimer?.cancel();
+      setState(() => _selectedCard = null);
+    }
+    // Spieler ist jetzt dran + Karte vorselektiert → Auto-Play starten
+    if (_selectedCard != null && widget.isActive && _autoPlayTimer == null) {
+      _autoPlayTimer = Timer(const Duration(milliseconds: 1500), () {
+        if (mounted && _selectedCard != null &&
+            widget.playableCards.contains(_selectedCard)) {
+          final card = _selectedCard!;
+          setState(() => _selectedCard = null);
+          widget.onCardTap?.call(card);
+        }
+      });
     }
   }
 
   @override
   void dispose() {
+    _autoPlayTimer?.cancel();
     super.dispose();
   }
 
@@ -232,13 +251,22 @@ class _PlayerHandWidgetState extends State<PlayerHandWidget> {
   }
 
   void _onCardTap(JassCard card) {
+    // Nur spielbare Karten erlauben
+    if (!widget.playableCards.contains(card)) return;
+    _autoPlayTimer?.cancel();
     if (_selectedCard == card) {
       // 2. Tap → sofort spielen
       setState(() => _selectedCard = null);
       widget.onCardTap?.call(card);
     } else {
-      // 1. Tap → auswählen (Karte bleibt oben bis 2. Tap)
+      // 1. Tap → auswählen + Auto-Play nach 2 Sekunden
       setState(() => _selectedCard = card);
+      _autoPlayTimer = Timer(const Duration(seconds: 2), () {
+        if (mounted && _selectedCard == card) {
+          setState(() => _selectedCard = null);
+          widget.onCardTap?.call(card);
+        }
+      });
     }
   }
 }
