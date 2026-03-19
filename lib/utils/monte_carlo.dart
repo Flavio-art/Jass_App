@@ -618,11 +618,14 @@ class MonteCarloAI {
                 ? playable.where((c) => c.suit != trump).toList()
                 : <JassCard>[];
             if (nonTrump.isNotEmpty) {
-              // Schmieren: höchste Punkte die nicht Trumpf sind
-              nonTrump.sort((a, b) =>
+              // Schmieren: höchste Punkte, keine sicheren Stichkarten
+              final schmierNt = nonTrump.where((c) =>
+                  !_isHighestRemaining(c, state)).toList();
+              final pool = schmierNt.isNotEmpty ? schmierNt : nonTrump;
+              pool.sort((a, b) =>
                   GameLogic.cardPoints(b, effectMode, trump)
                       .compareTo(GameLogic.cardPoints(a, effectMode, trump)));
-              return nonTrump.first;
+              return pool.first;
             }
             return _weakest(playable, effectMode, trump);
           }
@@ -630,10 +633,12 @@ class MonteCarloAI {
           // Gleiche Farbe oder Trumpf: nicht überstechen, aber schmieren
           final notWinning = playable.where((c) => !_wouldWin(c, state, trump)).toList();
           if (notWinning.isNotEmpty) {
-            // Schmieren: höchste Punkte unter den nicht-gewinnenden Karten
-            // Aber keine Trumpfkarten schmieren
+            // Schmieren: höchste Punkte, aber:
+            // - keine Trumpfkarten
+            // - keine sicheren Stichkarten (höchste verbleibende)
             final schmierbar = notWinning.where((c) =>
-                trump == null || c.suit != trump || effectMode == GameMode.allesTrumpf).toList();
+                (trump == null || c.suit != trump || effectMode == GameMode.allesTrumpf) &&
+                !_isHighestRemaining(c, state)).toList();
             if (schmierbar.isNotEmpty) {
               schmierbar.sort((a, b) =>
                   GameLogic.cardPoints(b, effectMode, trump)
