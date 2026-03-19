@@ -564,6 +564,81 @@ class MonteCarloAI {
       return _pointAwareFollow(losing, effectMode, trump, oppWins);
     }
 
+    // ── Friseur Solo: Wunschkarte spielen wenn Farbe angespielt wird ────
+    // Partner muss die Wunschkarte spielen wenn die Farbe angespielt wird,
+    // um sich aufzudecken und den Stich zu gewinnen.
+    if (state.gameType == GameType.friseur &&
+        state.wishCard != null &&
+        !state.friseurPartnerRevealed &&
+        state.currentTrickCards.isNotEmpty &&
+        playable.contains(state.wishCard)) {
+      final partnerId = _friseurPartnerId(state);
+      if (aiPlayer.id == partnerId) {
+        final ledSuit = state.currentTrickCards.first.suit;
+        if (state.wishCard!.suit == ledSuit) {
+          // Wunschkarte-Farbe wird angespielt → Wunschkarte spielen!
+          return state.wishCard!;
+        }
+      }
+    }
+
+    // ── Partner-Schutz vor Minimax/MC: nie Partner-Stich übertrumpfen ────
+    // Muss VOR Minimax stehen, da Minimax rein mathematisch optimiert
+    // und Partner-Übertrumpfung nicht bestraft.
+    if (state.currentTrickCards.isNotEmpty) {
+      final trump = state.trumpSuit;
+      final effectMode = state.effectiveMode;
+      final currentWinnerId = GameLogic.determineTrickWinner(
+        cards: state.currentTrickCards,
+        playerIds: state.currentTrickPlayerIds,
+        gameMode: state.gameMode,
+        trumpSuit: trump,
+        trickNumber: state.currentTrickNumber,
+        molotofSubMode: state.molotofSubMode,
+        slalomStartsOben: state.slalomStartsOben,
+      );
+      final currentWinner = state.players.firstWhere((p) => p.id == currentWinnerId);
+      final partnerWins = _sameTeamFor(aiPlayer, currentWinner, state);
+
+      if (partnerWins) {
+        // Partner hat den Stich → NIE wegnehmen
+        final ledSuit = state.currentTrickCards.first.suit;
+        final hasLedSuit = playable.any((c) => c.suit == ledSuit);
+        final isTrumpMode = trump != null || effectMode == GameMode.allesTrumpf;
+
+        if (isTrumpMode && !hasLedSuit) {
+          // Fehlfarbe: nicht trumpfen
+          final nonTrump = trump != null
+              ? playable.where((c) => c.suit != trump).toList()
+              : <JassCard>[];
+          if (nonTrump.isNotEmpty) {
+            return _weakest(nonTrump, effectMode, trump);
+          }
+          return _weakest(playable, effectMode, trump);
+        }
+
+        // Gleiche Farbe oder Trumpf: nicht überstechen (schwächste Karte)
+        final notWinning = playable.where((c) => !_wouldWin(c, state, trump)).toList();
+        if (notWinning.isNotEmpty) {
+          return _weakest(notWinning, effectMode, trump);
+        }
+        return _weakest(playable, effectMode, trump);
+      }
+
+      // Nicht trumpfen wenn nur Team Trumpf hat und Partner noch kommt
+      if (trump != null && !partnerWins && _onlyTeamHasTrump(aiPlayer, state, trump)) {
+        final ls = state.currentTrickCards.first.suit;
+        final hasLedSuit = playable.any((c) => c.suit == ls);
+        final trickLen = state.currentTrickCards.length;
+        if (!hasLedSuit && trickLen < 3) {
+          final nonTrump = playable.where((c) => c.suit != trump).toList();
+          if (nonTrump.isNotEmpty) {
+            return _smartDiscard(nonTrump, state, effectMode, trump);
+          }
+        }
+      }
+    }
+
     // Deterministische Endphase: letzte 3 Stiche → exakter Minimax statt MC
     if (state.completedTricks.length >= 6) {
       return _exactBestCard(aiPlayer, state, aiIsTeam1);
@@ -2167,6 +2242,13 @@ class MonteCarloAI {
         if (wish != null &&
             (wish.value == CardValue.jack || wish.value == CardValue.nine) &&
             c.suit == wish.suit) {
+          valuable.add(c);
+        }
+      }
+      // Alles Trumpf: Bauern (20 Pkt) und Nell (14 Pkt) NIE abwerfen!
+      // Sie sind zukünftige Stichgewinner wenn ihre Farbe angespielt wird.
+      if (gm == GameMode.allesTrumpf) {
+        if (c.value == CardValue.jack || c.value == CardValue.nine) {
           valuable.add(c);
         }
       }
