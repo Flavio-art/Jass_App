@@ -56,6 +56,17 @@ class _PlayerHandWidgetState extends State<PlayerHandWidget> {
       final delay = waitedLong ? 100 : 1500;
       _startAutoPlay(_selectedCard!, delayMs: delay);
     }
+    // Letzte Karte auf der Hand → automatisch nach 500ms spielen (keine Wahl)
+    if (widget.isActive && widget.player.hand.length == 1 &&
+        widget.playableCards.isNotEmpty &&
+        _autoPlayTimer == null && _selectedCard == null) {
+      final lastCard = widget.player.hand.first;
+      setState(() {
+        _selectedCard = lastCard;
+        _selectedAt = DateTime.now();
+      });
+      _startAutoPlay(lastCard, delayMs: 500);
+    }
   }
 
   @override
@@ -254,6 +265,8 @@ class _PlayerHandWidgetState extends State<PlayerHandWidget> {
   }
 
   void _onCardTap(JassCard card) {
+    // Kein Stich läuft → keine Auswahl möglich
+    if (widget.playableCards.isEmpty) return;
     // Nur spielbare Karten erlauben
     if (!widget.playableCards.contains(card)) return;
     _autoPlayTimer?.cancel();
