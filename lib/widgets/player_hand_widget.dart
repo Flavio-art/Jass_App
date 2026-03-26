@@ -29,6 +29,7 @@ class PlayerHandWidget extends StatefulWidget {
 class _PlayerHandWidgetState extends State<PlayerHandWidget> {
   JassCard? _selectedCard;
   Timer? _autoPlayTimer;
+  DateTime? _selectedAt; // Wann wurde die Karte ausgewählt
 
   @override
   void didUpdateWidget(covariant PlayerHandWidget oldWidget) {
@@ -36,22 +37,24 @@ class _PlayerHandWidgetState extends State<PlayerHandWidget> {
     if (_selectedCard != null && !widget.player.hand.contains(_selectedCard)) {
       _autoPlayTimer?.cancel();
       _selectedCard = null;
+      _selectedAt = null;
     }
     // Vorselektierte Karte nicht mehr spielbar → abwählen
-    if (_selectedCard != null && !widget.playableCards.contains(_selectedCard)) {
+    if (_selectedCard != null && widget.playableCards.isNotEmpty &&
+        !widget.playableCards.contains(_selectedCard)) {
       _autoPlayTimer?.cancel();
-      setState(() => _selectedCard = null);
+      setState(() {
+        _selectedCard = null;
+        _selectedAt = null;
+      });
     }
     // Spieler ist jetzt dran + Karte vorselektiert → Auto-Play starten
     if (_selectedCard != null && widget.isActive && _autoPlayTimer == null) {
-      _autoPlayTimer = Timer(const Duration(milliseconds: 1500), () {
-        if (mounted && _selectedCard != null &&
-            widget.playableCards.contains(_selectedCard)) {
-          final card = _selectedCard!;
-          setState(() => _selectedCard = null);
-          widget.onCardTap?.call(card);
-        }
-      });
+      // Karte war schon >2s ausgewählt → sofort spielen (100ms)
+      final waitedLong = _selectedAt != null &&
+          DateTime.now().difference(_selectedAt!).inMilliseconds > 2000;
+      final delay = waitedLong ? 100 : 1500;
+      _startAutoPlay(_selectedCard!, delayMs: delay);
     }
   }
 
@@ -256,17 +259,35 @@ class _PlayerHandWidgetState extends State<PlayerHandWidget> {
     _autoPlayTimer?.cancel();
     if (_selectedCard == card) {
       // 2. Tap → sofort spielen
-      setState(() => _selectedCard = null);
+      setState(() {
+        _selectedCard = null;
+        _selectedAt = null;
+      });
       widget.onCardTap?.call(card);
     } else {
-      // 1. Tap → auswählen + Auto-Play nach 2 Sekunden
-      setState(() => _selectedCard = card);
-      _autoPlayTimer = Timer(const Duration(seconds: 2), () {
-        if (mounted && _selectedCard == card) {
-          setState(() => _selectedCard = null);
-          widget.onCardTap?.call(card);
-        }
+      // 1. Tap → auswählen (Karte bleibt oben bis gespielt oder abgewählt)
+      setState(() {
+        _selectedCard = card;
+        _selectedAt = DateTime.now();
       });
+      // Auto-Play nur wenn Spieler schon dran ist
+      if (widget.isActive) {
+        _startAutoPlay(card);
+      }
     }
+  }
+
+  void _startAutoPlay(JassCard card, {int delayMs = 1500}) {
+    _autoPlayTimer?.cancel();
+    _autoPlayTimer = Timer(Duration(milliseconds: delayMs), () {
+      if (mounted && _selectedCard == card &&
+          widget.playableCards.contains(card)) {
+        setState(() {
+          _selectedCard = null;
+          _selectedAt = null;
+        });
+        widget.onCardTap?.call(card);
+      }
+    });
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import '../models/card_model.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
@@ -14,6 +16,7 @@ class GameLogic {
     List<JassCard> currentTrick, {
     GameMode mode = GameMode.trump,
     Suit? trumpSuit,
+    bool isMolotow = false,
   }) {
     if (currentTrick.isEmpty) return List.of(hand);
 
@@ -45,6 +48,50 @@ class GameLogic {
         // Keine passende Farbe → freie Wahl (inkl. Trumpf)
         return List.of(hand);
       }
+    }
+
+    // ── Molotow-Trumpf: strengere Regeln als normales Trumpf ─────────────────
+    // Hat Farbe → MUSS Farbe spielen (kein freiwilliges Abstechen)
+    // Fehlfarbe → darf nur ÜBERTRUMPFEN (nicht untertrumpfen), sonst freie Wahl
+    if (isMolotow && (mode == GameMode.trump || mode == GameMode.trumpUnten)) {
+      final ledSuit = currentTrick.first.suit;
+      final trumpCards = trumpSuit != null
+          ? hand.where((c) => c.suit == trumpSuit).toList()
+          : <JassCard>[];
+
+      // Trumpf angeführt → muss Trumpf spielen
+      if (ledSuit == trumpSuit) {
+        return trumpCards.isNotEmpty ? trumpCards : List.of(hand);
+      }
+
+      // Nicht-Trumpf angeführt
+      final suitCards = hand.where((c) => c.suit == ledSuit).toList();
+      if (suitCards.isNotEmpty) {
+        // Hat angespielte Farbe → NUR Farbe spielen (kein Abstechen)
+        return suitCards;
+      }
+
+      // Fehlfarbe → darf nur übertrumpfen
+      final highestTrumpInTrick = currentTrick
+          .where((c) => c.suit == trumpSuit)
+          .map((c) => cardPlayStrength(c, mode, trumpSuit))
+          .fold(0, math.max);
+      if (highestTrumpInTrick > 0) {
+        // Trumpf liegt schon → nur höhere Trümpfe erlaubt
+        final overTrumps = trumpCards
+            .where((c) => cardPlayStrength(c, mode, trumpSuit) > highestTrumpInTrick)
+            .toList();
+        if (overTrumps.isNotEmpty) {
+          // Kann übertrumpfen → nur Übertrümpfe + Nicht-Trumpf
+          final nonTrump = hand.where((c) => c.suit != trumpSuit).toList();
+          return <JassCard>{...overTrumps, ...nonTrump}.toList();
+        }
+        // Kann nicht übertrumpfen → freie Wahl (aber kein Untertrumpfen!)
+        final nonTrump = hand.where((c) => c.suit != trumpSuit).toList();
+        return nonTrump.isNotEmpty ? nonTrump : List.of(hand);
+      }
+      // Kein Trumpf liegt → darf trumpfen oder Nicht-Trumpf spielen
+      return List.of(hand);
     }
 
     // ── Trumpfspiel (trump / trumpUnten): Abstechen immer erlaubt ────────────
@@ -502,7 +549,8 @@ class GameLogic {
                 effectiveMode == GameMode.schafkopf ||
                 effectiveMode == GameMode.trumpUnten)
             ? trump
-            : null);
+            : null,
+        isMolotow: state.gameMode == GameMode.molotof);
     if (playable.length == 1) return playable.first;
 
     final trickNumber = state.currentTrickNumber;
