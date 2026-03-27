@@ -753,11 +753,6 @@ class MonteCarloAI {
       }
     }
 
-    // Deterministische Endphase: letzte 3 Stiche → exakter Minimax statt MC
-    if (state.completedTricks.length >= 6) {
-      return _exactBestCard(aiPlayer, state, aiIsTeam1);
-    }
-
     // ── 4. Spieler: deterministisch (alle 3 Karten sichtbar) ──────────────
     // Kein MC nötig — perfekte Info für diesen Stich.
     if (state.currentTrickCards.length == 3) {
@@ -1128,7 +1123,7 @@ class MonteCarloAI {
       // Near-miss Karten beim Anspielen bestrafen (7 ohne 6 in Unten, König ohne Ass in Oben)
       if (state.currentTrickCards.isEmpty &&
           _isNearMissLead(card, state, state.effectiveMode)) {
-        avg -= 20.0; // Riskant: Gegner hat die stärkere Karte
+        avg -= 35.0; // Riskant: Gegner hat die stärkere Karte
       }
 
       // Sichere Gewinner nicht abwerfen (nicht bedienen können)
@@ -1144,6 +1139,10 @@ class MonteCarloAI {
           if (card.value == CardValue.six &&
               (em == GameMode.unten || gm == GameMode.slalom || gm == GameMode.elefant)) {
             avg -= 30.0; // 6er: sicherer Unten-Stich
+          }
+          if (card.value == CardValue.seven &&
+              (em == GameMode.unten || gm == GameMode.slalom || gm == GameMode.elefant)) {
+            avg -= 25.0; // 7er: zweitstärkste Karte in Unten
           }
           if (card.value == CardValue.ace &&
               (em == GameMode.oben || gm == GameMode.slalom || gm == GameMode.elefant)) {
@@ -1651,15 +1650,26 @@ class MonteCarloAI {
         card.suit != trump &&
         effectMode != GameMode.oben &&
         effectMode != GameMode.unten) {
-      final cardOwner = state.players.firstWhere((p) => p.hand.contains(card));
-      final canBeTrumped = state.players.any((p) {
-        if (_sameTeam(cardOwner, p)) return false; // Partner trumpft nie eigenes Ass
-        final others = p.hand.where((c) => c != card).toList();
-        final hasLedSuit = others.any((c) => c.suit == card.suit);
-        final hasTrump = others.any((c) => c.suit == trump);
-        return !hasLedSuit && hasTrump; // void in Farbe + hat Trumpf → kann stechen
-      });
-      if (canBeTrumped) return false;
+      final cardOwner = state.players.cast<Player?>().firstWhere(
+          (p) => p!.hand.contains(card), orElse: () => null);
+      if (cardOwner == null) {
+        // Karte liegt im Stich, nicht auf einer Hand → prüfe ob Gegner trumpfen könnten
+        final canBeTrumped = state.players.any((p) {
+          final hasLedSuit = p.hand.any((c) => c.suit == card.suit);
+          final hasTrump = p.hand.any((c) => c.suit == trump);
+          return !hasLedSuit && hasTrump;
+        });
+        if (canBeTrumped) return false;
+      } else {
+        final canBeTrumped = state.players.any((p) {
+          if (_sameTeam(cardOwner, p)) return false; // Partner trumpft nie eigenes Ass
+          final others = p.hand.where((c) => c != card).toList();
+          final hasLedSuit = others.any((c) => c.suit == card.suit);
+          final hasTrump = others.any((c) => c.suit == trump);
+          return !hasLedSuit && hasTrump; // void in Farbe + hat Trumpf → kann stechen
+        });
+        if (canBeTrumped) return false;
+      }
     }
 
     return true;
@@ -2363,9 +2373,11 @@ class MonteCarloAI {
       if (gm == GameMode.oben || gm == GameMode.trump) {
         if (c.value == CardValue.ace) valuable.add(c);
       }
-      // Unten-Modi: 6er behalten (sichere Stichgewinner)
+      // Unten-Modi: 6er + 7er behalten (stärkste Karten in Unten)
       if (gm == GameMode.unten || gm == GameMode.trumpUnten) {
-        if (c.value == CardValue.six) valuable.add(c);
+        if (c.value == CardValue.six || c.value == CardValue.seven) {
+          valuable.add(c);
+        }
       }
       // Elefant: Buben (Buur) sind extrem wertvoll für die Trumpf-Stiche
       if (gm == GameMode.elefant) {
@@ -2661,53 +2673,6 @@ class MonteCarloAI {
       }
       return false;
     });
-  }
-
-  // ─── Deterministische Endphase ────────────────────────────────────────────
-
-  /// Beste Karte für die letzten 1-2 Stiche via exaktem Minimax.
-  static JassCard _exactBestCard(Player aiPlayer, GameState state, bool aiIsTeam1) {
-    final playable = _getPlayable(aiPlayer, state);
-    if (playable.length == 1) return playable.first;
-
-    JassCard bestCard = playable.first;
-    double bestScore = double.negativeInfinity;
-
-    for (final card in playable) {
-      final score = _minimaxScore(
-          _playCard(state, aiPlayer.id, card), aiIsTeam1, aiPlayer.id);
-      if (score > bestScore) {
-        bestScore = score;
-        bestCard = card;
-      }
-    }
-    return bestCard;
-  }
-
-  /// Rekursiver Minimax bis Spielende. Jedes Team spielt für sich selbst optimal.
-  static double _minimaxScore(GameState state, bool aiIsTeam1, String aiPlayerId) {
-    if (state.completedTricks.length >= 9) {
-      return _scoreFor(state, aiIsTeam1, aiPlayerId);
-    }
-    final player = state.players[state.currentPlayerIndex];
-    if (player.hand.isEmpty) return _scoreFor(state, aiIsTeam1, aiPlayerId);
-
-    final isTeam1 = player.position == PlayerPosition.south ||
-        player.position == PlayerPosition.north;
-    final maximize = isTeam1 == aiIsTeam1;
-
-    final playable = _getPlayable(player, state);
-    if (playable.isEmpty) return _scoreFor(state, aiIsTeam1, aiPlayerId);
-
-    double? best;
-    for (final card in playable) {
-      final val = _minimaxScore(
-          _playCard(state, player.id, card), aiIsTeam1, aiPlayerId);
-      if (best == null || (maximize ? val > best : val < best)) {
-        best = val;
-      }
-    }
-    return best!;
   }
 
   // ─── World Sampling ───────────────────────────────────────────────────────
