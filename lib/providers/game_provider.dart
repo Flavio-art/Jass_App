@@ -2797,8 +2797,8 @@ class GameProvider extends ChangeNotifier {
 
         _doPlayCard(aiPlayer.id, card, playerIdx);
       }
-    } catch (e) {
-      debugPrint('AI loop error: $e');
+    } catch (e, st) {
+      debugPrint('AI loop error: $e\n$st');
     } finally {
       _aiRunning = false;
       if (_state.phase == GamePhase.playing) {
