@@ -1151,10 +1151,6 @@ class MonteCarloAI {
                gm == GameMode.slalom || gm == GameMode.elefant)) {
             avg -= 30.0; // Ass: sicherer Oben/Trumpf-Stich
           }
-          if (card.value == CardValue.ten && card.suit != trump &&
-              (em == GameMode.trump || em == GameMode.trumpUnten)) {
-            avg -= 20.0; // 10er (Nicht-Trumpf): 10 Punkte, potentieller Stich
-          }
           // Elefant: 6er auch in Oben-Phase nicht abwerfen (brauche sie für Unten!)
           if (gm == GameMode.elefant && card.value == CardValue.six) {
             avg -= 30.0;
