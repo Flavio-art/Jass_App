@@ -1137,16 +1137,23 @@ class MonteCarloAI {
           final gm = state.gameMode;
           final em = state.effectiveMode;
           if (card.value == CardValue.six &&
-              (em == GameMode.unten || gm == GameMode.slalom || gm == GameMode.elefant)) {
+              (em == GameMode.unten || em == GameMode.trumpUnten ||
+               gm == GameMode.slalom || gm == GameMode.elefant)) {
             avg -= 30.0; // 6er: sicherer Unten-Stich
           }
           if (card.value == CardValue.seven &&
-              (em == GameMode.unten || gm == GameMode.slalom || gm == GameMode.elefant)) {
+              (em == GameMode.unten || em == GameMode.trumpUnten ||
+               gm == GameMode.slalom || gm == GameMode.elefant)) {
             avg -= 25.0; // 7er: zweitstärkste Karte in Unten
           }
           if (card.value == CardValue.ace &&
-              (em == GameMode.oben || gm == GameMode.slalom || gm == GameMode.elefant)) {
-            avg -= 30.0; // Ass: sicherer Oben-Stich
+              (em == GameMode.oben || em == GameMode.trump ||
+               gm == GameMode.slalom || gm == GameMode.elefant)) {
+            avg -= 30.0; // Ass: sicherer Oben/Trumpf-Stich
+          }
+          if (card.value == CardValue.ten && card.suit != trump &&
+              (em == GameMode.trump || em == GameMode.trumpUnten)) {
+            avg -= 20.0; // 10er (Nicht-Trumpf): 10 Punkte, potentieller Stich
           }
           // Elefant: 6er auch in Oben-Phase nicht abwerfen (brauche sie für Unten!)
           if (gm == GameMode.elefant && card.value == CardValue.six) {
