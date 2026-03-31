@@ -2412,14 +2412,28 @@ class MonteCarloAI {
         );
         if (maxStr >= 6) valuable.add(c);
       }
-      // Oben-Modi: Asse behalten (sichere Stichgewinner)
+      // Oben-Modi: hohe Karten behalten (potentielle Stichgewinner)
+      // Ass, König, Dame, Bube, 10 = Spielstärke >= 4 → aufsparen
+      // 6, 7, 8, 9 = wertlos → zuerst abwerfen
       if (gm == GameMode.oben || gm == GameMode.trump) {
-        if (c.value == CardValue.ace) valuable.add(c);
+        if (c.value == CardValue.ace) {
+          valuable.add(c);
+        } else if (c.suit != trump) {
+          // Nicht-Trumpf: König/Dame/Bube/10 schützen (potentielle Stiche)
+          final str = GameLogic.cardPlayStrength(c, GameMode.oben, null);
+          if (str >= 4) valuable.add(c); // 10=4, J=5, Q=6, K=7
+        }
       }
-      // Unten-Modi: 6er + 7er behalten (stärkste Karten in Unten)
+      // Unten-Modi: tiefe Karten behalten (potentielle Stichgewinner)
+      // 6, 7, 8 = Spielstärke >= 6 → aufsparen
+      // Ass, König, Dame, Bube, 10, 9 = wertlos → zuerst abwerfen
       if (gm == GameMode.unten || gm == GameMode.trumpUnten) {
         if (c.value == CardValue.six || c.value == CardValue.seven) {
           valuable.add(c);
+        } else if (c.suit != trump) {
+          // Nicht-Trumpf: 8er schützen (potentielle Stiche in Unten)
+          final str = GameLogic.cardPlayStrength(c, GameMode.unten, null);
+          if (str >= 6) valuable.add(c); // 8=6, 7=7, 6=8
         }
       }
       // Elefant: Buben (Buur) sind extrem wertvoll für die Trumpf-Stiche
@@ -2430,6 +2444,14 @@ class MonteCarloAI {
         if (wish != null &&
             (wish.value == CardValue.jack || wish.value == CardValue.nine) &&
             c.suit == wish.suit) {
+          valuable.add(c);
+        }
+      }
+      // Trumpf-Karten schützen: Buur, Nell, Ass nie abwerfen
+      if (trump != null && c.suit == trump &&
+          (gm == GameMode.trump || gm == GameMode.trumpUnten)) {
+        if (c.value == CardValue.jack || c.value == CardValue.nine ||
+            c.value == CardValue.ace) {
           valuable.add(c);
         }
       }
