@@ -283,11 +283,12 @@ class MonteCarloAI {
       }
 
       if (oppTrump > 1) {
-        if (hasBuur) {
-          // Buur = höchste Karte → Stärke zeigen, stärksten Trumpf
+        // Höchste verbleibende Trumpfkarte? → Stärke zeigen, Stich ist sicher
+        final hasHighestTrump = myTrump.any((c) => _isHighestRemaining(c, state));
+        if (hasHighestTrump) {
           return _strongest(myTrump, effectMode, trump);
         }
-        // Kein Buur → Stich geht wahrscheinlich zum Gegner
+        // Nicht die höchste → Stich geht wsl zum Gegner
         // Trotzdem Trumpf ziehen wenn Übergewicht, aber TIEF (wenig Punkte verlieren)
         if (myTeamTrump > oppTrump && myTrump.length > 1) {
           return _weakest(myTrump, effectMode, trump);
