@@ -2412,28 +2412,67 @@ class MonteCarloAI {
         );
         if (maxStr >= 6) valuable.add(c);
       }
-      // Oben-Modi: hohe Karten behalten (potentielle Stichgewinner)
-      // Ass, König, Dame, Bube, 10 = Spielstärke >= 4 → aufsparen
-      // 6, 7, 8, 9 = wertlos → zuerst abwerfen
-      if (gm == GameMode.oben || gm == GameMode.trump) {
-        if (c.value == CardValue.ace) {
+      // Oben-Modi (Oben/Trumpf Oben): Farbtiefe-basierter Schutz
+      // - Ass: immer behalten (stärkste Karte)
+      // - König zu zweit: behalten (Ass wird gespielt → König wird höchste)
+      // - Dame zu dritt: behalten (Ass+König weg → Dame wird höchste)
+      // - Alleinstehende hohe Karten ohne Begleitung = wertlos
+      // - 6, 7, 8, 9 = immer zuerst abwerfen
+      if ((gm == GameMode.oben || gm == GameMode.trump) && c.suit != trump) {
+        final suitCards = cards.where((h) => h.suit == c.suit).toList();
+        final suitCount = suitCards.length;
+        final str = GameLogic.cardPlayStrength(c, GameMode.oben, null);
+        // Ass: immer schützen
+        if (str == 8) {
           valuable.add(c);
-        } else if (c.suit != trump) {
-          // Nicht-Trumpf: König/Dame/Bube/10 schützen (potentielle Stiche)
-          final str = GameLogic.cardPlayStrength(c, GameMode.oben, null);
-          if (str >= 4) valuable.add(c); // 10=4, J=5, Q=6, K=7
         }
-      }
-      // Unten-Modi: tiefe Karten behalten (potentielle Stichgewinner)
-      // 6, 7, 8 = Spielstärke >= 6 → aufsparen
-      // Ass, König, Dame, Bube, 10, 9 = wertlos → zuerst abwerfen
-      if (gm == GameMode.unten || gm == GameMode.trumpUnten) {
-        if (c.value == CardValue.six || c.value == CardValue.seven) {
+        // König (7): schützen wenn mind. 2 Karten der Farbe
+        else if (str == 7 && suitCount >= 2) {
           valuable.add(c);
-        } else if (c.suit != trump) {
-          // Nicht-Trumpf: 8er schützen (potentielle Stiche in Unten)
-          final str = GameLogic.cardPlayStrength(c, GameMode.unten, null);
-          if (str >= 6) valuable.add(c); // 8=6, 7=7, 6=8
+        }
+        // Dame (6): schützen wenn mind. 3 Karten der Farbe
+        else if (str == 6 && suitCount >= 3) {
+          valuable.add(c);
+        }
+        // Bube (5) / 10 (4): schützen wenn viele Begleiter
+        else if (str >= 4 && suitCount >= 4) {
+          valuable.add(c);
+        }
+        // 6, 7, 8, 9 (str 0-3): nie schützen → zuerst abwerfen
+      }
+      // Unten-Modi (Unten/Trumpf Unten): umgekehrte Farbtiefe
+      // - 6: immer behalten (stärkste Karte)
+      // - 7 zu zweit: behalten (6 wird gespielt → 7 wird höchste)
+      // - 8 zu dritt: behalten (6+7 weg → 8 wird höchste)
+      // - Alleinstehende hohe Karten (Ass, K, Q, J) = Opferkarten
+      //   → beim Anspielen der Farbe opfern, tiefe Karte bleibt
+      if ((gm == GameMode.unten || gm == GameMode.trumpUnten) && c.suit != trump) {
+        final suitCards = cards.where((h) => h.suit == c.suit).toList();
+        final suitCount = suitCards.length;
+        final str = GameLogic.cardPlayStrength(c, GameMode.unten, null);
+        // 6 (str=8): immer schützen
+        if (str == 8) {
+          valuable.add(c);
+        }
+        // 7 (str=7): schützen wenn mind. 2 Karten der Farbe
+        else if (str == 7 && suitCount >= 2) {
+          valuable.add(c);
+        }
+        // 8 (str=6): schützen wenn mind. 3 Karten der Farbe
+        else if (str == 6 && suitCount >= 3) {
+          valuable.add(c);
+        }
+        // 9 (str=5): schützen wenn viele Begleiter
+        else if (str >= 5 && suitCount >= 4) {
+          valuable.add(c);
+        }
+        // Ass, K, Q, J, 10 (str 0-4): nie schützen wenn allein
+        // ABER: als Opferkarte schützen wenn man tiefe Begleiter hat!
+        // z.B. König + 7 → König opfern wenn 6 angespielt, 7 wird höchste
+        else if (str <= 4 && suitCount >= 2) {
+          final hasGoodLow = suitCards.any((h) =>
+              GameLogic.cardPlayStrength(h, GameMode.unten, null) >= 6);
+          if (hasGoodLow) valuable.add(c); // Opferkarte für tiefe Karte
         }
       }
       // Elefant: Buben (Buur) sind extrem wertvoll für die Trumpf-Stiche
