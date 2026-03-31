@@ -841,12 +841,14 @@ class MonteCarloAI {
         if (isMisereLike) {
           // Normal weiterspielen → fall through zu MC/Minimax
         } else {
-          // Prüfe ob Partner-Stich sicher ist:
-          // - Gewinnende Karte ist höchste verbleibende ihrer Farbe, ODER
-          // - Kein Gegner kommt nach uns (wir sind letzter Spieler)
+          // Prüfe ob Partner-Stich sicher ist GEGEN GEGNER:
+          // Partner-Karten ignorieren! Nur Gegner-Karten zählen.
+          // z.B. im Schafkopf: Partner hat alle 3 Damen → deine Dame
+          // ist höchste vs Gegner → sicher, nicht übertrumpfen!
           final winnerIdx = state.currentTrickPlayerIds.indexOf(currentWinnerId);
           final winningCard = state.currentTrickCards[winnerIdx];
-          final partnerStichSicher = _isHighestRemaining(winningCard, state) ||
+          final partnerStichSicher = _isHighestRemainingVsOpponents(
+                  winningCard, aiPlayer, state) ||
               state.currentTrickCards.length == 3; // wir sind 4. = letzter
 
           if (!partnerStichSicher) {
@@ -867,9 +869,12 @@ class MonteCarloAI {
 
           if (isTrumpMode && !hasLedSuit) {
             // Fehlfarbe: nicht trumpfen, aber Nicht-Trumpf schmieren
-            final nonTrump = trump != null
-                ? playable.where((c) => c.suit != trump).toList()
-                : <JassCard>[];
+            // Bei Schafkopf: "Nicht-Trumpf" = keine Damen, 8er, Trumpffarbe
+            final nonTrump = state.gameMode == GameMode.schafkopf
+                ? playable.where((c) => !_isSchafkopfTrump(c, trump!)).toList()
+                : (trump != null
+                    ? playable.where((c) => c.suit != trump).toList()
+                    : <JassCard>[]);
             if (nonTrump.isNotEmpty) {
               // Schmieren: höchste Punkte, keine sicheren Stichkarten
               final schmierNt = nonTrump.where((c) =>
@@ -879,6 +884,11 @@ class MonteCarloAI {
                   GameLogic.cardPoints(b, effectMode, trump)
                       .compareTo(GameLogic.cardPoints(a, effectMode, trump)));
               return pool.first;
+            }
+            // Nur Trumpf-Karten → nicht übertrumpfen! Schwächste spielen.
+            final notWinning2 = playable.where((c) => !_wouldWin(c, state, trump)).toList();
+            if (notWinning2.isNotEmpty) {
+              return _weakest(notWinning2, effectMode, trump);
             }
             return _weakest(playable, effectMode, trump);
           }
@@ -1714,6 +1724,42 @@ class MonteCarloAI {
   }
 
   // ─── Kartenzählen ─────────────────────────────────────────────────────────
+
+  /// Wie _isHighestRemaining, aber ignoriert Partner-Karten.
+  /// Nur Gegner-Hände zählen – so wird erkannt wenn der Partner-Stich
+  /// gegen Gegner sicher ist (z.B. Partner hat alle Damen im Schafkopf).
+  static bool _isHighestRemainingVsOpponents(
+      JassCard card, Player aiPlayer, GameState state) {
+    final effectMode = state.effectiveMode;
+    final trump = state.trumpSuit;
+    final myStrength = GameLogic.cardPlayStrength(card, effectMode, trump);
+
+    // Nur Gegner-Karten prüfen (Partner ignorieren)
+    final opponentCards = state.players
+        .where((p) => !_sameTeamFor(aiPlayer, p, state))
+        .expand((p) => p.hand);
+
+    final beatenByOpponent = opponentCards.any((c) =>
+        c.suit == card.suit &&
+        GameLogic.cardPlayStrength(c, effectMode, trump) > myStrength);
+    if (beatenByOpponent) return false;
+
+    // Trumpf-Check: kann ein Gegner die Karte trumpfen?
+    if (trump != null &&
+        card.suit != trump &&
+        effectMode != GameMode.oben &&
+        effectMode != GameMode.unten) {
+      final canBeTrumped = state.players
+          .where((p) => !_sameTeamFor(aiPlayer, p, state))
+          .any((p) {
+        final hasLedSuit = p.hand.any((c) => c.suit == card.suit);
+        final hasTrump = p.hand.any((c) => c.suit == trump);
+        return !hasLedSuit && hasTrump;
+      });
+      if (canBeTrumped) return false;
+    }
+    return true;
+  }
 
   /// Alle bereits gespielten Karten (abgeschlossene Stiche + aktueller Stich).
   static Set<JassCard> _playedCards(GameState state) {
