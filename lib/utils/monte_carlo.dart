@@ -253,20 +253,76 @@ class MonteCarloAI {
       // Keine sicheren Stiche → MC entscheidet (fall-through)
     }
 
-    // ── Systematisches Trumpfziehen: Gegner-Trümpfe rausziehen ────────────
-    // Beim Anspielen: wenn eigenes Team mehr Trumpf hat als Gegner,
-    // niedrigsten Trumpf spielen um Gegner-Trümpfe zu eliminieren.
+    // ── Intelligentes Trumpf-Timing ──────────────────────────────────────────
+    // Phase 1: Trumpf ziehen wenn Team mehr Trumpf hat als Gegner
+    // Phase 2: Gegner trumpflos → zu sicheren Seitenfarben wechseln
+    // Phase 3: letzte Trümpfe aufsparen zum Stechen
     if (state.currentTrickCards.isEmpty &&
         (state.gameMode == GameMode.trump ||
             state.gameMode == GameMode.trumpUnten) &&
         state.trumpSuit != null) {
       final trump = state.trumpSuit!;
+      final effectMode = state.effectiveMode;
       final myTeamTrump = _teamTrumpCount(aiPlayer, state, trump);
       final oppTrump = _opponentTrumpCount(aiPlayer, state, trump);
       final myTrump = playable.where((c) => c.suit == trump).toList();
-      if (oppTrump > 0 && myTeamTrump > oppTrump && myTrump.length > 1) {
-        // Niedrigsten Trumpf spielen (zieht Gegner-Trumpf raus)
-        return _weakest(myTrump, state.gameMode, trump);
+      final myNonTrump = playable.where((c) => c.suit != trump).toList();
+
+      if (oppTrump > 0) {
+        // Phase 1: Gegner haben noch Trumpf → ziehen
+        if (myTeamTrump > oppTrump && myTrump.length > 1) {
+          // Hat Buur oder Nell → damit ziehen (sicherer Stich + zieht Trumpf)
+          final hasBuur = myTrump.any((c) => c.value == CardValue.jack);
+          final hasNell = myTrump.any((c) => c.value == CardValue.nine);
+          if (hasBuur && oppTrump >= 2) {
+            // Buur aufsparen, mit Nell oder tieferem ziehen
+            final nonBuur = myTrump.where((c) => c.value != CardValue.jack).toList();
+            if (nonBuur.isNotEmpty) {
+              return hasNell && oppTrump >= 3
+                  ? _weakest(nonBuur.where((c) => c.value != CardValue.nine).toList()
+                      ..addAll(nonBuur.isEmpty ? nonBuur : []), effectMode, trump)
+                  : _weakest(nonBuur, effectMode, trump);
+            }
+          }
+          return _weakest(myTrump, effectMode, trump);
+        }
+        // Gleichviel oder weniger Trumpf → nur ziehen wenn Buur/Nell sicher gewinnt
+        if (myTrump.length >= 1) {
+          final hasBuur = myTrump.any((c) => c.value == CardValue.jack);
+          if (hasBuur && myTrump.length >= 2) {
+            // Buur sicher → mit tiefem Trumpf ziehen
+            final nonBuur = myTrump.where((c) => c.value != CardValue.jack).toList();
+            return _weakest(nonBuur, effectMode, trump);
+          }
+        }
+        // Nicht genug Trumpf-Übergewicht → sichere Seitenfarbe spielen
+        final safeSide = myNonTrump
+            .where((c) => _isHighestRemaining(c, state))
+            .toList();
+        if (safeSide.isNotEmpty) {
+          safeSide.sort((a, b) =>
+              GameLogic.cardPoints(b, effectMode, trump)
+                  .compareTo(GameLogic.cardPoints(a, effectMode, trump)));
+          return safeSide.first;
+        }
+      } else {
+        // Phase 2: Gegner trumpflos → Seitenfarben ausspielen!
+        // Sichere Gewinner zuerst (meiste Punkte)
+        // Wird auch vom Farb-Monopol-Block weiter unten abgedeckt,
+        // aber hier als schneller Pfad für den häufigsten Fall.
+        final safeSide = myNonTrump
+            .where((c) => _isHighestRemaining(c, state))
+            .toList();
+        if (safeSide.isNotEmpty) {
+          safeSide.sort((a, b) =>
+              GameLogic.cardPoints(b, effectMode, trump)
+                  .compareTo(GameLogic.cardPoints(a, effectMode, trump)));
+          return safeSide.first;
+        }
+        // Keine sicheren Seitenfarben → Trumpf ausspielen (auch sicher)
+        if (myTrump.isNotEmpty) {
+          return _strongest(myTrump, effectMode, trump);
+        }
       }
     }
 
@@ -445,16 +501,20 @@ class MonteCarloAI {
       } else if (oppTrump > 0 && mySchafkopfTrumps.isNotEmpty) {
         final myTeamTrump = _teamSchafkopfTrumpCount(aiPlayer, state, trump);
 
-        // Ansager mit vielen Trümpfen + Partner hat Dame:
-        // TIEFEN Trumpf anspielen → Partner sticht mit Dame + Gegner-Trümpfe
-        // werden gleichzeitig gezogen. Danach spielt Partner Trumpf zurück.
-        if (isAnnouncer && partnerHasDame && mySchafkopfTrumps.length >= 4) {
-          return _weakest(mySchafkopfTrumps, state.effectiveMode, trump);
+        // Schafkopf = man hat typischerweise viele Trümpfe → AGGRESSIV ziehen!
+        // Ansager: immer Trumpf ziehen wenn Gegner noch Trumpf hat
+        if (isAnnouncer && mySchafkopfTrumps.length >= 2) {
+          // Partner hat Dame → tiefen Trumpf (Partner sticht mit Dame)
+          if (partnerHasDame) {
+            return _weakest(mySchafkopfTrumps, state.effectiveMode, trump);
+          }
+          // Sonst: stärksten Trumpf → Gegner-Trümpfe rausziehen
+          return _strongest(mySchafkopfTrumps, state.effectiveMode, trump);
         }
 
-        if (myTeamTrump >= oppTrump - 1) {
-          // Trumpf ziehen: TIEFE Trümpfe damit Partner mit Dame gewinnt
-          if (isAnnouncer && partnerHasDame) {
+        // Partner/anderer Spieler: Trumpf ziehen wenn Team-Übergewicht
+        if (myTeamTrump >= oppTrump) {
+          if (partnerHasDame) {
             return _weakest(mySchafkopfTrumps, state.effectiveMode, trump);
           }
           return _strongest(mySchafkopfTrumps, state.effectiveMode, trump);
