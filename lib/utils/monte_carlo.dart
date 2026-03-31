@@ -916,12 +916,31 @@ class MonteCarloAI {
 
         // Partner gewinnt → schmieren (teuerste nicht-höchste Karte)
         // KEINE Trumpfkarten schmieren (10er, König etc. im Trumpf aufsparen)
-        // In Alles Trumpf: nie schmieren (jede Karte ist potentiell Trumpf/Stichgewinner)
         // Asse (Oben/Trump) und 6er (Unten/TrumpUnten) NIE schmieren – sie sind
         // zukünftige Stichgewinner wenn man die Farbe selbst anspielt.
+        //
+        // Alles Trumpf Sonderregel: Nell (9, 14 Pkt) schmieren wenn:
+        // - Erst ab Stich 4+ (zu Beginn aufsparen, man braucht sie evtl. noch)
+        // - Nell ist NICHT höchste verbleibende (Buur noch im Spiel)
+        // - NICHT auf einen Buur schmieren (Partner spielt Buur = stärkste Karte,
+        //   14 Pkt auf 20 Pkt drauflegen ist riskant – Gegner könnten nächsten Stich holen)
+        // Buur (J, 20 Pkt) NIE schmieren.
         final schmierbar = playable.where((c) {
+          if (effectMode == GameMode.allesTrumpf) {
+            if (c.value != CardValue.nine) return false;
+            if (_isHighestRemaining(c, state)) return false;
+            // Erst ab Stich 4 schmieren
+            if (state.completedTricks.length < 4) return false;
+            // Nicht auf Buur (J) schmieren – zu viele Punkte auf einem Stich
+            final ledSuit = state.currentTrickCards.first.suit;
+            final winnerIdx = state.currentTrickPlayerIds.indexOf(currentWinnerId);
+            if (winnerIdx >= 0) {
+              final winnerCard = state.currentTrickCards[winnerIdx];
+              if (winnerCard.value == CardValue.jack) return false;
+            }
+            return true;
+          }
           if (trump != null && c.suit == trump) return false;
-          if (effectMode == GameMode.allesTrumpf) return false;
           final pts = GameLogic.cardPoints(c, effectMode, trump);
           if (pts < 8) return false;
           if (_isHighestRemaining(c, state)) return false;
@@ -2267,16 +2286,25 @@ class MonteCarloAI {
       }
 
       if (canSchmier) {
-        // KEINE Trumpfkarten schmieren (10er, König etc. im Trumpf aufsparen)
-        // In Alles Trumpf: nie schmieren (jede Karte ist potentiell Stichgewinner)
-        // Asse (Oben/Trump) und 6er (Unten/TrumpUnten) NIE schmieren
+        // Alles Trumpf: nur Nell (9) ab Stich 4, nicht auf Buur
+        // Andere Modi: keine Trumpfkarten, keine Asse/6er schmieren
         final schmierbar = playable.where((c) {
+          if (effectMode == GameMode.allesTrumpf) {
+            if (c.value != CardValue.nine) return false;
+            if (_isHighestRemaining(c, state)) return false;
+            if (state.completedTricks.length < 4) return false;
+            // Nicht auf Buur schmieren
+            final winnerIdx2 = state.currentTrickPlayerIds.indexOf(currentWinnerId);
+            if (winnerIdx2 >= 0 &&
+                state.currentTrickCards[winnerIdx2].value == CardValue.jack) {
+              return false;
+            }
+            return true;
+          }
           if (trump != null && c.suit == trump) return false;
-          if (effectMode == GameMode.allesTrumpf) return false;
           final pts = GameLogic.cardPoints(c, effectMode, trump);
           if (pts < 8) return false;
           if (_isHighestRemaining(c, state)) return false;
-          // Asse bei Oben/Trump und 6er bei Unten/TrumpUnten immer schützen
           if (c.value == CardValue.ace &&
               (effectMode == GameMode.oben || effectMode == GameMode.trump)) {
             return false;
@@ -2403,77 +2431,54 @@ class MonteCarloAI {
     final gm = state.gameMode;
     for (final c in cards) {
       if (safeWinners.contains(c)) continue; // bereits geschützt
-      // Slalom/Elefant: Karten mit hoher max Spielstärke schützen
-      // (6,7,8 = stark in Unten; Ace,King,Queen = stark in Oben; maxStr >= 6)
-      if (gm == GameMode.slalom || gm == GameMode.elefant) {
-        final maxStr = math.max(
-          GameLogic.cardPlayStrength(c, GameMode.oben, null),
-          GameLogic.cardPlayStrength(c, GameMode.unten, null),
-        );
-        if (maxStr >= 6) valuable.add(c);
-      }
-      // Oben-Modi (Oben/Trumpf Oben): Farbtiefe-basierter Schutz
-      // - Ass: immer behalten (stärkste Karte)
-      // - König zu zweit: behalten (Ass wird gespielt → König wird höchste)
-      // - Dame zu dritt: behalten (Ass+König weg → Dame wird höchste)
-      // - Alleinstehende hohe Karten ohne Begleitung = wertlos
-      // - 6, 7, 8, 9 = immer zuerst abwerfen
-      if ((gm == GameMode.oben || gm == GameMode.trump) && c.suit != trump) {
+      // ── Farbtiefe-basierter Schutz (gilt für alle Modi) ──────────────
+      // Karten werden nach ihrer Spielstärke + Anzahl Begleiter geschützt.
+      // Oben-artig: Ass immer, König zu 2, Dame zu 3, etc.
+      // Unten-artig: 6 immer, 7 zu 2, 8 zu 3, etc.
+      // Slalom/Elefant: beide Richtungen prüfen
+      // Alles Trumpf: wie Oben (Buur=8, Nell=7, Ass=6)
+
+      // Bestimme welche Richtungen relevant sind
+      final isObenLike = gm == GameMode.oben || gm == GameMode.trump ||
+          gm == GameMode.allesTrumpf;
+      final isUntenLike = gm == GameMode.unten || gm == GameMode.trumpUnten;
+      final isBothDirections = gm == GameMode.slalom || gm == GameMode.elefant;
+
+      if (c.suit != trump || gm == GameMode.allesTrumpf) {
         final suitCards = cards.where((h) => h.suit == c.suit).toList();
         final suitCount = suitCards.length;
-        final str = GameLogic.cardPlayStrength(c, GameMode.oben, null);
-        // Ass: immer schützen
-        if (str == 8) {
-          valuable.add(c);
+
+        bool protectedOben = false;
+        bool protectedUnten = false;
+
+        // Oben-Richtung: Ass(8)=immer, K(7)=zu2, Q(6)=zu3, J/10(4-5)=zu4
+        if (isObenLike || isBothDirections) {
+          final obenMode = gm == GameMode.allesTrumpf
+              ? GameMode.allesTrumpf : GameMode.oben;
+          final str = GameLogic.cardPlayStrength(c, obenMode, null);
+          if (str >= 8) { protectedOben = true; }                   // Ass / Buur
+          else if (str >= 7 && suitCount >= 2) { protectedOben = true; } // König / Nell
+          else if (str >= 6 && suitCount >= 3) { protectedOben = true; } // Dame / Ass(AT)
+          else if (str >= 4 && suitCount >= 4) { protectedOben = true; }
         }
-        // König (7): schützen wenn mind. 2 Karten der Farbe
-        else if (str == 7 && suitCount >= 2) {
-          valuable.add(c);
+
+        // Unten-Richtung: 6(8)=immer, 7(7)=zu2, 8(6)=zu3, 9(5)=zu4
+        if (isUntenLike || isBothDirections) {
+          final str = GameLogic.cardPlayStrength(c, GameMode.unten, null);
+          if (str >= 8) { protectedUnten = true; }                    // 6
+          else if (str >= 7 && suitCount >= 2) { protectedUnten = true; } // 7
+          else if (str >= 6 && suitCount >= 3) { protectedUnten = true; } // 8
+          else if (str >= 5 && suitCount >= 4) { protectedUnten = true; } // 9
+          // Opferkarten: hohe Karte + tiefe Begleiter behalten
+          // z.B. König + 7 → König opfern wenn 6 gespielt, 7 bleibt
+          else if (str <= 4 && suitCount >= 2) {
+            final hasGoodLow = suitCards.any((h) =>
+                GameLogic.cardPlayStrength(h, GameMode.unten, null) >= 6);
+            if (hasGoodLow) protectedUnten = true;
+          }
         }
-        // Dame (6): schützen wenn mind. 3 Karten der Farbe
-        else if (str == 6 && suitCount >= 3) {
-          valuable.add(c);
-        }
-        // Bube (5) / 10 (4): schützen wenn viele Begleiter
-        else if (str >= 4 && suitCount >= 4) {
-          valuable.add(c);
-        }
-        // 6, 7, 8, 9 (str 0-3): nie schützen → zuerst abwerfen
-      }
-      // Unten-Modi (Unten/Trumpf Unten): umgekehrte Farbtiefe
-      // - 6: immer behalten (stärkste Karte)
-      // - 7 zu zweit: behalten (6 wird gespielt → 7 wird höchste)
-      // - 8 zu dritt: behalten (6+7 weg → 8 wird höchste)
-      // - Alleinstehende hohe Karten (Ass, K, Q, J) = Opferkarten
-      //   → beim Anspielen der Farbe opfern, tiefe Karte bleibt
-      if ((gm == GameMode.unten || gm == GameMode.trumpUnten) && c.suit != trump) {
-        final suitCards = cards.where((h) => h.suit == c.suit).toList();
-        final suitCount = suitCards.length;
-        final str = GameLogic.cardPlayStrength(c, GameMode.unten, null);
-        // 6 (str=8): immer schützen
-        if (str == 8) {
-          valuable.add(c);
-        }
-        // 7 (str=7): schützen wenn mind. 2 Karten der Farbe
-        else if (str == 7 && suitCount >= 2) {
-          valuable.add(c);
-        }
-        // 8 (str=6): schützen wenn mind. 3 Karten der Farbe
-        else if (str == 6 && suitCount >= 3) {
-          valuable.add(c);
-        }
-        // 9 (str=5): schützen wenn viele Begleiter
-        else if (str >= 5 && suitCount >= 4) {
-          valuable.add(c);
-        }
-        // Ass, K, Q, J, 10 (str 0-4): nie schützen wenn allein
-        // ABER: als Opferkarte schützen wenn man tiefe Begleiter hat!
-        // z.B. König + 7 → König opfern wenn 6 angespielt, 7 wird höchste
-        else if (str <= 4 && suitCount >= 2) {
-          final hasGoodLow = suitCards.any((h) =>
-              GameLogic.cardPlayStrength(h, GameMode.unten, null) >= 6);
-          if (hasGoodLow) valuable.add(c); // Opferkarte für tiefe Karte
-        }
+
+        if (protectedOben || protectedUnten) valuable.add(c);
       }
       // Elefant: Buben (Buur) sind extrem wertvoll für die Trumpf-Stiche
       if (gm == GameMode.elefant) {
