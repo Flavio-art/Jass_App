@@ -329,6 +329,54 @@ class MonteCarloAI {
       }
     }
 
+    // ── Farb-Monopol: nur eigenes Team hat eine Farbe → garantierte Stiche ──
+    // Wenn beide Gegner in einer Farbe void sind (aus Void-Tracking),
+    // sind alle Karten dieser Farbe sichere Stiche.
+    // Priorität: ERST sichere Stiche anderer Farben spielen (isHighestRemaining),
+    // DANN Monopol-Farbe (Partner kann sie auch übernehmen).
+    if (state.currentTrickCards.isEmpty) {
+      final voids = _inferVoidSuits(state);
+      final effectMode = state.effectiveMode;
+      final trump = state.trumpSuit;
+      final opponents = state.players
+          .where((p) => !_sameTeamFor(aiPlayer, p, state))
+          .toList();
+
+      // Farben finden wo BEIDE Gegner void sind
+      final monopolSuits = <Suit>{};
+      final allSuits = aiPlayer.hand.map((c) => c.suit).toSet();
+      for (final suit in allSuits) {
+        // Trumpffarbe überspringen (eigene Regeln)
+        if (suit == trump && (effectMode == GameMode.trump ||
+            effectMode == GameMode.trumpUnten)) continue;
+        final bothOppsVoid = opponents.every((opp) =>
+            voids[opp.id]?.contains(suit) ?? false);
+        if (bothOppsVoid) monopolSuits.add(suit);
+      }
+
+      if (monopolSuits.isNotEmpty) {
+        // 1. Erst sichere Stiche ANDERER Farben spielen (höchste verbleibende)
+        final safeOtherSuit = playable.where((c) =>
+            !monopolSuits.contains(c.suit) &&
+            (trump == null || c.suit != trump) &&
+            _isHighestRemaining(c, state)).toList();
+        if (safeOtherSuit.isNotEmpty) {
+          safeOtherSuit.sort((a, b) =>
+              GameLogic.cardPoints(b, effectMode, trump)
+                  .compareTo(GameLogic.cardPoints(a, effectMode, trump)));
+          return safeOtherSuit.first;
+        }
+
+        // 2. Dann Monopol-Farbe spielen (stärkste zuerst)
+        for (final suit in monopolSuits) {
+          final mySuitCards = playable.where((c) => c.suit == suit).toList();
+          if (mySuitCards.isNotEmpty) {
+            return _strongest(mySuitCards, effectMode, trump);
+          }
+        }
+      }
+    }
+
     // ── Schafkopf: Trumpfziehen + 10er-Farben anspielen ─────────────────────
     // Schafkopf hat viele Trümpfe (Damen + 8er + Trumpffarbe).
     // Strategie:
