@@ -501,23 +501,48 @@ class MonteCarloAI {
       } else if (oppTrump > 0 && mySchafkopfTrumps.isNotEmpty) {
         final myTeamTrump = _teamSchafkopfTrumpCount(aiPlayer, state, trump);
 
-        // Schafkopf = man hat typischerweise viele Trümpfe → AGGRESSIV ziehen!
-        // Ansager: immer Trumpf ziehen wenn Gegner noch Trumpf hat
+        // Schafkopf-Eröffnung: tiefen Trumpf anspielen damit Partner
+        // mit höchster Dame stechen kann. Ideal: Trumpf-Ass (11 Pkt, tiefer Trumpf).
+        // Trumpf-Ass > Trumpf-9 > Trumpf-7 > Trumpf-6 (nach Punkten absteigend)
         if (isAnnouncer && mySchafkopfTrumps.length >= 2) {
-          // Partner hat Dame → tiefen Trumpf (Partner sticht mit Dame)
-          if (partnerHasDame) {
-            return _weakest(mySchafkopfTrumps, state.effectiveMode, trump);
+          // Trumpffarben-Karten (keine Damen/8er) → tiefe Trümpfe zum Anspielen
+          final trumpSuitCards = mySchafkopfTrumps.where((c) =>
+              c.suit == trump &&
+              c.value != CardValue.queen &&
+              c.value != CardValue.eight).toList();
+
+          if (trumpSuitCards.isNotEmpty) {
+            // Trumpf-Ass bevorzugen (11 Punkte im Team + zieht Gegner-Trumpf)
+            final trumpAce = trumpSuitCards
+                .where((c) => c.value == CardValue.ace).toList();
+            if (trumpAce.isNotEmpty) return trumpAce.first;
+            // Kein Ass → Trumpf-10 (10 Pkt), dann nach Punkten absteigend
+            trumpSuitCards.sort((a, b) =>
+                GameLogic.cardPoints(b, state.effectiveMode, trump)
+                    .compareTo(GameLogic.cardPoints(a, state.effectiveMode, trump)));
+            return trumpSuitCards.first;
           }
-          // Sonst: stärksten Trumpf → Gegner-Trümpfe rausziehen
-          return _strongest(mySchafkopfTrumps, state.effectiveMode, trump);
+          // Nur Damen/8er → tiefste Dame/8 spielen
+          return _weakest(mySchafkopfTrumps, state.effectiveMode, trump);
         }
 
         // Partner/anderer Spieler: Trumpf ziehen wenn Team-Übergewicht
         if (myTeamTrump >= oppTrump) {
-          if (partnerHasDame) {
-            return _weakest(mySchafkopfTrumps, state.effectiveMode, trump);
+          // Auch hier: tiefe Trumpffarben-Karte bevorzugen (Ass für Punkte)
+          final trumpSuitCards = mySchafkopfTrumps.where((c) =>
+              c.suit == trump &&
+              c.value != CardValue.queen &&
+              c.value != CardValue.eight).toList();
+          if (trumpSuitCards.isNotEmpty) {
+            final trumpAce = trumpSuitCards
+                .where((c) => c.value == CardValue.ace).toList();
+            if (trumpAce.isNotEmpty) return trumpAce.first;
+            trumpSuitCards.sort((a, b) =>
+                GameLogic.cardPoints(b, state.effectiveMode, trump)
+                    .compareTo(GameLogic.cardPoints(a, state.effectiveMode, trump)));
+            return trumpSuitCards.first;
           }
-          return _strongest(mySchafkopfTrumps, state.effectiveMode, trump);
+          return _weakest(mySchafkopfTrumps, state.effectiveMode, trump);
         }
       }
     }
