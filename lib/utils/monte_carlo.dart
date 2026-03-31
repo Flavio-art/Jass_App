@@ -278,17 +278,19 @@ class MonteCarloAI {
 
       if (isDominant && oppTrump > 0) {
         // Dominant: immer Trumpf ziehen bis Gegner komplett raus sind
+        // Buur = sicherer Stich → stärksten spielen
         return _strongest(myTrump, effectMode, trump);
       }
 
       if (oppTrump > 1) {
-        // Phase 1: Gegner haben mehrere Trümpfe → STÄRKSTEN Trumpf ziehen!
-        if (myTeamTrump > oppTrump && myTrump.length > 1) {
+        if (hasBuur) {
+          // Buur = höchste Karte → Stärke zeigen, stärksten Trumpf
           return _strongest(myTrump, effectMode, trump);
         }
-        // Gleichviel oder weniger Trumpf → nur ziehen mit Buur (sicherer Stich)
-        if (myTrump.length >= 2 && hasBuur) {
-          return _strongest(myTrump, effectMode, trump);
+        // Kein Buur → Stich geht wahrscheinlich zum Gegner
+        // Trotzdem Trumpf ziehen wenn Übergewicht, aber TIEF (wenig Punkte verlieren)
+        if (myTeamTrump > oppTrump && myTrump.length > 1) {
+          return _weakest(myTrump, effectMode, trump);
         }
         // Nicht genug Trumpf-Übergewicht → sichere Seitenfarbe spielen
         final safeSide = myNonTrump
