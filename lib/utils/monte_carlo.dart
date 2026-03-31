@@ -268,8 +268,8 @@ class MonteCarloAI {
       final myTrump = playable.where((c) => c.suit == trump).toList();
       final myNonTrump = playable.where((c) => c.suit != trump).toList();
 
-      if (oppTrump > 0) {
-        // Phase 1: Gegner haben noch Trumpf → STÄRKSTEN Trumpf ziehen!
+      if (oppTrump > 1) {
+        // Phase 1: Gegner haben mehrere Trümpfe → STÄRKSTEN Trumpf ziehen!
         // Stärke demonstrieren + Gegner müssen beste Trümpfe opfern.
         if (myTeamTrump > oppTrump && myTrump.length > 1) {
           return _strongest(myTrump, effectMode, trump);
@@ -278,7 +278,7 @@ class MonteCarloAI {
         if (myTrump.length >= 2) {
           final hasBuur = myTrump.any((c) => c.value == CardValue.jack);
           if (hasBuur) {
-            return _strongest(myTrump, effectMode, trump); // Buur = stärkste
+            return _strongest(myTrump, effectMode, trump);
           }
         }
         // Nicht genug Trumpf-Übergewicht → sichere Seitenfarbe spielen
@@ -290,6 +290,27 @@ class MonteCarloAI {
               GameLogic.cardPoints(b, effectMode, trump)
                   .compareTo(GameLogic.cardPoints(a, effectMode, trump)));
           return safeSide.first;
+        }
+      } else if (oppTrump == 1) {
+        // Fast trumpflos: nur noch 1 Gegner-Trumpf → letzten rausholen
+        // ODER sichere Seitenfarben spielen (Gegner kann nur 1x stechen)
+        if (myTrump.length >= 2) {
+          // Genug eigene Trümpfe → letzten Gegner-Trumpf rausziehen
+          return _strongest(myTrump, effectMode, trump);
+        }
+        // Nur 1 eigener Trumpf → aufsparen zum Stechen, Seitenfarbe spielen
+        final safeSide = myNonTrump
+            .where((c) => _isHighestRemaining(c, state))
+            .toList();
+        if (safeSide.isNotEmpty) {
+          safeSide.sort((a, b) =>
+              GameLogic.cardPoints(b, effectMode, trump)
+                  .compareTo(GameLogic.cardPoints(a, effectMode, trump)));
+          return safeSide.first;
+        }
+        // Keine sicheren Seitenfarben → Trumpf spielen um letzten rauszuholen
+        if (myTrump.isNotEmpty) {
+          return _strongest(myTrump, effectMode, trump);
         }
       } else {
         // Phase 2: Gegner trumpflos → Seitenfarben ausspielen!
