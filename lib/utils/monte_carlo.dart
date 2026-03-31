@@ -269,30 +269,16 @@ class MonteCarloAI {
       final myNonTrump = playable.where((c) => c.suit != trump).toList();
 
       if (oppTrump > 0) {
-        // Phase 1: Gegner haben noch Trumpf → ziehen
+        // Phase 1: Gegner haben noch Trumpf → STÄRKSTEN Trumpf ziehen!
+        // Stärke demonstrieren + Gegner müssen beste Trümpfe opfern.
         if (myTeamTrump > oppTrump && myTrump.length > 1) {
-          // Hat Buur oder Nell → damit ziehen (sicherer Stich + zieht Trumpf)
-          final hasBuur = myTrump.any((c) => c.value == CardValue.jack);
-          final hasNell = myTrump.any((c) => c.value == CardValue.nine);
-          if (hasBuur && oppTrump >= 2) {
-            // Buur aufsparen, mit Nell oder tieferem ziehen
-            final nonBuur = myTrump.where((c) => c.value != CardValue.jack).toList();
-            if (nonBuur.isNotEmpty) {
-              return hasNell && oppTrump >= 3
-                  ? _weakest(nonBuur.where((c) => c.value != CardValue.nine).toList()
-                      ..addAll(nonBuur.isEmpty ? nonBuur : []), effectMode, trump)
-                  : _weakest(nonBuur, effectMode, trump);
-            }
-          }
-          return _weakest(myTrump, effectMode, trump);
+          return _strongest(myTrump, effectMode, trump);
         }
-        // Gleichviel oder weniger Trumpf → nur ziehen wenn Buur/Nell sicher gewinnt
-        if (myTrump.length >= 1) {
+        // Gleichviel oder weniger Trumpf → nur ziehen mit Buur (sicherer Stich)
+        if (myTrump.length >= 2) {
           final hasBuur = myTrump.any((c) => c.value == CardValue.jack);
-          if (hasBuur && myTrump.length >= 2) {
-            // Buur sicher → mit tiefem Trumpf ziehen
-            final nonBuur = myTrump.where((c) => c.value != CardValue.jack).toList();
-            return _weakest(nonBuur, effectMode, trump);
+          if (hasBuur) {
+            return _strongest(myTrump, effectMode, trump); // Buur = stärkste
           }
         }
         // Nicht genug Trumpf-Übergewicht → sichere Seitenfarbe spielen
@@ -522,13 +508,20 @@ class MonteCarloAI {
                     .compareTo(GameLogic.cardPoints(a, state.effectiveMode, trump)));
             return trumpSuitCards.first;
           }
-          // Nur Damen/8er → tiefste Dame/8 spielen
+          // Keine Trumpffarben-Karten (nur Damen/8er) → wertlose
+          // Nicht-Trumpf-Karte spielen statt Dame/8 zu opfern
+          final nonTrump = playable
+              .where((c) => !_isSchafkopfTrump(c, trump))
+              .toList();
+          if (nonTrump.isNotEmpty) {
+            return _weakest(nonTrump, state.effectiveMode, trump);
+          }
+          // Wirklich nur Damen/8er → tiefste opfern
           return _weakest(mySchafkopfTrumps, state.effectiveMode, trump);
         }
 
         // Partner/anderer Spieler: Trumpf ziehen wenn Team-Übergewicht
         if (myTeamTrump >= oppTrump) {
-          // Auch hier: tiefe Trumpffarben-Karte bevorzugen (Ass für Punkte)
           final trumpSuitCards = mySchafkopfTrumps.where((c) =>
               c.suit == trump &&
               c.value != CardValue.queen &&
@@ -541,6 +534,12 @@ class MonteCarloAI {
                 GameLogic.cardPoints(b, state.effectiveMode, trump)
                     .compareTo(GameLogic.cardPoints(a, state.effectiveMode, trump)));
             return trumpSuitCards.first;
+          }
+          final nonTrump = playable
+              .where((c) => !_isSchafkopfTrump(c, trump))
+              .toList();
+          if (nonTrump.isNotEmpty) {
+            return _weakest(nonTrump, state.effectiveMode, trump);
           }
           return _weakest(mySchafkopfTrumps, state.effectiveMode, trump);
         }
