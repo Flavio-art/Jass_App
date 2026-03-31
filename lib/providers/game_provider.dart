@@ -1484,16 +1484,9 @@ class GameProvider extends ChangeNotifier {
           availableVariants: available,
         );
 
-        // Schieber: Trumpf Unten ist nicht erlaubt → immer Trumpf Oben wählen
-        final finalMode = (_state.gameType == GameType.schieber &&
-                result.mode == GameMode.trumpUnten)
-            ? GameMode.trump
-            : result.mode;
-
-        // Friseur Solo: Wunschkarte kommt direkt aus ModeSelectorAI
         final wishCard = result.wishCard;
 
-        selectGameMode(finalMode,
+        selectGameMode(result.mode,
             trumpSuit: result.trumpSuit,
             slalomStartsOben: result.slalomStartsOben,
             wishCard: wishCard);
