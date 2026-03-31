@@ -1795,7 +1795,6 @@ class MonteCarloAI {
               mode == GameMode.trumpUnten)
           ? state.trumpSuit
           : null,
-      isMolotow: state.gameMode == GameMode.molotof,
     );
   }
 
@@ -2764,7 +2763,6 @@ class MonteCarloAI {
               effectMode == GameMode.trumpUnten)
           ? trump
           : null,
-      isMolotow: state.gameMode == GameMode.molotof,
     );
 
     // Kann eine dieser Karten den aktuellen Gewinner schlagen?
