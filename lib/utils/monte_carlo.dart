@@ -869,24 +869,22 @@ class MonteCarloAI {
         // Partner gewinnt → schmieren (teuerste nicht-höchste Karte)
         // KEINE Trumpfkarten schmieren (10er, König etc. im Trumpf aufsparen)
         // In Alles Trumpf: nie schmieren (jede Karte ist potentiell Trumpf/Stichgewinner)
+        // Asse (Oben/Trump) und 6er (Unten/TrumpUnten) NIE schmieren – sie sind
+        // zukünftige Stichgewinner wenn man die Farbe selbst anspielt.
         final schmierbar = playable.where((c) {
           if (trump != null && c.suit == trump) return false;
           if (effectMode == GameMode.allesTrumpf) return false;
           final pts = GameLogic.cardPoints(c, effectMode, trump);
           if (pts < 8) return false;
           if (_isHighestRemaining(c, state)) return false;
-          if (c.value == CardValue.ace || c.value == CardValue.six) {
-            final myStrength =
-                GameLogic.cardPlayStrength(c, effectMode, trump);
-            final suitStrengths = aiPlayer.hand
-                .where((h) => h != c && h.suit == c.suit)
-                .map((h) => GameLogic.cardPlayStrength(h, effectMode, trump))
-                .toList()
-              ..sort((a, b) => b.compareTo(a));
-            if (suitStrengths.length < 2 ||
-                myStrength - suitStrengths[0] > 2) {
-              return false;
-            }
+          // Asse bei Oben/Trump und 6er bei Unten/TrumpUnten immer schützen
+          if (c.value == CardValue.ace &&
+              (effectMode == GameMode.oben || effectMode == GameMode.trump)) {
+            return false;
+          }
+          if (c.value == CardValue.six &&
+              (effectMode == GameMode.unten || effectMode == GameMode.trumpUnten)) {
+            return false;
           }
           return true;
         }).toList();
@@ -2223,27 +2221,21 @@ class MonteCarloAI {
       if (canSchmier) {
         // KEINE Trumpfkarten schmieren (10er, König etc. im Trumpf aufsparen)
         // In Alles Trumpf: nie schmieren (jede Karte ist potentiell Stichgewinner)
+        // Asse (Oben/Trump) und 6er (Unten/TrumpUnten) NIE schmieren
         final schmierbar = playable.where((c) {
           if (trump != null && c.suit == trump) return false;
           if (effectMode == GameMode.allesTrumpf) return false;
           final pts = GameLogic.cardPoints(c, effectMode, trump);
           if (pts < 8) return false;
           if (_isHighestRemaining(c, state)) return false;
-          // Ass in Oben / 6 in Unten: nur schmieren wenn man eine starke
-          // Sequenz hat (z.B. Ass+König+Ober), damit man die Farbe noch
-          // dominiert. Sonst verliert man die stärkste Karte der Farbe.
-          if (c.value == CardValue.ace || c.value == CardValue.six) {
-            final myStrength = GameLogic.cardPlayStrength(c, effectMode, trump);
-            // Brauche mind. 2 weitere Karten derselben Farbe mit hoher Stärke
-            final suitStrengths = player.hand
-                .where((h) => h != c && h.suit == c.suit)
-                .map((h) => GameLogic.cardPlayStrength(h, effectMode, trump))
-                .toList()
-              ..sort((a, b) => b.compareTo(a)); // absteigend
-            // Mind. 2 Begleiter UND der stärkste muss nah dran sein (max 2 Stufen Abstand)
-            if (suitStrengths.length < 2 || myStrength - suitStrengths[0] > 2) {
-              return false;
-            }
+          // Asse bei Oben/Trump und 6er bei Unten/TrumpUnten immer schützen
+          if (c.value == CardValue.ace &&
+              (effectMode == GameMode.oben || effectMode == GameMode.trump)) {
+            return false;
+          }
+          if (c.value == CardValue.six &&
+              (effectMode == GameMode.unten || effectMode == GameMode.trumpUnten)) {
+            return false;
           }
           return true;
         }).toList();
