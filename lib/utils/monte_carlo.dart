@@ -2556,7 +2556,7 @@ class MonteCarloAI {
 
       // Bestimme welche Richtungen relevant sind
       final isObenLike = gm == GameMode.oben || gm == GameMode.trump ||
-          gm == GameMode.allesTrumpf;
+          gm == GameMode.allesTrumpf || gm == GameMode.schafkopf;
       final isUntenLike = gm == GameMode.unten || gm == GameMode.trumpUnten;
       final isBothDirections = gm == GameMode.slalom || gm == GameMode.elefant;
 

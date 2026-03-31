@@ -98,7 +98,8 @@ class ModeSelectorAI {
             rawEntries.add((raw: _scoreTrump(hand, suit, oben: true), m: m,
                 mode: GameMode.trump, trump: suit, slalomOben: true));
           }
-          if (forced == null || forced == false) {
+          // Schieber: nur Trumpf Oben erlaubt (kein Trumpf Unten)
+          if (!isSchieber && (forced == null || forced == false)) {
             rawEntries.add((raw: _scoreTrump(hand, suit, oben: false), m: m,
                 mode: GameMode.trumpUnten, trump: suit, slalomOben: true));
           }
@@ -296,7 +297,8 @@ class ModeSelectorAI {
             final s = adj(cs[si], m); // trump oben
             if (s > bestScore) { bestScore = s; bestMode = GameMode.trump; bestTrump = suit; }
           }
-          if (forced == null || forced == false) {
+          // Schieber: nur Trumpf Oben (kein Trumpf Unten)
+          if (!isSchieber && (forced == null || forced == false)) {
             final s = adj(cs[si + 4], m); // trump unten
             if (s > bestScore) { bestScore = s; bestMode = GameMode.trumpUnten; bestTrump = suit; }
           }
