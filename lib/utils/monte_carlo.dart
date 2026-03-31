@@ -268,18 +268,27 @@ class MonteCarloAI {
       final myTrump = playable.where((c) => c.suit == trump).toList();
       final myNonTrump = playable.where((c) => c.suit != trump).toList();
 
+      // Trumpf-Dominanz: Buur + Nell + mind. 2 weitere → durchziehen
+      // bis nur noch eigenes Team Trumpf hat. Dann STOPPEN (Partner nicht austrumpfen).
+      final hasBuur = myTrump.any((c) => c.value == CardValue.jack);
+      final hasNell = myTrump.any((c) => c.value == CardValue.nine);
+      final isDominant = hasBuur && hasNell && myTrump.length >= 4;
+      // Partner-Trumpf-Check: nur eigenes Team hat Trumpf → nicht weiter ziehen
+      final onlyTeamHasTrump = oppTrump == 0;
+
+      if (isDominant && oppTrump > 0) {
+        // Dominant: immer Trumpf ziehen bis Gegner komplett raus sind
+        return _strongest(myTrump, effectMode, trump);
+      }
+
       if (oppTrump > 1) {
         // Phase 1: Gegner haben mehrere Trümpfe → STÄRKSTEN Trumpf ziehen!
-        // Stärke demonstrieren + Gegner müssen beste Trümpfe opfern.
         if (myTeamTrump > oppTrump && myTrump.length > 1) {
           return _strongest(myTrump, effectMode, trump);
         }
         // Gleichviel oder weniger Trumpf → nur ziehen mit Buur (sicherer Stich)
-        if (myTrump.length >= 2) {
-          final hasBuur = myTrump.any((c) => c.value == CardValue.jack);
-          if (hasBuur) {
-            return _strongest(myTrump, effectMode, trump);
-          }
+        if (myTrump.length >= 2 && hasBuur) {
+          return _strongest(myTrump, effectMode, trump);
         }
         // Nicht genug Trumpf-Übergewicht → sichere Seitenfarbe spielen
         final safeSide = myNonTrump
