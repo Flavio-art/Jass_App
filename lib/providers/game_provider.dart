@@ -1922,6 +1922,19 @@ class GameProvider extends ChangeNotifier {
       nextPhase = GamePhase.playing;
     }
 
+    // Debug: Selbstwunsch erkennen
+    if (wishCard != null && _state.gameType == GameType.friseur) {
+      final ansager = _state.players[effectiveAnsagerIndex];
+      if (ansager.hand.contains(wishCard)) {
+        debugPrint('⚠️ SELBSTWUNSCH! ${ansager.name} wünscht $wishCard die er selbst hat!');
+        debugPrint('   Hand: ${ansager.hand}');
+        debugPrint('   Mode: $mode, Trump: $trumpSuit');
+        // Fix: neue Wunschkarte berechnen die nicht auf der Hand ist
+        wishCard = _selectKiWishCard(ansager, mode, trumpSuit);
+        debugPrint('   Neue Wunschkarte: $wishCard');
+      }
+    }
+
     _state = _state.copyWith(
       gameMode: mode,
       trumpSuit: trumpSuit,
