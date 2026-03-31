@@ -33,10 +33,10 @@ class NNTuning {
   static const bool slalomFromObenUnten = true; // Index 10 = (8+9)/2
 
   // ── Schieber Moduswahl-Multiplikatoren ─────────────────
-  static const double schieberMultTrump = 1.58;
-  static const double schieberMultOben = 1.48;
+  static const double schieberMultTrump = 1.72;
+  static const double schieberMultOben = 1.24;
   static const double schieberMultUnten = 1.72;
-  static const double schieberMultSlalom = 1.80;
+  static const double schieberMultSlalom = 1.92;
   static const double schiebenSlalomPenalty = 0.85;
   static const double schieberMultMisere = 0.7;    // Misere im Schieber ~10%
   static const double schieberMultMolotof = 0.7;   // Molotof im Schieber ~10%
