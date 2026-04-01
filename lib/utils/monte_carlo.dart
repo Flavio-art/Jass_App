@@ -939,6 +939,24 @@ class MonteCarloAI {
             }
             // Punktekarte (Ass, 10, 8, K, O, U) → nicht verschwenden
           }
+
+          // Oben/Unten/Slalom: Partner übernimmt wenn Ansager NICHT sicher gewinnt.
+          // Beispiel: Ansager wünscht ♥6, spielt ♥7 → nicht höchste → Partner spielt ♥6.
+          // Aber: Ansager spielt ♥7 und ♥7 ist höchste verbleibende → Partner spart ♥6.
+          final isNonTrumpFlatMode = effectMode == GameMode.oben ||
+              effectMode == GameMode.unten ||
+              effectMode == GameMode.slalom;
+          if (isNonTrumpFlatMode && ansagerOpened) {
+            final ansagerCardFlat = state.currentTrickCards[
+                state.currentTrickPlayerIds.indexOf(announcerId)];
+            final ansagerIsSecure = _isHighestRemainingVsOpponents(
+                ansagerCardFlat, aiPlayer, state);
+            if (!ansagerIsSecure) {
+              // Ansager nicht sicher → Partner übernimmt mit Wunschkarte
+              return state.wishCard!;
+            }
+            // Ansager bereits sicher → Partner spart Wunschkarte
+          }
           // Sonst: Ansager hat Stich schon → nicht übertrumpfen, schmieren statt
         }
       }
@@ -2925,11 +2943,19 @@ class MonteCarloAI {
           valuable.add(c);
         }
       }
-      // Alles Trumpf: Bauern (20 Pkt) und Nell (14 Pkt) NIE abwerfen!
-      // Sie sind zukünftige Stichgewinner wenn ihre Farbe angespielt wird.
+      // Alles Trumpf: Bauern (20 Pkt) NIE abwerfen, Nell (14 Pkt) nur schützen
+      // wenn die Farbe noch NIE gespielt wurde (sonst normale Abwurfregeln).
       if (gm == GameMode.allesTrumpf) {
-        if (c.value == CardValue.jack || c.value == CardValue.nine) {
-          valuable.add(c);
+        if (c.value == CardValue.jack) {
+          valuable.add(c); // Buur immer schützen
+        } else if (c.value == CardValue.nine) {
+          // Nell nur schützen wenn Farbe noch unberührt (kein Stich dieser Farbe)
+          final suitEverPlayed = state.completedTricks.any(
+              (t) => t.cards.values.any((played) => played.suit == c.suit));
+          if (!suitEverPlayed) {
+            valuable.add(c); // Farbe noch frisch → Nell schützen
+          }
+          // Sonst: Farbe schon angespielt → Nell nach normalen Regeln abwerfbar
         }
       }
       // Misere: tiefe Karten behalten (6, 7, 8 = sichere Verlierer, nie abwerfen!)
