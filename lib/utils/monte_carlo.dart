@@ -787,6 +787,35 @@ class MonteCarloAI {
       }
     }
 
+    // ── Misere: IMMER tiefste Karte spielen (nicht gewinnen!) ──────────────
+    // Gilt für ALLE Spieler, nicht nur Ansager-Team.
+    // Tiefste Karte = verliert sicher = keine Punkte kassieren.
+    if (state.gameMode == GameMode.misere &&
+        state.currentTrickCards.isNotEmpty) {
+      final effectMode = state.effectiveMode;
+      final trump = state.trumpSuit;
+      // Karten die NICHT gewinnen → tiefste spielen (wenigste Punkte)
+      final losing = playable
+          .where((c) => !_wouldWin(c, state, trump))
+          .toList();
+      if (losing.isNotEmpty) {
+        // Tiefste Spielstärke + wenigste Punkte
+        losing.sort((a, b) {
+          final aStr = GameLogic.cardPlayStrength(a, effectMode, trump);
+          final bStr = GameLogic.cardPlayStrength(b, effectMode, trump);
+          if (aStr != bStr) return aStr.compareTo(bStr);
+          return GameLogic.cardPoints(a, effectMode, trump)
+              .compareTo(GameLogic.cardPoints(b, effectMode, trump));
+        });
+        return losing.first;
+      }
+      // Muss gewinnen → wenigste Punkte
+      playable.sort((a, b) =>
+          GameLogic.cardPoints(a, effectMode, trump)
+              .compareTo(GameLogic.cardPoints(b, effectMode, trump)));
+      return playable.first;
+    }
+
     // ── Molotow nach Trigger: alle Spieler wollen möglichst wenig Punkte ──
     if (state.gameMode == GameMode.molotof &&
         state.molotofSubMode != null &&
@@ -847,16 +876,18 @@ class MonteCarloAI {
             final isTrumpCard = state.trumpSuit != null &&
                 ansagerCard.suit == state.trumpSuit;
             if (isTrumpCard) {
-              // Trumpf 10, Dame, König, Ass → revealen (Stich mit Punkten sichern)
-              final v = ansagerCard.value;
-              final shouldReveal = v == CardValue.ten ||
-                  v == CardValue.queen ||
-                  v == CardValue.king ||
-                  v == CardValue.ace;
+              // Trumpf-Stärke: Buur=108, Nell=107, dann 100-106
+              // Revealen bei mittelstarken Trümpfen (Stärke 100-106)
+              // = Ass/6, König/7, Dame/8, 10 etc. je nach Richtung
+              // NICHT bei Buur(108)/Nell(107) → aufsparen
+              // NICHT bei tiefsten 2 (100-101) → zu riskant
+              final ansagerStr = GameLogic.cardPlayStrength(
+                  ansagerCard, effectMode, state.trumpSuit);
+              final trumpBaseStr = ansagerStr - 100; // 0-8 Skala
+              final shouldReveal = trumpBaseStr >= 2 && trumpBaseStr <= 6;
               if (shouldReveal) {
                 return state.wishCard!;
               }
-              // Buur, Nell, 8, 7, 6 → NICHT revealen (aufsparen)
             }
             // Nicht-Trumpf → NICHT revealen (zu aggressiv)
           }
@@ -1270,7 +1301,24 @@ class MonteCarloAI {
         }
         return _weakest(winning, effectMode, trump);
       }
-      // Kann nicht gewinnen → intelligent abwerfen (wertvolle Karten behalten)
+      // Kann nicht gewinnen → Gegner kriegt den Stich
+      // Bei Farbzwang: wenigste Punkte geben (nicht nach Spielstärke!)
+      // Bei Fehlfarbe: _smartDiscard (wertlose Karten loswerden)
+      final ledSuit2 = state.currentTrickCards.first.suit;
+      final hasLedSuit2 = playable.any((c) => c.suit == ledSuit2);
+      if (hasLedSuit2) {
+        // Farbzwang: Karte mit wenigsten Punkten spielen
+        final suitCards = playable.where((c) => c.suit == ledSuit2).toList();
+        suitCards.sort((a, b) {
+          final aPts = GameLogic.cardPoints(a, effectMode, trump);
+          final bPts = GameLogic.cardPoints(b, effectMode, trump);
+          if (aPts != bPts) return aPts.compareTo(bPts); // wenigste Punkte zuerst
+          // Tiebreak: schwächste Spielstärke zuerst (starke Karten aufsparen)
+          return GameLogic.cardPlayStrength(a, effectMode, trump)
+              .compareTo(GameLogic.cardPlayStrength(b, effectMode, trump));
+        });
+        return suitCards.first;
+      }
       return _smartDiscard(playable, state, effectMode, trump);
     }
 
@@ -2843,12 +2891,16 @@ class MonteCarloAI {
           else if (str >= 7 && suitCount >= 2) { protectedUnten = true; } // 7
           else if (str >= 6 && suitCount >= 3) { protectedUnten = true; } // 8
           else if (str >= 5 && suitCount >= 4) { protectedUnten = true; } // 9
-          // Opferkarten: hohe Karte + tiefe Begleiter behalten
-          // z.B. König + 7 → König opfern wenn 6 gespielt, 7 bleibt
-          else if (str <= 4 && suitCount >= 2) {
-            final hasGoodLow = suitCards.any((h) =>
-                GameLogic.cardPlayStrength(h, GameMode.unten, null) >= 6);
-            if (hasGoodLow) protectedUnten = true;
+          // Opferkarten: hohe Karte MIT PUNKTEN + tiefe Begleiter behalten
+          // z.B. König(4Pkt) + 7 → König opfern wenn 6 gespielt, 7 bleibt
+          // NICHT Ass (0 Pkt, 0 Stärke bei Unten) → wertlos, sofort weg
+          else if (str <= 4 && str >= 1 && suitCount >= 2) {
+            final pts = GameLogic.cardPoints(c, GameMode.unten, null);
+            if (pts > 0) { // Nur Karten mit Punkten als Opferkarte schützen
+              final hasGoodLow = suitCards.any((h) =>
+                  GameLogic.cardPlayStrength(h, GameMode.unten, null) >= 6);
+              if (hasGoodLow) protectedUnten = true;
+            }
           }
         }
 
