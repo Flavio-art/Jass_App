@@ -220,6 +220,23 @@ class ModeSelectorAI {
     // 2) Slalom (10): NN gibt ~0.78, viel zu hoch. Ersetzen durch Durchschnitt
     //    von korrigiertem Oben (8) + Unten (9). Slalom braucht beides.
     if (NNTuning.slalomFromObenUnten && cs.length > 10) cs[10] = (cs[8] + cs[9]) / 2;
+    // Slalom-Korrektur: ohne sichere Stiche in beiden Richtungen ist Slalom wertlos.
+    // Mindestens 2 sichere Stiche total nötig, sonst stark bestrafen.
+    if (cs.length > 10) {
+      final allSuits = state.cardType == CardType.french
+          ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
+          : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
+      int safeOben = 0, safeUnten = 0;
+      for (final s in allSuits) {
+        safeOben += _safeTricksOben(hand, s);
+        safeUnten += _safeTricksUnten(hand, s);
+      }
+      if (safeOben + safeUnten < 2) {
+        cs[10] *= 0.5; // Keine sicheren Stiche → Slalom stark bestrafen
+      } else if (safeOben == 0 || safeUnten == 0) {
+        cs[10] *= 0.7; // Nur eine Richtung hat sichere Stiche
+      }
+    }
     // 3) Misère (11) / Molotof (14): nur als Notlösung (im Loch).
     if (cs.length > 11) cs[11] *= NNTuning.misereDampening;
     if (cs.length > 14) cs[14] *= NNTuning.molotofDampening;
@@ -504,7 +521,7 @@ class ModeSelectorAI {
         score = _extractNNScore(cs, cand.mode, cand.trump, cardType);
       } else {
         // Heuristik-Score
-        score = _scoreForMode(best9, cand.mode, cand.trump);
+        score = scoreForMode(best9, cand.mode, cand.trump);
       }
 
       // Slalom-Richtung bestimmen: sichere Stiche zählen
@@ -605,7 +622,7 @@ class ModeSelectorAI {
   }
 
   /// Bewertet eine Hand für einen bestimmten Modus (Heuristik).
-  static double _scoreForMode(List<JassCard> hand, GameMode mode, Suit? trump) {
+  static double scoreForMode(List<JassCard> hand, GameMode mode, Suit? trump) {
     switch (mode) {
       case GameMode.trump:
         return _scoreTrump(hand, trump!, oben: true);
@@ -638,7 +655,7 @@ class ModeSelectorAI {
 
     for (int i = 0; i < pool.length; i++) {
       final remaining = [...pool]..removeAt(i);
-      final score = _scoreForMode(remaining, mode, trump);
+      final score = scoreForMode(remaining, mode, trump);
       if (score > bestRemaining) {
         bestRemaining = score;
         weakest = pool[i];
