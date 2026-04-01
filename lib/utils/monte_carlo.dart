@@ -1295,6 +1295,19 @@ class MonteCarloAI {
         }
       }
 
+      // NUR TEAM HAT TRUMPF → Trumpf spielen ist fast immer falsch
+      // (kostet 2 Team-Trümpfe für 1 Stich)
+      if (state.trumpSuit != null &&
+          card.suit == state.trumpSuit &&
+          state.currentTrickCards.isNotEmpty &&
+          _onlyTeamHasTrump(aiPlayer, state, state.trumpSuit!)) {
+        final ledSuit = state.currentTrickCards.first.suit;
+        if (ledSuit != state.trumpSuit) {
+          // Fehlfarbe + nur Team hat Trumpf → NIE trumpfen!
+          avg -= 50.0;
+        }
+      }
+
       // Partner-Stich nicht übertrumpfen (allgemein): starker Malus
       if (state.currentTrickCards.isNotEmpty &&
           (state.trumpSuit != null || state.gameMode == GameMode.allesTrumpf)) {
@@ -2521,20 +2534,19 @@ class MonteCarloAI {
       return _smartDiscard(playable, state, effectMode, null);
     }
 
-    // Gegner gewinnt → aber nicht trumpfen wenn nur eigenes Team Trumpf hat
-    // und Partner noch spielen muss (Partner sticht selber)
+    // Nur Team hat Trumpf → NIE trumpfen (weder als Letzter noch als Vorletzter)
+    // Jeder Trumpf-Stich kostet 2 Team-Trümpfe. Stattdessen: abwerfen.
     if (trump != null && _onlyTeamHasTrump(player, state, trump)) {
-      final trickLen = state.currentTrickCards.length;
-      final isLast = trickLen == 3;
-      if (!isLast) {
-        final ledSuit = state.currentTrickCards.first.suit;
-        final isDiscarding = !playable.any((c) => c.suit == ledSuit);
-        if (isDiscarding) {
-          final nonTrump = playable.where((c) => c.suit != trump).toList();
-          if (nonTrump.isNotEmpty) {
-            return _smartDiscard(nonTrump, state, effectMode, trump);
-          }
+      final ledSuit = state.currentTrickCards.first.suit;
+      final isDiscarding = !playable.any((c) => c.suit == ledSuit);
+      if (isDiscarding) {
+        final nonTrump = playable.where((c) => c.suit != trump).toList();
+        if (nonTrump.isNotEmpty) {
+          return _smartDiscard(nonTrump, state, effectMode, trump);
         }
+        // Nur Trumpf → schwächsten (nicht Partner-Stich klauen)
+        final notWin = playable.where((c) => !_wouldWin(c, state, trump)).toList();
+        return _weakest(notWin.isNotEmpty ? notWin : playable, effectMode, trump);
       }
     }
 
