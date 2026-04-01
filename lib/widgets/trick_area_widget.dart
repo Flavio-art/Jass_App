@@ -203,7 +203,7 @@ class _ModeIndicator extends StatelessWidget {
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _label('Alles Trumpf', Colors.yellow.shade300),
+            _label('Tutti', Colors.yellow.shade300),
             const Text('👑', style: TextStyle(fontSize: 18)),
           ],
         );

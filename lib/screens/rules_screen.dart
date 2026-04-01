@@ -249,7 +249,7 @@ class _RulesScreenState extends State<RulesScreen>
         _Section('Spielstruktur – Coiffeur', [
           _Rule('2 Teams: Süd & Nord gegen West & Ost.'),
           _Rule('Jedes Team muss alle 10 Spielvarianten je einmal ansagen:\n'
-              '$grp1, $grp2, Obenabe, Undenufe, Slalom, Elefant, Misere, Alles Trumpf, Schafkopf, Molotow.'),
+              '$grp1, $grp2, Obenabe, Undenufe, Slalom, Elefant, Misere, Tutti, Schafkopf, Molotow.'),
           _Rule('Alle Varianten zählen zu Beginn 1×. Der Multiplikator kann in den Einstellungen angepasst werden.'),
           _Rule('Trumpf Oben / Unten: Jede Trumpfgruppe ($grpHint) muss ein Team je einmal als Oben und einmal als Unten spielen. '
               'Die erste Wahl ist frei; die zweite Gruppe wird automatisch erzwungen.'),
@@ -398,7 +398,7 @@ class _RulesScreenState extends State<RulesScreen>
             'Es wird nach Obenabe-Regeln gespielt (kein Trumpf, Ass ist hoch). '
             'Farbzwang gilt, aber es gibt keine Trumpfpflicht.\n'
             'Match (0 Punkte gemacht) = 170 Punkte Gutschrift für das ansagende Team.'),
-        _ModeCard('👑  Alles Trumpf',
+        _ModeCard('👑  Tutti',
             'Kein fester Trumpf – die angespielte Farbe entscheidet. '
             'Nur Buur (20 Pkt), Näll (14 Pkt) und König (4 Pkt) zählen.'),
         _ModeCard('🐑  Schafkopf',

@@ -1556,7 +1556,7 @@ class _RoundEndOverlay extends StatelessWidget {
     'slalom':       '↕️ Slalom',
     'elefant':      '🐘 Elefant',
     'misere':       '😶 Misere',
-    'allesTrumpf':  '👑 Alles Trumpf',
+    'allesTrumpf':  '👑 Tutti',
     'schafkopf':    '🐑 Schafkopf',
     'molotof':      '💣 Molotow',
   };
@@ -2266,7 +2266,7 @@ class _WishCardOverlayState extends State<_WishCardOverlay> {
       GameMode.slalom => 'Slalom',
       GameMode.elefant => 'Elefant',
       GameMode.misere => 'Misere',
-      GameMode.allesTrumpf => 'Alles Trumpf',
+      GameMode.allesTrumpf => 'Tutti',
       GameMode.schafkopf => 'Schafkopf',
       GameMode.molotof => 'Molotow',
     };
@@ -4097,7 +4097,7 @@ class _FriseurModeLabel extends StatelessWidget {
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _text('Alles Trumpf', Colors.yellow.shade300),
+            _text('Tutti', Colors.yellow.shade300),
             const Text('👑', style: TextStyle(fontSize: 12)),
           ],
         );
