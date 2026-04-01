@@ -603,7 +603,7 @@ class _StatsScreenState extends State<StatsScreen> {
       case 'slalom':     return 'Slalom';
       case 'elefant':    return 'Elefant';
       case 'misere':     return 'Misere';
-      case 'allesTrumpf': return 'Alles Trumpf';
+      case 'allesTrumpf': return 'Tutti';
       case 'schafkopf':   return 'Schafkopf';
       case 'molotof':     return 'Molotow';
       default: return key;

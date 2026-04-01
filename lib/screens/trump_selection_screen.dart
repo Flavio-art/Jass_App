@@ -184,7 +184,7 @@ class TrumpSelectionScreen extends StatelessWidget {
                             color: Colors.red.shade900, isAvailable: available.contains('misere'),
                             onTap: () => _selectMode(context, GameMode.misere))),
                           const SizedBox(width: 8),
-                          Expanded(child: _ModeButton(label: 'Alles Trumpf', subtitle: 'Nur K·9·B zählen', emoji: '👑',
+                          Expanded(child: _ModeButton(label: 'Tutti', subtitle: 'Nur K·9·B zählen', emoji: '👑',
                             color: Colors.yellow.shade800, isAvailable: available.contains('allesTrumpf'),
                             onTap: () => _selectMode(context, GameMode.allesTrumpf))),
                         ],
