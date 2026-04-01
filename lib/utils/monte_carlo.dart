@@ -325,20 +325,24 @@ class MonteCarloAI {
           return _strongest(myTrump, effectMode, trump);
         }
       } else {
-        // Phase 2: Gegner trumpflos → Seitenfarben ausspielen!
-        // Sichere Gewinner zuerst (meiste Punkte)
-        // Wird auch vom Farb-Monopol-Block weiter unten abgedeckt,
-        // aber hier als schneller Pfad für den häufigsten Fall.
-        final safeSide = myNonTrump
-            .where((c) => _isHighestRemaining(c, state))
-            .toList();
-        if (safeSide.isNotEmpty) {
-          safeSide.sort((a, b) =>
-              GameLogic.cardPoints(b, effectMode, trump)
-                  .compareTo(GameLogic.cardPoints(a, effectMode, trump)));
-          return safeSide.first;
+        // Phase 2: Gegner trumpflos → NUR Seitenfarben ausspielen!
+        // KEIN Trumpf – kostet 2 Team-Trümpfe für 1 Stich.
+        // Partner sticht mit Trumpf wenn Gegner die Seitenfarbe gewinnt.
+        if (myNonTrump.isNotEmpty) {
+          // Sichere Gewinner zuerst (meiste Punkte)
+          final safeSide = myNonTrump
+              .where((c) => _isHighestRemaining(c, state))
+              .toList();
+          if (safeSide.isNotEmpty) {
+            safeSide.sort((a, b) =>
+                GameLogic.cardPoints(b, effectMode, trump)
+                    .compareTo(GameLogic.cardPoints(a, effectMode, trump)));
+            return safeSide.first;
+          }
+          // Keine sicheren → schwächste Seitenfarbe (Partner sticht wenn nötig)
+          return _weakest(myNonTrump, effectMode, trump);
         }
-        // Keine sicheren Seitenfarben → Trumpf ausspielen (auch sicher)
+        // Nur noch Trumpf auf Hand → muss Trumpf spielen, stärksten
         if (myTrump.isNotEmpty) {
           return _strongest(myTrump, effectMode, trump);
         }
@@ -840,6 +844,22 @@ class MonteCarloAI {
             state.gameMode == GameMode.molotof;
         if (isMisereLike) {
           // Normal weiterspielen → fall through zu MC/Minimax
+        } else if (trump != null && _onlyTeamHasTrump(aiPlayer, state, trump)) {
+          // NUR TEAM HAT TRUMPF → NIE trumpfen! Partner-Stich ist 100% sicher.
+          // Nicht-Trumpf schmieren (höchste Punkte) oder schwächste abwerfen.
+          final nonTrump = state.gameMode == GameMode.schafkopf
+              ? playable.where((c) => !_isSchafkopfTrump(c, trump)).toList()
+              : playable.where((c) => c.suit != trump).toList();
+          if (nonTrump.isNotEmpty) {
+            // Schmieren: höchste Punkte
+            nonTrump.sort((a, b) =>
+                GameLogic.cardPoints(b, effectMode, trump)
+                    .compareTo(GameLogic.cardPoints(a, effectMode, trump)));
+            return nonTrump.first;
+          }
+          // Nur Trumpf auf Hand → schwächsten Trumpf (nicht übertrumpfen!)
+          final notWinning0 = playable.where((c) => !_wouldWin(c, state, trump)).toList();
+          return _weakest(notWinning0.isNotEmpty ? notWinning0 : playable, effectMode, trump);
         } else {
           // Prüfe ob Partner-Stich sicher ist GEGEN GEGNER:
           // Partner-Karten ignorieren! Nur Gegner-Karten zählen.
