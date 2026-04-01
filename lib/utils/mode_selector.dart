@@ -725,10 +725,32 @@ class ModeSelectorAI {
       );
     }
 
-    // Bei Undenufe: Sechs wünschen
+    // Bei Undenufe: Sechs wünschen – bevorzugt Farbe wo man hohe
+    // Opferkarten hat (K, Q, J → opfern wenn 6 gespielt, 7 bleibt)
     if (mode == GameMode.unten) {
+      final sixes = available.where((c) => c.value == CardValue.six).toList();
+      if (sixes.isNotEmpty) {
+        // Farbe mit den meisten hohen Opferkarten (K, Q, J, 10, A = schwach in Unten)
+        const highVals = {CardValue.ace, CardValue.king, CardValue.queen,
+            CardValue.jack, CardValue.ten};
+        const lowVals = {CardValue.seven, CardValue.eight};
+        sixes.sort((a, b) {
+          final aHigh = hand.where((h) => h.suit == a.suit &&
+              highVals.contains(h.value)).length;
+          final bHigh = hand.where((h) => h.suit == b.suit &&
+              highVals.contains(h.value)).length;
+          if (aHigh != bHigh) return bHigh.compareTo(aHigh); // mehr Opferkarten besser
+          // Tiebreak: Farbe mit tiefem Begleiter (7, 8)
+          final aLow = hand.where((h) => h.suit == a.suit &&
+              lowVals.contains(h.value)).length;
+          final bLow = hand.where((h) => h.suit == b.suit &&
+              lowVals.contains(h.value)).length;
+          return bLow.compareTo(aLow);
+        });
+        return sixes.first;
+      }
       return available.firstWhere(
-        (c) => c.value == CardValue.six,
+        (c) => c.value == CardValue.seven,
         orElse: () => available.first,
       );
     }

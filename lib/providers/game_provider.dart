@@ -1419,6 +1419,19 @@ class GameProvider extends ChangeNotifier {
   void _autoSelectMode() {
     final selector = _state.currentTrumpSelector;
 
+    // DEBUG: Was würde jeder Spieler wählen?
+    if (_state.gameType == GameType.friseur) {
+      for (final p in _state.players) {
+        final avail = _state.availableVariantsForPlayer(p.id);
+        if (avail.isEmpty) continue;
+        try {
+          final r = ModeSelectorAI.selectMode(player: p, state: _state, availableVariants: avail);
+          final hand = p.hand.map((c) => '${c.suit.symbol}${c.displayValue}').join(' ');
+          debugPrint('🃏 ${p.name}: würde ${r.mode.name} ${r.trumpSuit?.symbol ?? ""} wählen (Wunsch: ${r.wishCard}) | $hand');
+        } catch (_) {}
+      }
+    }
+
     // Für Friseur Solo: Varianten pro Spieler; nach 2× Schieben alle Varianten erlaubt
     final List<String> available;
     if (_state.gameType == GameType.friseur) {
@@ -2434,6 +2447,13 @@ class GameProvider extends ChangeNotifier {
   // ─── Intern: Karte spielen ────────────────────────────────────────────────
 
   void _doPlayCard(String playerId, JassCard card, int playerIdx) {
+    // DEBUG: Jede gespielte Karte loggen
+    final playerName = _state.players[playerIdx].name;
+    final trickNum = _state.completedTricks.length + 1;
+    final cardInTrick = _state.currentTrickCards.length + 1;
+    final hand = _state.players[playerIdx].hand.map((c) => '${c.suit.symbol}${c.displayValue}').join(' ');
+    print('🎴 Stich $trickNum/$cardInTrick: $playerName spielt ${card.suit.symbol}${card.displayValue} | Rest: $hand');
+
     final updatedPlayers = List<Player>.from(_state.players);
     updatedPlayers[playerIdx] = _state.players[playerIdx].copyWith(
       hand: List<JassCard>.from(_state.players[playerIdx].hand)..remove(card),
