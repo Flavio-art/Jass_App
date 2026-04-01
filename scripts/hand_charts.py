@@ -83,10 +83,10 @@ SCHIEBER_MULTS = [
 ]
 
 FRISEUR_MULTS = [
-    0.96, 0.96, 0.96, 0.96,
+    1.02, 1.02, 1.02, 1.02,
     0.98, 0.98, 0.98, 0.98,
-    0.95, 1.10, 1.15, 1.15,
-    1.05, 4.0, 1.12,
+    0.95, 1.10, 1.15, 1.20,
+    1.05, 3.20, 1.18,
     0.90, 0.90, 0.90, 0.90,
 ]
 
@@ -211,7 +211,26 @@ def create_chart(hand_info, hand_idx, nn):
     ax2.set_facecolor('#1B3A2A')
     ax2.set_title('Friseur Solo / Wunschkarte (NN × Multiplikator)', color='white', fontsize=16, pad=10)
 
-    friseur_raw = [max(0, raw_scores[i]) * 157 if i < len(raw_scores) else 0 for i in range(19)]
+    # Friseur Solo: für jeden Modus die beste Wunschkarte finden
+    # Pool = Hand(9) + Wunschkarte(1) → schwächste entfernen → NN mit 9 bewerten
+    hand_set = set(indices)
+    available_cards = [c for c in range(36) if c not in hand_set]
+
+    friseur_raw = []
+    for mode_idx in range(19):
+        best_score = 0
+        for wish in available_cards:
+            pool = list(indices) + [wish]
+            # Jede der 10 Karten als "entfernt" testen → beste 9
+            for drop in range(10):
+                sub = pool[:drop] + pool[drop+1:]
+                scores = nn_predict(nn, sub)
+                if mode_idx < len(scores):
+                    s = max(0, scores[mode_idx]) * 157
+                    if s > best_score:
+                        best_score = s
+        friseur_raw.append(best_score)
+
     friseur_adj = [friseur_raw[i] * FRISEUR_MULTS[i] for i in range(19)]
 
     bars_raw2 = ax2.bar(x - 0.2, friseur_raw[:19], 0.35, color=BAR_COLORS_RAW, alpha=0.5, label='NN roh')
