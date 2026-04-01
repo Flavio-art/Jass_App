@@ -245,23 +245,49 @@ def create_chart(hand_info, hand_idx, nn):
     ax2.set_title('Friseur Solo / Wunschkarte (NN × Multiplikator)', color='white', fontsize=16, pad=10)
 
     # Friseur Solo: für jeden Modus die beste Wunschkarte finden
-    # Pool = Hand(9) + Wunschkarte(1) → schwächste entfernen → NN mit 9 bewerten
-    hand_set = set(indices)
-    available_cards = [c for c in range(36) if c not in hand_set]
+    # Pool = Hand(9) + Wunschkarte(1) → schwächste nach Modus-Stärke entfernen → NN mit 9
+    hand_set_f = set(indices)
+    available_cards = [c for c in range(36) if c not in hand_set_f]
+
+    # Spielstärke pro Modus (vereinfacht)
+    # Oben: A=8,K=7,Q=6,J=5,10=4,9=3,8=2,7=1,6=0
+    # Unten: 6=8,7=7,8=6,9=5,10=4,J=3,Q=2,K=1,A=0
+    # Trumpf: suit=trump → +100, J=108,9=107,A=106,...
+    OBEN_STR = [0,1,2,3,4,5,6,7,8]  # 6..A
+    UNTEN_STR = [8,7,6,5,4,3,2,1,0]
+    TRUMP_STR = [0,1,2,7,4,8,3,5,6]  # 6=0,7=1,8=2,9=7(Nell),10=4,J=8(Buur),Q=3,K=5,A=6
+
+    def card_strength(c, mode_idx):
+        v = c % 9
+        s = c // 9
+        if mode_idx < 4:  # Trump unten
+            trump_suit = mode_idx
+            if s == trump_suit: return 100 + TRUMP_STR[v]
+            return UNTEN_STR[v]
+        elif mode_idx < 8:  # Trump oben
+            trump_suit = mode_idx - 4
+            if s == trump_suit: return 100 + TRUMP_STR[v]
+            return OBEN_STR[v]
+        elif mode_idx == 8: return OBEN_STR[v]  # Oben
+        elif mode_idx == 9: return UNTEN_STR[v]  # Unten
+        elif mode_idx == 10:  # Slalom
+            return max(OBEN_STR[v], UNTEN_STR[v])
+        elif mode_idx == 12: return TRUMP_STR[v]  # Tutti
+        else: return OBEN_STR[v]  # Default
 
     friseur_raw = []
     for mode_idx in range(19):
         best_score = 0
         for wish in available_cards:
             pool = list(indices) + [wish]
-            # Jede der 10 Karten als "entfernt" testen → beste 9
-            for drop in range(10):
-                sub = pool[:drop] + pool[drop+1:]
-                scores = nn_predict(nn, sub)
-                if mode_idx < len(scores):
-                    s = max(0, scores[mode_idx]) * 157
-                    if s > best_score:
-                        best_score = s
+            # Schwächste Karte nach Modus-Stärke entfernen
+            weakest = min(range(10), key=lambda i: card_strength(pool[i], mode_idx))
+            best9 = pool[:weakest] + pool[weakest+1:]
+            scores = nn_predict(nn, best9)
+            if mode_idx < len(scores):
+                s = max(0, scores[mode_idx]) * 157
+                if s > best_score:
+                    best_score = s
         friseur_raw.append(best_score)
 
     friseur_adj = [friseur_raw[i] * FRISEUR_MULTS[i] for i in range(19)]
