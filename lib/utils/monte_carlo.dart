@@ -142,23 +142,88 @@ class MonteCarloAI {
 
     // ── Molotow nach Trigger: intelligentes Anspielen ──────────────────────
     // Alle Spieler wollen möglichst wenig Punkte → wie Misere spielen.
+    // Wichtige Zusatzregeln:
+    //   a) Nie eine Farbe anspielen wo man selbst den Buben (Jack) hat
+    //      → dieser Bube würde Buur (20 Pkt!) wenn er diese Farbe anspielt
+    //   b) Farben mit wenigen eigenen Karten bevorzugen (weniger Stich-Risiko)
+    //   c) Farben meiden, in denen man schon Punkte gesammelt hat
+    //   d) Schwächste Karte der besten Farbe spielen
     if (state.currentTrickCards.isEmpty &&
         state.gameMode == GameMode.molotof &&
         state.molotofSubMode != null &&
         state.molotofSubMode != GameMode.trump) {
-      // Oben/Unten: keine Farbe anspielen die nur man selbst hat
+      final effectMode = state.effectiveMode;
+      final trump = state.trumpSuit;
+
+      // Farben bestimmen die der Spieler hat
+      final mySuits = aiPlayer.hand.map((c) => c.suit).toSet();
+
+      // Farben mit Bauer (Jack) ausschliessen – würde Buur (20 Pkt)!
+      final suitsWithJack = aiPlayer.hand
+          .where((c) => c.value == CardValue.jack)
+          .map((c) => c.suit)
+          .toSet();
+      final safeFromJack = mySuits.difference(suitsWithJack);
+
+      // Farben die andere Spieler auch haben (sonst gewinnt man sicher)
       final otherPlayersCards = state.players
           .where((p) => p.id != aiPlayer.id)
           .expand((p) => p.hand)
           .toSet();
       final suitsOthersHave = otherPlayersCards.map((c) => c.suit).toSet();
-      final safeLead = playable
-          .where((c) => suitsOthersHave.contains(c.suit))
-          .toList();
-      if (safeLead.isNotEmpty) {
-        return _weakest(safeLead, state.effectiveMode, state.trumpSuit);
+
+      // Punkte die man bereits in eigenen gewonnenen Stichen gesammelt hat, per Farbe
+      final pointsPerSuit = <Suit, int>{};
+      for (final trick in state.completedTricks) {
+        if (trick.winnerId == aiPlayer.id) {
+          for (final card in trick.cards.values) {
+            final pts = GameLogic.cardPoints(card, effectMode, trump);
+            pointsPerSuit[card.suit] = (pointsPerSuit[card.suit] ?? 0) + pts;
+          }
+        }
       }
-      return _weakest(playable, state.effectiveMode, state.trumpSuit);
+
+      // Beste Farbe wählen: erst sichere (andere haben sie auch) + kein Jack + wenig Karten + wenig gesammelte Punkte
+      List<JassCard> bestPool = [];
+
+      // Priorität 1: Farben wo andere auch haben UND kein Jack vorhanden
+      final safeSuits = safeFromJack.intersection(suitsOthersHave);
+      if (safeSuits.isNotEmpty) {
+        // Sortiere Farben: wenigste Karten auf Hand zuerst, dann wenigste gesammelte Punkte
+        final sortedSafeSuits = safeSuits.toList()
+          ..sort((a, b) {
+            final cntA = aiPlayer.hand.where((c) => c.suit == a).length;
+            final cntB = aiPlayer.hand.where((c) => c.suit == b).length;
+            if (cntA != cntB) return cntA.compareTo(cntB);
+            final ptsA = pointsPerSuit[a] ?? 0;
+            final ptsB = pointsPerSuit[b] ?? 0;
+            return ptsA.compareTo(ptsB);
+          });
+        bestPool = playable
+            .where((c) => c.suit == sortedSafeSuits.first)
+            .toList();
+      }
+
+      // Priorität 2: Farben ohne Jack, auch wenn nur man selbst sie hat (unvermeidbar)
+      if (bestPool.isEmpty && safeFromJack.isNotEmpty) {
+        final sortedSafe = safeFromJack.toList()
+          ..sort((a, b) {
+            final cntA = aiPlayer.hand.where((c) => c.suit == a).length;
+            final cntB = aiPlayer.hand.where((c) => c.suit == b).length;
+            if (cntA != cntB) return cntA.compareTo(cntB);
+            final ptsA = pointsPerSuit[a] ?? 0;
+            final ptsB = pointsPerSuit[b] ?? 0;
+            return ptsA.compareTo(ptsB);
+          });
+        bestPool = playable
+            .where((c) => c.suit == sortedSafe.first)
+            .toList();
+      }
+
+      // Fallback: alle spielbaren Karten (nur Jack-Farben übrig)
+      if (bestPool.isEmpty) bestPool = playable;
+
+      return _weakest(bestPool, effectMode, trump);
     }
 
     // ── Molotow-Trump: keine sicheren Gewinner früh ausspielen ──────────────
@@ -736,7 +801,9 @@ class MonteCarloAI {
       final losing = playable
           .where((c) => !_wouldWin(c, state, trump))
           .toList();
-      if (losing.isEmpty) return _weakest(playable, effectMode, trump);
+      // Müssen wir den Stich nehmen (alle Karten gewinnen) → höchste spielen
+      // (maximale Punkte jetzt loswerden, tiefe Karten für später aufsparen)
+      if (losing.isEmpty) return _strongest(playable, effectMode, trump);
       final curWinnerId = GameLogic.determineTrickWinner(
         cards: state.currentTrickCards,
         playerIds: state.currentTrickPlayerIds,
@@ -747,6 +814,8 @@ class MonteCarloAI {
       );
       final curWinner = state.players.firstWhere((p) => p.id == curWinnerId);
       final oppWins = !_sameTeamFor(aiPlayer, curWinner, state);
+      // Gegner gewinnt → höchsten Punktwert spielen (10er, 8er an Gegner "schenken")
+      // Partner gewinnt → niedrigsten Punktwert spielen (0-Punkte Karten behalten)
       return _pointAwareFollow(losing, effectMode, trump, oppWins);
     }
 
@@ -1194,6 +1263,11 @@ class MonteCarloAI {
       final winning =
           playable.where((c) => _wouldWin(c, state, trump)).toList();
       if (winning.isNotEmpty) {
+        // Molotow: müssen wir den Stich nehmen, spielen wir die HÖCHSTE Karte
+        // (maximale Punkte jetzt loswerden, tiefe Karten für später aufsparen)
+        if (state.gameMode == GameMode.molotof) {
+          return _strongest(winning, effectMode, trump);
+        }
         return _weakest(winning, effectMode, trump);
       }
       // Kann nicht gewinnen → intelligent abwerfen (wertvolle Karten behalten)
@@ -2501,8 +2575,9 @@ class MonteCarloAI {
       final losing = playable
           .where((c) => !_wouldWin(c, state, trump))
           .toList();
-      if (losing.isEmpty) return _weakest(playable, effectMode, trump);
-      // Punktwert-bewusst: hohen Wert an Gegner geben
+      // Müssen wir den Stich nehmen → höchste Karte spielen (Punkte jetzt loswerden)
+      if (losing.isEmpty) return _strongest(playable, effectMode, trump);
+      // Punktwert-bewusst: hohen Wert an Gegner geben, tiefen Wert an Partner
       final oppWins = !partnerWins;
       return _pointAwareFollow(losing, effectMode, trump, oppWins);
     }

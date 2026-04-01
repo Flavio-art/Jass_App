@@ -1427,7 +1427,7 @@ class GameProvider extends ChangeNotifier {
         try {
           final r = ModeSelectorAI.selectMode(player: p, state: _state, availableVariants: avail);
           final hand = p.hand.map((c) => '${c.suit.symbol}${c.displayValue}').join(' ');
-          debugPrint('🃏 ${p.name}: würde ${r.mode.name} ${r.trumpSuit?.symbol ?? ""} wählen (Wunsch: ${r.wishCard}) | $hand');
+          print('🃏 ${p.name}: würde ${r.mode.name} ${r.trumpSuit?.symbol ?? ""} wählen (Wunsch: ${r.wishCard}) | $hand');
         } catch (_) {}
       }
     }
