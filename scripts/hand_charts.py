@@ -171,7 +171,10 @@ def create_chart(hand_info, hand_idx, nn):
 
     # NN gibt Werte 0-1 → ×157 = erwartete Punkte
     schieber_raw = [max(0, raw_scores[i]) * 157 if i < len(raw_scores) else 0 for i in range(19)]
-    schieber_adj = [schieber_raw[i] * SCHIEBER_MULTS[i] for i in range(19)]
+
+    # Schieber: Delta-Amplifikation: adj = mean + (raw - mean) × mult
+    schieber_mean = np.mean([s for s in schieber_raw[4:] if s > 0]) if any(s > 0 for s in schieber_raw[4:]) else 0
+    schieber_adj = [schieber_mean + (schieber_raw[i] - schieber_mean) * SCHIEBER_MULTS[i] for i in range(19)]
 
     # Schieber hat kein Trump Unten → auf 0 setzen
     for i in range(4):
