@@ -102,30 +102,30 @@ BAR_COLORS_MULT = [
 
 # ── 5 Hände ─────────────────────────────────────────────────────
 HANDS = [
-    {
-        'title': 'Hand 1: Starke Obenabe-Hand (3 Asse)',
-        'cards': [('S','A'), ('S','U'), ('H','O'), ('H','U'), ('H','8'),
-                  ('D','A'), ('D','O'), ('D','8'), ('C','A')],
+    {   # Seed 3: Obenabe
+        'title': 'Hand 1: Obenabe (2 Asse, starke Herz)',
+        'cards': [('S','9'), ('H','A'), ('H','K'), ('H','10'), ('H','6'),
+                  ('D','O'), ('D','10'), ('D','8'), ('C','K')],
     },
-    {
-        'title': 'Hand 2: Trumpf Ecken mit Buur + Nell',
-        'cards': [('S','O'), ('S','8'), ('S','6'), ('H','7'),
-                  ('D','U'), ('D','9'), ('C','A'), ('C','O'), ('C','10')],
+    {   # Seed 7: Trumpf Oben ♦
+        'title': 'Hand 2: Trumpf Oben Ecken (Buur + Nell)',
+        'cards': [('S','A'), ('S','10'), ('H','10'), ('H','8'), ('H','6'),
+                  ('D','O'), ('D','U'), ('D','8'), ('C','K')],
     },
-    {
-        'title': 'Hand 3: Ausgewogene Hand (Slalom/Alles Trumpf)',
-        'cards': [('S','O'), ('S','U'), ('S','6'), ('H','K'), ('H','U'),
-                  ('C','A'), ('C','K'), ('C','8'), ('C','7')],
+    {   # Seed 0: Undenufe
+        'title': 'Hand 3: Undenufe (6er + 7er + 8er)',
+        'cards': [('S','U'), ('S','10'), ('S','8'), ('H','O'), ('H','10'),
+                  ('C','A'), ('C','8'), ('C','7'), ('C','6')],
     },
-    {
-        'title': 'Hand 4: Undenufe-Hand (6er + 7er)',
-        'cards': [('S','A'), ('S','K'), ('H','10'), ('H','9'), ('H','7'),
-                  ('D','6'), ('C','K'), ('C','7'), ('C','6')],
+    {   # Seed 9: Schafkopf ♥
+        'title': 'Hand 4: Schafkopf Herz (3 Damen + 8er)',
+        'cards': [('S','8'), ('S','7'), ('H','O'), ('H','U'), ('H','10'),
+                  ('H','8'), ('D','O'), ('C','A'), ('C','O')],
     },
-    {
-        'title': 'Hand 5: Lange Pik-Farbe (4 Karten)',
-        'cards': [('S','K'), ('S','O'), ('S','10'), ('S','9'),
-                  ('H','9'), ('H','7'), ('D','O'), ('D','9'), ('D','7')],
+    {   # Seed 11: Slalom
+        'title': 'Hand 5: Slalom (Asse + 6er)',
+        'cards': [('S','U'), ('D','K'), ('D','U'), ('D','9'), ('D','8'),
+                  ('C','A'), ('C','U'), ('C','7'), ('C','6')],
     },
 ]
 
