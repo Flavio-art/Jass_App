@@ -170,16 +170,49 @@ def create_chart(hand_info, hand_idx, nn):
     ax1.set_title('Schieber (NN × Multiplikator)', color='white', fontsize=16, pad=10)
 
     # NN gibt Werte 0-1 → ×157 = erwartete Punkte
-    schieber_raw = [max(0, raw_scores[i]) * 157 if i < len(raw_scores) else 0 for i in range(19)]
+    # Schieber: NN-Scores korrigieren wie in Flutter (_selectWithNN)
+    cs = list(raw_scores[:19]) if len(raw_scores) >= 19 else list(raw_scores) + [0]*(19-len(raw_scores))
+    # 1) Slalom = (Oben + Unten) / 2
+    cs[10] = (cs[8] + cs[9]) / 2
+    # 2) Misère/Molotof Dampening
+    cs[11] *= 0.6
+    cs[14] *= 0.6
+    # 3) Slalom-Korrektur: sichere Stiche
+    hand_set = set(indices)
+    hand_vals = set(c % 9 for c in indices)
+    has_ace = 8 in hand_vals
+    has_six = 0 in hand_vals
+    if not has_ace or not has_six:
+        cs[10] = 0  # Slalom blockiert
+    else:
+        def safe_tricks_oben(suit):
+            count = 0
+            for rank in [8,7,6,5,4,3,2,1,0]:
+                if suit*9+rank in hand_set: count += 1
+                else: break
+            return count
+        def safe_tricks_unten(suit):
+            count = 0
+            for rank in [0,1,2,3,4,5,6,7,8]:
+                if suit*9+rank in hand_set: count += 1
+                else: break
+            return count
+        so = sum(safe_tricks_oben(s) for s in range(4))
+        su = sum(safe_tricks_unten(s) for s in range(4))
+        if so + su < 2: cs[10] *= 0.5
+        elif so == 0 or su == 0: cs[10] *= 0.7
 
-    # Schieber: Delta-Amplifikation: adj = mean + (raw - mean) × mult
-    schieber_mean = np.mean([s for s in schieber_raw[4:] if s > 0]) if any(s > 0 for s in schieber_raw[4:]) else 0
-    schieber_adj = [schieber_mean + (schieber_raw[i] - schieber_mean) * SCHIEBER_MULTS[i] for i in range(19)]
-
-    # Schieber hat kein Trump Unten → auf 0 setzen
+    # Schieber-Scores in Punkteskala (×157)
+    schieber_raw = [max(0, cs[i]) * 157 for i in range(19)]
+    # Trump Unten existiert nicht im Schieber
     for i in range(4):
         schieber_raw[i] = 0
-        schieber_adj[i] = 0
+
+    # Delta-Amplifikation: adj = mean + (raw - mean) × mult
+    schieber_valid = [s for s in schieber_raw[4:] if s > 0]
+    schieber_mean = np.mean(schieber_valid) if schieber_valid else 0
+    schieber_adj = [schieber_mean + (schieber_raw[i] - schieber_mean) * SCHIEBER_MULTS[i]
+                    if schieber_raw[i] > 0 else 0 for i in range(19)]
 
     bars_raw = ax1.bar(x - 0.2, schieber_raw[:19], 0.35, color=BAR_COLORS_RAW, alpha=0.5, label='NN roh')
     bars_adj = ax1.bar(x + 0.2, schieber_adj[:19], 0.35, color=BAR_COLORS_MULT[:19], label='× Multiplikator')
