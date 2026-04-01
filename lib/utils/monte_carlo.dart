@@ -712,6 +712,73 @@ class MonteCarloAI {
           return wishSuitCards.first;
         }
       }
+      // Slalom-Übergabe: Farbe anspielen wo Partner in der AKTUELLEN Richtung gewinnt.
+      // Oben-Phase → Partner braucht Ass (höchste verbleibende Karte in Oben).
+      // Unten-Phase → Partner braucht 6 (höchste verbleibende Karte in Unten).
+      // Nicht die falsche Richtung spielen (z.B. in Oben-Phase tiefen Wert anspielen
+      // und hoffen dass Partner mit 6 sticht – das ist Unten-Logik!).
+      {
+        final isObenTrick = state.slalomStartsOben
+            ? (state.currentTrickNumber % 2 == 1)
+            : (state.currentTrickNumber % 2 == 0);
+        final directionMode = isObenTrick ? GameMode.oben : GameMode.unten;
+        // Partner finden (selbes Team)
+        final partnerMatches = state.players
+            .where((p) => p.id != aiPlayer.id && _sameTeamFor(aiPlayer, p, state))
+            .toList();
+        final partner = partnerMatches.isNotEmpty ? partnerMatches.first : null;
+        if (partner != null) {
+          // Farben wo der Partner die höchste verbleibende Karte in der aktuellen Richtung hat
+          final handoffSuits = <Suit>{};
+          for (final pc in partner.hand) {
+            // Prüfe ob diese Karte höchste verbleibende in der Richtung (vs. alle anderen)
+            final pcStrength =
+                GameLogic.cardPlayStrength(pc, directionMode, null);
+            final anyHigher = state.players
+                .where((p) => p.id != partner.id)
+                .expand((p) => p.hand)
+                .any((c) =>
+                    c.suit == pc.suit &&
+                    GameLogic.cardPlayStrength(c, directionMode, null) >
+                        pcStrength);
+            if (!anyHigher) handoffSuits.add(pc.suit);
+          }
+          if (handoffSuits.isNotEmpty) {
+            // AI-Karten dieser Farbe die NICHT selbst höchste verbleibende sind
+            // (also Stich nicht selbst gewinnen, sondern übergeben)
+            final handoffCards = playable.where((c) {
+              if (!handoffSuits.contains(c.suit)) return false;
+              // Sicherstellen dass AI selbst nicht die höchste verbleibende hat
+              final myStrength =
+                  GameLogic.cardPlayStrength(c, directionMode, null);
+              final anyHigherForMe = state.players
+                  .where((p) => p.id != aiPlayer.id)
+                  .expand((p) => p.hand)
+                  .any((h) =>
+                      h.suit == c.suit &&
+                      GameLogic.cardPlayStrength(h, directionMode, null) >
+                          myStrength);
+              return anyHigherForMe; // AI gewinnt nicht selbst → Partner gewinnt
+            }).toList();
+            if (handoffCards.isNotEmpty) {
+              // Karte mit niedrigster MAX-Spielstärke (opfere 10er/9er, schone 6/Ass)
+              handoffCards.sort((a, b) {
+                final aMax = math.max(
+                  GameLogic.cardPlayStrength(a, GameMode.oben, null),
+                  GameLogic.cardPlayStrength(a, GameMode.unten, null),
+                );
+                final bMax = math.max(
+                  GameLogic.cardPlayStrength(b, GameMode.oben, null),
+                  GameLogic.cardPlayStrength(b, GameMode.unten, null),
+                );
+                return aMax.compareTo(bMax);
+              });
+              return handoffCards.first;
+            }
+          }
+        }
+      }
+
       // Keine sicheren Gewinner → Stich abgeben: Karte mit niedrigster
       // MAX-Spielstärke spielen (10=4, 9/Jack=5 → expendable; 6/Ace=8 → NIE).
       final sorted = List.of(playable)..sort((a, b) {
@@ -1062,6 +1129,34 @@ class MonteCarloAI {
               return _weakest(winners, effectMode, trump);
             }
             // Kann nicht absichern → schmieren wie üblich (fall through)
+          }
+
+          // Partner hat den Stich sicher → prüfe ob Überstechen mit 2+ Top-Karten sinnvoll.
+          // Beispiel: Partner spielt ♠U, AI hat ♠A ♠K ♠O → überstechen und Farbe weiter führen.
+          // Bedingung: AI hat 2+ Karten der Anspielfarbe die stärker sind als ALLE Gegner-Karten.
+          if (partnerStichSicher) {
+            final ledSuitO = state.currentTrickCards.first.suit;
+            final mySuitCards = playable
+                .where((c) => c.suit == ledSuitO && _wouldWin(c, state, trump))
+                .toList();
+            if (mySuitCards.length >= 2) {
+              // Prüfe ob alle diese Karten stärker als jede Gegner-Karte in dieser Farbe sind.
+              final opponentSuitCards = state.players
+                  .where((p) => !_sameTeamFor(aiPlayer, p, state))
+                  .expand((p) => p.hand)
+                  .where((c) => c.suit == ledSuitO)
+                  .toList();
+              final myMaxOppStrength = opponentSuitCards.isEmpty
+                  ? 0
+                  : opponentSuitCards.map((c) =>
+                      GameLogic.cardPlayStrength(c, effectMode, trump)).reduce((a, b) => a > b ? a : b);
+              final topMine = mySuitCards.where((c) =>
+                  GameLogic.cardPlayStrength(c, effectMode, trump) > myMaxOppStrength).toList();
+              if (topMine.length >= 2) {
+                // Überstich mit schwächster gewinnender Karte (höchste für späteren Stich aufsparen)
+                return _weakest(topMine, effectMode, trump);
+              }
+            }
           }
 
           // Partner hat den Stich sicher → nicht wegnehmen, schmieren!
