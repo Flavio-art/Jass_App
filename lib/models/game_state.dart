@@ -523,11 +523,12 @@ class GameState {
     // Beide aktiv → anhand der anderen Farbgruppe bestimmen
     final otherKey = variantKey == 'trump_ss' ? 'trump_re' : 'trump_ss';
 
-    // Friseur Solo: pro Spieler (Ansager + gewünschter Partner)
+    // Friseur Solo: pro Spieler (aktueller Wähler, nicht zwingend Ansager)
+    // Nach Schieben ist trumpSelectorIndex gesetzt → der wählt, nicht der Ansager.
     if (gameType == GameType.friseur) {
-      final playerId = players[ansagerIndex].id;
-      final playedOben = trumpPlayedObenPerPlayer[playerId]?.contains(otherKey) ?? false;
-      final playedUnten = trumpPlayedUntenPerPlayer[playerId]?.contains(otherKey) ?? false;
+      final selectorId = players[trumpSelectorIndex ?? ansagerIndex].id;
+      final playedOben = trumpPlayedObenPerPlayer[selectorId]?.contains(otherKey) ?? false;
+      final playedUnten = trumpPlayedUntenPerPlayer[selectorId]?.contains(otherKey) ?? false;
       if (!playedOben && !playedUnten) return null; // noch nicht gespielt → frei
       if (playedOben && playedUnten) return null;   // beide Richtungen gespielt → frei
       return playedOben ? false : true; // nur eine Richtung → entgegengesetzt
