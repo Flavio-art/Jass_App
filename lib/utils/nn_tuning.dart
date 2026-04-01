@@ -44,22 +44,22 @@ class NNTuning {
   // ── Friseur Solo Moduswahl-Multiplikatoren ─────────────
   // Angepasst nach NN-Retraining (2026-03-18): neue Heuristiken in Simulation.
   // Formel: adjusted = raw × mult (direkte Multiplikation)
-  static const double friseurMultTrumpOben = 1.10;
-  static const double friseurMultTrumpUnten = 1.08;
-  static const double friseurMultAllesTrumpf = 1.00;
-  static const double friseurMultOben = 0.90;
-  static const double friseurMultUnten = 1.06;
-  static const double friseurMultSlalom = 1.08;
-  static const double friseurMultSchafkopf = 0.94;
-  static const double friseurMultMisere = 0.80;
-  static const double friseurMultMolotof = 0.80;
-  static const double friseurMultElefant = 3.5;
+  static const double friseurMultTrumpOben = 0.98;
+  static const double friseurMultTrumpUnten = 0.96;
+  static const double friseurMultAllesTrumpf = 1.05;
+  static const double friseurMultOben = 0.95;
+  static const double friseurMultUnten = 1.10;
+  static const double friseurMultSlalom = 1.15;
+  static const double friseurMultSchafkopf = 0.90;
+  static const double friseurMultMisere = 1.15;
+  static const double friseurMultMolotof = 1.12;
+  static const double friseurMultElefant = 4.0;
 
   // ── Friseur Solo Im-Loch-Boost (2× geschoben) ───────────
   // Im Loch wird Misère/Molotof als Fallback attraktiver.
   // Formel: adjusted = raw × mult × lochBoost
-  static const double friseurLochBoostMisere = 1.13;
-  static const double friseurLochBoostMolotof = 1.35;
+  static const double friseurLochBoostMisere = 1.18;
+  static const double friseurLochBoostMolotof = 1.45;
 
   // ── Friseur Solo Schiebe-Schwellenwerte ────────────────
   // 2. Schiebe-Runde: Schwelle leicht senken, damit ~5% trotzdem ansagen.
