@@ -2865,6 +2865,14 @@ class MonteCarloAI {
         .where((c) => _isHighestRemaining(c, state))
         .toSet();
 
+    // Friseur Solo: Wunschkarten-Farbe schützen (Übergabe-Farbe!)
+    // Partner weiss welche Farbe der Ansager wünscht → alle Karten dieser
+    // Farbe behalten für die Übergabe.
+    Suit? protectedWishSuit;
+    if (state.gameType == GameType.friseur && state.wishCard != null) {
+      protectedWishSuit = state.wishCard!.suit;
+    }
+
     // Wertvolle Stichkarten schützen: Karten die in zukünftigen Stichen
     // gewinnen könnten (Asse im Oben, 6er im Unten, beide im Slalom/Elefant)
     final valuable = <JassCard>{};
@@ -2962,6 +2970,15 @@ class MonteCarloAI {
       if (gm == GameMode.misere) {
         if (c.value == CardValue.six || c.value == CardValue.seven ||
             c.value == CardValue.eight) {
+          valuable.add(c);
+        }
+      }
+      // Friseur Solo: Wunschkarten-Farbe schützen (Übergabe an/vom Partner)
+      // Alle Karten dieser Farbe behalten – nur Einzelkarten loswerden
+      // die NICHT höchste verbleibende sind.
+      if (protectedWishSuit != null && c.suit == protectedWishSuit) {
+        if (_isHighestRemaining(c, state) ||
+            cards.where((h) => h.suit == protectedWishSuit).length >= 2) {
           valuable.add(c);
         }
       }
