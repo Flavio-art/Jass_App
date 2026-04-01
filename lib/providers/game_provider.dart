@@ -155,7 +155,9 @@ class GameProvider extends ChangeNotifier {
         for (final v in allVariants) {
           final scores = s.friseurSoloScores[playerId]?[v] ?? [];
           if (scores.isNotEmpty) {
-            total += (scores.reduce((a, b) => a + b) / scores.length).round();
+            final avg = scores.reduce((a, b) => a + b) / scores.length;
+            // 2 Runden: aufrunden, 3+: normal runden
+            total += scores.length <= 2 ? avg.ceil() : avg.round();
           }
         }
         return total;
