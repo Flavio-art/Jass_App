@@ -1415,6 +1415,20 @@ class MonteCarloAI {
         avg -= 35.0; // Riskant: Gegner hat die stärkere Karte
       }
 
+      // ── Partner-Signalisierung beim Anspielen ──────────────────────────────
+      // Bevorzuge Farben, die der Partner bereits gespielt hat – das signalisiert
+      // dass er Karten in dieser Farbe besitzt und für den Stich genutzt werden kann.
+      // Farben, die der Partner nie gespielt hat, meidet er wahrscheinlich (blank).
+      if (state.currentTrickCards.isEmpty &&
+          state.completedTricks.isNotEmpty &&
+          state.gameMode != GameMode.misere &&
+          state.gameMode != GameMode.molotof) {
+        final partnerSuits = _suitsPlayedByPartner(state, aiPlayer);
+        if (partnerSuits.isNotEmpty && partnerSuits.contains(card.suit)) {
+          avg += 6.0; // Partner hat diese Farbe gespielt → bevorzugen
+        }
+      }
+
       // Sichere Gewinner nicht abwerfen (nicht bedienen können)
       if (state.currentTrickCards.isNotEmpty) {
         final ledSuit = state.currentTrickCards.first.suit;
@@ -2410,6 +2424,33 @@ class MonteCarloAI {
         return sorted.first;
       }
 
+      // ── Gegner-Anspiel-Strategie ──────────────────────────────────────────
+      // Wenn ein Gegner des Ansagers anspielt, soll er seine stärkste Karte nutzen.
+      // - Bevorzuge Farben mit höchster verbleibender Karte (sicherer Stich).
+      // - Meide Farben wo das Ass schon gespielt ist (unsichere Führung).
+      // - Falls Ansager letzte(r) im Stich sein könnte, besondere Vorsicht.
+      if (state.ansagerIndex < state.players.length) {
+        final announcerPlayer = state.players[state.ansagerIndex];
+        final isOpponent = !_sameTeamFor(player, announcerPlayer, state);
+        if (isOpponent &&
+            state.gameMode != GameMode.misere &&
+            state.gameMode != GameMode.molotof) {
+          // Farben mit höchster verbleibender Karte → sicherer Stich
+          final safeLeads = playable
+              .where((c) => _isHighestRemaining(c, state))
+              .toList();
+          // Priorität: höchste Punkte zuerst
+          if (safeLeads.isNotEmpty) {
+            safeLeads.sort((a, b) =>
+                GameLogic.cardPoints(b, effectMode, trump)
+                    .compareTo(GameLogic.cardPoints(a, effectMode, trump)));
+            return safeLeads.first;
+          }
+          // Kein sicherer Gewinner → schwächste Karte spielen (wenig riskieren)
+          return _weakest(playable, effectMode, trump);
+        }
+      }
+
       return _strongest(playable, effectMode, trump);
     }
 
@@ -3084,6 +3125,24 @@ class MonteCarloAI {
     }
 
     return voids;
+  }
+
+  /// Gibt die Farben zurück, die der Partner des gegebenen Spielers in
+  /// abgeschlossenen Stichen bereits gespielt hat.
+  /// Wenn eine Farbe nie vom Partner gespielt wurde, hat er sie wahrscheinlich nicht.
+  static Set<Suit> _suitsPlayedByPartner(GameState state, Player player) {
+    final result = <Suit>{};
+    final partner = state.players.firstWhere(
+      (p) => p.id != player.id && _sameTeamFor(player, p, state),
+      orElse: () => player,
+    );
+    if (partner.id == player.id) return result; // kein Partner gefunden
+
+    for (final trick in state.completedTricks) {
+      final partnerCard = trick.cards[partner.id];
+      if (partnerCard != null) result.add(partnerCard.suit);
+    }
+    return result;
   }
 
   /// Rekonstruiert bekannte Karten aus geweisten Einträgen (nur wenn wyssResolved).

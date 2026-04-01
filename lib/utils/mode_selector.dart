@@ -757,6 +757,8 @@ class ModeSelectorAI {
 
     // Slalom: Sichere Stiche zählen und schwächere Richtung verstärken.
     // Wunschkarte in einer Farbe die man anspielen kann (Karten in Hand hat).
+    // Strategie: Wünsche eine Karte in einer Farbe wo du SCHWACH bist in der
+    // benötigten Richtung – nicht in einer Farbe die du bereits dominierst.
     if (mode == GameMode.slalom) {
       final allSuits = cardType == CardType.french
           ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
@@ -764,20 +766,41 @@ class ModeSelectorAI {
       // Farben in denen man Karten hat (kann man anspielen)
       final handSuits = hand.map((c) => c.suit).toSet();
 
-      // Sichere Stiche zählen
+      // Sichere Stiche pro Farbe und Richtung zählen
+      final safeObenPerSuit = <Suit, int>{};
+      final safeUntenPerSuit = <Suit, int>{};
       int totalSafeOben = 0;
       int totalSafeUnten = 0;
       for (final s in allSuits) {
-        totalSafeOben += _safeTricksOben(hand, s);
-        totalSafeUnten += _safeTricksUnten(hand, s);
+        final o = _safeTricksOben(hand, s);
+        final u = _safeTricksUnten(hand, s);
+        safeObenPerSuit[s] = o;
+        safeUntenPerSuit[s] = u;
+        totalSafeOben += o;
+        totalSafeUnten += u;
       }
 
       // Schwächere Seite verstärken
       if (totalSafeOben <= totalSafeUnten) {
-        // Oben schwächer → Ass wünschen in einer anspielbaren Farbe
-        // Bevorzuge Farbe wo man König hat (Ass+König = 2 sichere)
+        // Oben schwächer → Ass wünschen in einer Farbe wo man LOW-Karten hat
+        // aber KEIN Ass (d.h. schwach in Oben), damit Partner Oben übernimmt,
+        // man selbst kümmert sich um Unten.
+        // Meide Farben wo man bereits sichere Oben-Stiche hat (schon stark).
         final suitsByPriority = [...allSuits]
           ..sort((a, b) {
+            // Bevorzuge Farben mit 0 sicheren Oben-Stichen (schwach in Oben)
+            final aOben = safeObenPerSuit[a] ?? 0;
+            final bOben = safeObenPerSuit[b] ?? 0;
+            if (aOben != bOben) return aOben.compareTo(bOben); // weniger Oben → bevorzugen
+            // Tiebreak: Farbe wo man tiefe Karten hat (gut für Unten → Partner macht Oben)
+            final aHasLow = hand.where((c) =>
+                c.suit == a && (c.value == CardValue.seven ||
+                c.value == CardValue.eight || c.value == CardValue.nine)).length;
+            final bHasLow = hand.where((c) =>
+                c.suit == b && (c.value == CardValue.seven ||
+                c.value == CardValue.eight || c.value == CardValue.nine)).length;
+            if (aHasLow != bHasLow) return bHasLow.compareTo(aHasLow);
+            // Tiebreak: König vorhanden (Ass+König = 2 sichere Oben)
             final aHasKing = hand.any((c) => c.suit == a && c.value == CardValue.king) ? 1 : 0;
             final bHasKing = hand.any((c) => c.suit == b && c.value == CardValue.king) ? 1 : 0;
             if (aHasKing != bHasKing) return bHasKing - aHasKing;
@@ -792,9 +815,25 @@ class ModeSelectorAI {
           if (card.suit == suit && card.value == CardValue.ace) return card;
         }
       } else {
-        // Unten schwächer → 6 wünschen in einer anspielbaren Farbe
+        // Unten schwächer → 6 wünschen in einer Farbe wo man HOHE Karten hat
+        // aber KEINE 6 (d.h. schwach in Unten), damit Partner Unten übernimmt,
+        // man selbst kümmert sich um Oben.
+        // Meide Farben wo man bereits sichere Unten-Stiche hat (schon stark).
         final suitsByPriority = [...allSuits]
           ..sort((a, b) {
+            // Bevorzuge Farben mit 0 sicheren Unten-Stichen (schwach in Unten)
+            final aUnten = safeUntenPerSuit[a] ?? 0;
+            final bUnten = safeUntenPerSuit[b] ?? 0;
+            if (aUnten != bUnten) return aUnten.compareTo(bUnten); // weniger Unten → bevorzugen
+            // Tiebreak: Farbe wo man hohe Karten hat (gut für Oben → Partner macht Unten)
+            final aHasHigh = hand.where((c) =>
+                c.suit == a && (c.value == CardValue.ace ||
+                c.value == CardValue.king || c.value == CardValue.queen)).length;
+            final bHasHigh = hand.where((c) =>
+                c.suit == b && (c.value == CardValue.ace ||
+                c.value == CardValue.king || c.value == CardValue.queen)).length;
+            if (aHasHigh != bHasHigh) return bHasHigh.compareTo(aHasHigh);
+            // Tiebreak: 7 vorhanden (6+7 = 2 sichere Unten)
             final aHas7 = hand.any((c) => c.suit == a && c.value == CardValue.seven) ? 1 : 0;
             final bHas7 = hand.any((c) => c.suit == b && c.value == CardValue.seven) ? 1 : 0;
             if (aHas7 != bHas7) return bHas7 - aHas7;
