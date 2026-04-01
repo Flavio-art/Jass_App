@@ -1444,16 +1444,22 @@ class GameProvider extends ChangeNotifier {
     }
     if (available.isEmpty) return;
 
+    // Überprüfe ob irgendein Modus einen sehr hohen Score hat (7+ sichere Stiche).
+    // Falls ja → NIEMALS schieben, sofort ansagen.
+    const neverSchiebenScore = 140.0;
+    final highScore = ModeSelectorAI.bestHeuristicScore(
+      hand: selector.hand,
+      state: _state,
+      available: available,
+    );
+    final hasGuaranteedWin = highScore >= neverSchiebenScore;
+
     // Schieber / Friseur Team: KI kann einmal zum Partner schieben
-    if ((_state.gameType == GameType.schieber || _state.gameType == GameType.friseurTeam) &&
+    if (!hasGuaranteedWin &&
+        (_state.gameType == GameType.schieber || _state.gameType == GameType.friseurTeam) &&
         _state.trumpSelectorIndex == null) {
       const schiebenThreshold = 105.0;
-      final score = ModeSelectorAI.bestHeuristicScore(
-        hand: selector.hand,
-        state: _state,
-        available: available,
-      );
-      if (score < schiebenThreshold) {
+      if (highScore < schiebenThreshold) {
         schieben();
         return;
       }
@@ -1461,7 +1467,8 @@ class GameProvider extends ChangeNotifier {
 
     // Friseur Solo: KI als Ursprungs-Ansager kann schieben wenn Hand schlecht.
     // Dynamischer Schwellenwert: je mehr Varianten noch offen, desto wählerischer.
-    if (_state.gameType == GameType.friseur &&
+    if (!hasGuaranteedWin &&
+        _state.gameType == GameType.friseur &&
         _state.soloSchiebungRounds < 2 &&
         _state.trumpSelectorIndex == null) {
       // 2. Runde: Schwelle leicht senken → ~5-10% sagen trotzdem an
@@ -1597,13 +1604,35 @@ class GameProvider extends ChangeNotifier {
       return available.first;
     }
 
-    // Bei Undenufe: Sechs wünschen, Fallback Sieben/Acht einer anspielbaren Farbe
+    // Bei Undenufe: Sechs wünschen – bevorzugt Farbe mit hohen Opferkarten
+    // (K, Q, J, 10, A = schwach in Unten → können geopfert werden wenn 6 gespielt)
     if (mode == GameMode.unten) {
+      const highVals = {CardValue.ace, CardValue.king, CardValue.queen,
+          CardValue.jack, CardValue.ten};
+      const lowVals = {CardValue.seven, CardValue.eight};
       final handSuits = selector.hand.map((c) => c.suit).toSet();
       for (final val in [CardValue.six, CardValue.seven, CardValue.eight]) {
         final candidates = available.where((c) => c.value == val).toList();
         if (candidates.isEmpty) continue;
-        // Farbe wo man die nächsttiefere Karte hat (z.B. 6 für 7er-Wunsch)
+        // Farbe mit den meisten hohen Opferkarten bevorzugen
+        candidates.sort((a, b) {
+          final aHigh = selector.hand
+              .where((h) => h.suit == a.suit && highVals.contains(h.value))
+              .length;
+          final bHigh = selector.hand
+              .where((h) => h.suit == b.suit && highVals.contains(h.value))
+              .length;
+          if (aHigh != bHigh) return bHigh.compareTo(aHigh); // mehr Opferkarten besser
+          // Tiebreak: Farbe mit tiefem Begleiter (7, 8)
+          final aLow = selector.hand
+              .where((h) => h.suit == a.suit && lowVals.contains(h.value))
+              .length;
+          final bLow = selector.hand
+              .where((h) => h.suit == b.suit && lowVals.contains(h.value))
+              .length;
+          return bLow.compareTo(aLow);
+        });
+        // Bevorzuge Farbe wo man auch eine tiefere Karte hat zum Anspielen
         final withLead = candidates.where((c) =>
             selector.hand.any((h) => h.suit == c.suit &&
                 GameLogic.cardPlayStrength(h, GameMode.unten, null) >
