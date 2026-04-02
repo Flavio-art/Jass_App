@@ -2468,6 +2468,7 @@ class GameProvider extends ChangeNotifier {
                 _state.effectiveMode == GameMode.trumpUnten)
             ? _state.trumpSuit
             : null,
+        isMolotow: _state.gameMode == GameMode.molotof,
     );
     if (!playable.contains(card)) return;
 
@@ -2899,6 +2900,7 @@ class GameProvider extends ChangeNotifier {
                 _state.effectiveMode == GameMode.schafkopf)
             ? _state.trumpSuit
             : null,
+        isMolotow: _state.gameMode == GameMode.molotof,
     ).toSet();
   }
 
