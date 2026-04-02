@@ -326,14 +326,21 @@ class ModeSelectorAI {
             ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
             : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
         for (int si = 0; si < 4; si++) {
+          // Trumpf-Anzahl-Check: min 4 Trümpfe nötig
+          final skTrumpCount = _countSchafkopfTrumps(hand, suitList[si]);
+          final skQueenCount = hand.where((c) => c.value == CardValue.queen).length;
+          double skPenalty = 1.0;
+          if (skTrumpCount < 4) skPenalty = 0.3;
+          else if (skTrumpCount < 5) skPenalty = 0.6;
+          if (skQueenCount == 0) skPenalty *= 0.4;
+
           final nnIdx = 15 + si;
           if (nnIdx < cs.length) {
-            final s = adj(cs[nnIdx], mult(variant));
+            final s = adj(cs[nnIdx], mult(variant)) * skPenalty;
             if (s > bestScore) { bestScore = s; bestMode = GameMode.schafkopf; bestTrump = suitList[si]; }
           } else {
-            // Fallback Heuristik falls NN noch altes Format (14 Outputs)
             final hNorm = (_scoreSchafkopf(hand, suitList[si]) / 150.0).clamp(0.0, 1.0);
-            final s = adj(nnMin + hNorm * nnRange, mult(variant));
+            final s = adj(nnMin + hNorm * nnRange, mult(variant)) * skPenalty;
             if (s > bestScore) { bestScore = s; bestMode = GameMode.schafkopf; bestTrump = suitList[si]; }
           }
         }
@@ -522,6 +529,15 @@ class ModeSelectorAI {
       } else {
         // Heuristik-Score
         score = scoreForMode(best9, cand.mode, cand.trump);
+      }
+
+      // Schafkopf NN-Score auch bestrafen bei zu wenig Trümpfen
+      if (cand.mode == GameMode.schafkopf && cand.trump != null) {
+        final skTrumps = _countSchafkopfTrumps(hand, cand.trump!);
+        final skQueens = hand.where((c) => c.value == CardValue.queen).length;
+        if (skTrumps < 4) score *= 0.3;
+        else if (skTrumps < 5) score *= 0.6;
+        if (skQueens == 0) score *= 0.4;
       }
 
       // Slalom-Richtung bestimmen: sichere Stiche zählen
@@ -1304,13 +1320,20 @@ class ModeSelectorAI {
   /// Schafkopf: Damen + Achter immer Trumpf + gewählte Farbe.
   static double _scoreSchafkopf(List<JassCard> hand, Suit trumpSuit) {
     double score = 0;
+    int trumpCount = 0;
+    int queenCount = 0;
+
     for (final card in hand) {
       if (card.value == CardValue.queen) {
         score += 20; // Damen sind immer Trumpf, stark
+        trumpCount++;
+        queenCount++;
       } else if (card.value == CardValue.eight) {
         score += 15; // Achter sind immer Trumpf
+        trumpCount++;
       } else if (card.suit == trumpSuit) {
         // Normale Trumpffarbe-Karten
+        trumpCount++;
         switch (card.value) {
           case CardValue.ten:
             score += 14;
@@ -1325,7 +1348,38 @@ class ModeSelectorAI {
         }
       }
     }
+
+    // Mindestens 5 Trümpfe (inkl. Damen/8er) + mind. 2 Damen (mit Wunschkarte)
+    // Unter 4 Trümpfe: viel zu wenig → stark bestrafen
+    // Unter 5 Trümpfe: riskant → bestrafen
+    if (trumpCount < 4) {
+      score *= 0.3; // Viel zu wenig Trümpfe
+    } else if (trumpCount < 5) {
+      score *= 0.6; // Riskant
+    }
+
+    // Ohne eigene Dame: Partner muss alle Damen haben → sehr riskant
+    if (queenCount == 0) {
+      score *= 0.4;
+    }
+
+    // Bonus für viele Trümpfe (exponentiell besser)
+    if (trumpCount >= 6) score *= 1.3;
+    if (trumpCount >= 7) score *= 1.2;
+
+    // Trumpffarbe mit meisten Karten belohnen
+    final trumpSuitCards = hand.where((c) => c.suit == trumpSuit).length;
+    score += trumpSuitCards * 5; // Mehr Karten der Trumpffarbe = besser
+
     return score;
+  }
+
+  /// Zählt Schafkopf-Trümpfe (Damen + 8er + Trumpffarbe-Karten).
+  static int _countSchafkopfTrumps(List<JassCard> hand, Suit trumpSuit) {
+    return hand.where((c) =>
+        c.value == CardValue.queen ||
+        c.value == CardValue.eight ||
+        c.suit == trumpSuit).length;
   }
 
   /// Molotof: Ziel ist wenig Punkte (157 − eigene).

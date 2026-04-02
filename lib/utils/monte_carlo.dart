@@ -592,7 +592,23 @@ class MonteCarloAI {
         // Schafkopf-Eröffnung: tiefen Trumpf anspielen damit Partner
         // mit höchster Dame stechen kann. Ideal: Trumpf-Ass (11 Pkt, tiefer Trumpf).
         // Trumpf-Ass > Trumpf-9 > Trumpf-7 > Trumpf-6 (nach Punkten absteigend)
+        //
+        // Fix 2: Eigene Damen (NICHT die Wunsch-Dame) bevorzugen – sie sind die
+        // stärksten verbleibenden Trümpfe und garantieren den Stichgewinn.
         if (isAnnouncer && mySchafkopfTrumps.length >= 2) {
+          // Fix 2: Eigene Queens die NICHT die Wunsch-Dame sind → garantierter Stich.
+          // Die Wunsch-Dame ist beim Partner → alle anderen Damen schlagen Gegner.
+          if (state.wishCard != null &&
+              state.gameType == GameType.friseur) {
+            final wishQueen = state.wishCard!;
+            final ownQueens = mySchafkopfTrumps.where((c) =>
+                c.value == CardValue.queen && c != wishQueen).toList();
+            if (ownQueens.isNotEmpty) {
+              // Stärkste eigene Dame (schlägt alle schwächeren Damen der Gegner)
+              return _strongest(ownQueens, state.effectiveMode, trump);
+            }
+          }
+
           // Trumpffarben-Karten (keine Damen/8er) → tiefe Trümpfe zum Anspielen
           final trumpSuitCards = mySchafkopfTrumps.where((c) =>
               c.suit == trump &&
@@ -619,6 +635,47 @@ class MonteCarloAI {
             return _weakest(nonTrump, state.effectiveMode, trump);
           }
           // Wirklich nur Damen/8er → tiefste opfern
+          return _weakest(mySchafkopfTrumps, state.effectiveMode, trump);
+        }
+
+        // Fix 1: Partner nach Reveal: auch Trumpf ziehen (Damen ausspielen!)
+        // Nach Aufdeckung kennt der Partner seine Rolle und soll aktiv
+        // Gegner-Trümpfe herauslocken – genau wie der Ansager.
+        final isPartner = state.friseurPartnerRevealed &&
+            state.friseurPartnerIndex != null &&
+            aiPlayer.id == state.players[state.friseurPartnerIndex!].id;
+        if (isPartner && mySchafkopfTrumps.length >= 2) {
+          // Fix 2: Eigene Queens priorisieren (Wunsch-Dame ist beim Ansager)
+          if (state.wishCard != null &&
+              state.gameType == GameType.friseur) {
+            final wishQueen = state.wishCard!;
+            final ownQueens = mySchafkopfTrumps.where((c) =>
+                c.value == CardValue.queen && c != wishQueen).toList();
+            if (ownQueens.isNotEmpty) {
+              return _strongest(ownQueens, state.effectiveMode, trump);
+            }
+          }
+
+          // Trumpffarben-Karten (keine Damen/8er) → Ass für Punkte bevorzugen
+          final trumpSuitCards = mySchafkopfTrumps.where((c) =>
+              c.suit == trump &&
+              c.value != CardValue.queen &&
+              c.value != CardValue.eight).toList();
+          if (trumpSuitCards.isNotEmpty) {
+            final trumpAce = trumpSuitCards
+                .where((c) => c.value == CardValue.ace).toList();
+            if (trumpAce.isNotEmpty) return trumpAce.first;
+            trumpSuitCards.sort((a, b) =>
+                GameLogic.cardPoints(b, state.effectiveMode, trump)
+                    .compareTo(GameLogic.cardPoints(a, state.effectiveMode, trump)));
+            return trumpSuitCards.first;
+          }
+          final nonTrumpPartner = playable
+              .where((c) => !_isSchafkopfTrump(c, trump))
+              .toList();
+          if (nonTrumpPartner.isNotEmpty) {
+            return _weakest(nonTrumpPartner, state.effectiveMode, trump);
+          }
           return _weakest(mySchafkopfTrumps, state.effectiveMode, trump);
         }
 
@@ -821,6 +878,10 @@ class MonteCarloAI {
     // Wenn der Ansager keine sicheren Gewinner hat, spielt er die Farbe der
     // Wunschkarte an, damit der Partner mit der Wunschkarte stechen kann.
     // Slalom/Elefant: nur wenn die aktuelle Richtung zur Wunschkarte passt.
+    //
+    // Fix 4: Punktekarte statt schwächste spielen – der Partner gewinnt den
+    // Stich sowieso mit der Wunschkarte, also lieber K(4Pkt) als A(0Pkt in
+    // einigen Modi) ins eigene Team einbringen.
     if (state.currentTrickCards.isEmpty &&
         state.gameType == GameType.friseur &&
         state.wishCard != null) {
@@ -833,7 +894,11 @@ class MonteCarloAI {
           final hasSafeWinners =
               playable.any((c) => _isHighestRemaining(c, state));
           if (!hasSafeWinners) {
-            return _weakest(wishSuitCards, state.effectiveMode, state.trumpSuit);
+            // Fix 4: Karte mit HÖCHSTEN Punkten spielen (Partner gewinnt Stich ohnehin)
+            wishSuitCards.sort((a, b) =>
+                GameLogic.cardPoints(b, state.effectiveMode, state.trumpSuit)
+                    .compareTo(GameLogic.cardPoints(a, state.effectiveMode, state.trumpSuit)));
+            return wishSuitCards.first;
           }
         }
       }
@@ -1659,8 +1724,12 @@ class MonteCarloAI {
           state.gameMode != GameMode.misere &&
           state.gameMode != GameMode.molotof) {
         final partnerSuits = _suitsPlayedByPartner(state, aiPlayer);
-        if (partnerSuits.isNotEmpty && partnerSuits.contains(card.suit)) {
-          avg += 6.0; // Partner hat diese Farbe gespielt → bevorzugen
+        if (partnerSuits.isNotEmpty) {
+          if (partnerSuits.contains(card.suit)) {
+            avg += 12.0; // Partner hat diese Farbe gespielt → bevorzugen
+          } else {
+            avg -= 15.0; // Partner hat diese Farbe NIE gespielt → meiden!
+          }
         }
       }
 
