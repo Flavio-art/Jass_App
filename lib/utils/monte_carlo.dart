@@ -730,16 +730,78 @@ class MonteCarloAI {
       }
     }
 
-    // ── Slalom: sichere Gewinner sofort ausspielen ─────────────────────────
-    // In der Oben-Phase sind Asse (höchste Spielstärke) sichere Gewinner,
-    // in der Unten-Phase sind 6er (höchste Spielstärke). MC unterschätzt
-    // diese garantierten Stiche, daher heuristisch zuerst abräumen.
+    // ── Slalom: Vorausplanung + sichere Gewinner ────────────────────────────
+    // ERST prüfen: wenn nach diesem Stich die Richtung wechselt und ich in
+    // der neuen Richtung SCHWACH bin → lieber JETZT übergeben statt eigenen
+    // Stich spielen. Eigenen Stich für SPÄTER aufsparen.
     if (state.currentTrickCards.isEmpty &&
         state.gameMode == GameMode.slalom) {
       final effectMode = state.effectiveMode;
+      final trickNum = state.currentTrickNumber;
+      final isObenNow = state.slalomStartsOben
+          ? (trickNum % 2 == 1) : (trickNum % 2 == 0);
+      final nextIsOben = !isObenNow; // nächster Stich = andere Richtung
+      final nextMode = nextIsOben ? GameMode.oben : GameMode.unten;
+
+      // Habe ich sichere Stiche in der NÄCHSTEN Richtung?
+      final allSuits = state.cardType == CardType.french
+          ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
+          : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
+      int safeNextDir = 0;
+      for (final s in allSuits) {
+        final myCards = aiPlayer.hand.where((c) => c.suit == s).toList();
+        for (final c in myCards) {
+          final str = GameLogic.cardPlayStrength(c, nextMode, null);
+          // Höchste in der nächsten Richtung?
+          final anyHigher = state.players.expand((p) => p.hand).any((o) =>
+              o != c && o.suit == s &&
+              GameLogic.cardPlayStrength(o, nextMode, null) > str);
+          if (!anyHigher) safeNextDir++;
+        }
+      }
+
+      // Sichere Stiche in der AKTUELLEN Richtung
       final safeLeads = playable
           .where((c) => _isHighestRemaining(c, state))
           .toList();
+
+      // Schwach in nächster Richtung (0 sichere Stiche) + habe sicheren Stich jetzt
+      // → lieber ÜBERGEBEN statt eigenen Stich spielen
+      if (safeNextDir == 0 && safeLeads.isNotEmpty && trickNum < 9) {
+        // Partner finden
+        final partnerMatches = state.players
+            .where((p) => p.id != aiPlayer.id && _sameTeamFor(aiPlayer, p, state))
+            .toList();
+        final partner = partnerMatches.isNotEmpty ? partnerMatches.first : null;
+
+        if (partner != null) {
+          // Farbe wo Partner die höchste in der AKTUELLEN Richtung hat
+          final handoffCards = playable.where((c) {
+            if (_isHighestRemaining(c, state)) return false; // eigener Stich → nicht übergeben
+            // Partner hat höhere Karte in dieser Farbe?
+            return partner.hand.any((pc) =>
+                pc.suit == c.suit &&
+                GameLogic.cardPlayStrength(pc, effectMode, null) >
+                    GameLogic.cardPlayStrength(c, effectMode, null));
+          }).toList();
+
+          if (handoffCards.isNotEmpty) {
+            // Karte mit wenigster max-Spielstärke opfern (10er vor 6/Ass)
+            handoffCards.sort((a, b) {
+              final aMax = math.max(
+                  GameLogic.cardPlayStrength(a, GameMode.oben, null),
+                  GameLogic.cardPlayStrength(a, GameMode.unten, null));
+              final bMax = math.max(
+                  GameLogic.cardPlayStrength(b, GameMode.oben, null),
+                  GameLogic.cardPlayStrength(b, GameMode.unten, null));
+              return aMax.compareTo(bMax);
+            });
+            return handoffCards.first;
+          }
+        }
+      }
+
+      // Normal: sichere Gewinner sofort ausspielen
       if (safeLeads.isNotEmpty) {
         safeLeads.sort((a, b) =>
             GameLogic.cardPoints(b, effectMode, null)
@@ -1693,6 +1755,21 @@ class MonteCarloAI {
               card.suit == state.trumpSuit) {
             avg -= 30.0; // Partner-Stich nicht überstechen
           }
+        }
+      }
+
+      // Slalom: beim Anspielen Karte bestrafen wenn sie in der FALSCHEN Richtung
+      // liegt. z.B. Oben-Phase aber tiefe Karte → Partner kann nicht übernehmen.
+      if (state.currentTrickCards.isEmpty && state.gameMode == GameMode.slalom) {
+        final isObenTrickMC = state.slalomStartsOben
+            ? (state.currentTrickNumber % 2 == 1)
+            : (state.currentTrickNumber % 2 == 0);
+        final dirModeMC = isObenTrickMC ? GameMode.oben : GameMode.unten;
+        final cardStr = GameLogic.cardPlayStrength(card, dirModeMC, null);
+        // In Oben: tiefe Karten (str < 4) bestrafen
+        // In Unten: hohe Karten (str < 4) bestrafen
+        if (cardStr < 4 && !_isHighestRemaining(card, state)) {
+          avg -= 10.0; // Falsche Richtung → meiden
         }
       }
 
