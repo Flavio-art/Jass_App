@@ -981,33 +981,39 @@ class MonteCarloAI {
       }
     }
 
-    // ── Misere: IMMER tiefste Karte spielen (nicht gewinnen!) ──────────────
-    // Gilt für ALLE Spieler, nicht nur Ansager-Team.
-    // Tiefste Karte = verliert sicher = keine Punkte kassieren.
+    // ── Misere: tiefste Karte spielen ODER gefährlichste abwerfen ──────────
     if (state.gameMode == GameMode.misere &&
         state.currentTrickCards.isNotEmpty) {
       final effectMode = state.effectiveMode;
       final trump = state.trumpSuit;
-      // Karten die NICHT gewinnen → tiefste spielen (wenigste Punkte)
-      final losing = playable
-          .where((c) => !_wouldWin(c, state, trump))
-          .toList();
-      if (losing.isNotEmpty) {
-        // Tiefste Spielstärke + wenigste Punkte
-        losing.sort((a, b) {
-          final aStr = GameLogic.cardPlayStrength(a, effectMode, trump);
-          final bStr = GameLogic.cardPlayStrength(b, effectMode, trump);
-          if (aStr != bStr) return aStr.compareTo(bStr);
-          return GameLogic.cardPoints(a, effectMode, trump)
-              .compareTo(GameLogic.cardPoints(b, effectMode, trump));
-        });
-        return losing.first;
+      final ledSuitM = state.currentTrickCards.first.suit;
+      final hasLedSuitM = playable.any((c) => c.suit == ledSuitM);
+
+      if (hasLedSuitM) {
+        // Farbzwang: tiefste nicht-gewinnende Karte (verliert sicher)
+        final losing = playable
+            .where((c) => !_wouldWin(c, state, trump))
+            .toList();
+        if (losing.isNotEmpty) {
+          losing.sort((a, b) {
+            final aStr = GameLogic.cardPlayStrength(a, effectMode, trump);
+            final bStr = GameLogic.cardPlayStrength(b, effectMode, trump);
+            if (aStr != bStr) return aStr.compareTo(bStr);
+            return GameLogic.cardPoints(a, effectMode, trump)
+                .compareTo(GameLogic.cardPoints(b, effectMode, trump));
+          });
+          return losing.first;
+        }
+        // Muss gewinnen → wenigste Punkte
+        playable.sort((a, b) =>
+            GameLogic.cardPoints(a, effectMode, trump)
+                .compareTo(GameLogic.cardPoints(b, effectMode, trump)));
+        return playable.first;
+      } else {
+        // Fehlfarbe: GEFÄHRLICHSTE Karte loswerden! (hohe Stärke = gewinnt Stiche)
+        // Tiefe Karten (6, 7, 8) behalten = sichere Verlierer für später
+        return _misereDiscard(playable, aiPlayer);
       }
-      // Muss gewinnen → wenigste Punkte
-      playable.sort((a, b) =>
-          GameLogic.cardPoints(a, effectMode, trump)
-              .compareTo(GameLogic.cardPoints(b, effectMode, trump)));
-      return playable.first;
     }
 
     // ── Molotow nach Trigger: alle Spieler wollen möglichst wenig Punkte ──
@@ -1082,8 +1088,19 @@ class MonteCarloAI {
               if (shouldReveal) {
                 return state.wishCard!;
               }
+            } else {
+              // Nicht-Trumpf (Oben/Unten/Slalom): Partner übernimmt wenn
+              // Ansager NICHT sicher gewinnt vs. Gegner.
+              // z.B. Ansager spielt ♥10 (Oben), Gegner haben ♥Ass → nicht sicher
+              // → Partner spielt Wunschkarte ♥6 um Stich für Team zu sichern.
+              final isNonTrumpFlat = effectMode == GameMode.oben ||
+                  effectMode == GameMode.unten;
+              if (isNonTrumpFlat &&
+                  !_isHighestRemainingVsOpponents(
+                      ansagerCard, aiPlayer, state)) {
+                return state.wishCard!;
+              }
             }
-            // Nicht-Trumpf → NICHT revealen (zu aggressiv)
           }
 
           // Prüfe ob Ansager den Stich schon hat
@@ -1718,6 +1735,50 @@ class MonteCarloAI {
           if (_sameTeamFor(aiPlayer, winner, state)) {
             avg -= 30.0; // Buur aufsparen, Partner hat Stich mit Nell
           }
+        }
+      }
+
+      // Stechen lohnt sich bei vielen Punkten im Stich!
+      // Wenn Gegner gewinnt und viele Punkte liegen → Trumpf-Stechen belohnen
+      if (state.currentTrickCards.isNotEmpty &&
+          state.trumpSuit != null &&
+          card.suit == state.trumpSuit &&
+          _wouldWin(card, state, state.trumpSuit)) {
+        final currentWinnerIdMC = GameLogic.determineTrickWinner(
+          cards: state.currentTrickCards,
+          playerIds: state.currentTrickPlayerIds,
+          gameMode: state.gameMode,
+          trumpSuit: state.trumpSuit,
+          trickNumber: state.currentTrickNumber,
+          molotofSubMode: state.molotofSubMode,
+          slalomStartsOben: state.slalomStartsOben,
+        );
+        final winnerMC = state.players.firstWhere((p) => p.id == currentWinnerIdMC);
+        final gegnerGewinnt = !_sameTeamFor(aiPlayer, winnerMC, state);
+        if (gegnerGewinnt) {
+          // Punkte im Stich berechnen
+          int trickPts = 0;
+          for (final tc in state.currentTrickCards) {
+            trickPts += GameLogic.cardPoints(tc, state.effectiveMode, state.trumpSuit);
+          }
+          if (trickPts >= 10) {
+            avg += 20.0; // Viele Punkte → unbedingt stechen!
+          } else if (trickPts >= 4) {
+            avg += 8.0; // Einige Punkte → stechen lohnt sich
+          }
+        }
+      }
+
+      // Nicht-Trumpf-Asse beim Anspielen bestrafen wenn Gegner noch Trumpf hat
+      // → Gegner kann stechen! Erst Trümpfe ziehen, dann Asse sicher ausspielen.
+      if (state.currentTrickCards.isEmpty &&
+          state.trumpSuit != null &&
+          card.suit != state.trumpSuit &&
+          _isHighestRemaining(card, state) &&
+          (state.gameMode == GameMode.trump || state.gameMode == GameMode.trumpUnten)) {
+        final oppTrumpCount = _opponentTrumpCount(aiPlayer, state, state.trumpSuit!);
+        if (oppTrumpCount > 0) {
+          avg -= 15.0; // Gegner kann stechen → erst Trümpfe rausziehen!
         }
       }
 
@@ -2450,6 +2511,7 @@ class MonteCarloAI {
               mode == GameMode.trumpUnten)
           ? state.trumpSuit
           : null,
+      isMolotow: state.gameMode == GameMode.molotof,
     );
   }
 
@@ -3173,6 +3235,20 @@ class MonteCarloAI {
 
         if (protectedOben || protectedUnten) valuable.add(c);
       }
+      // Slalom: Karten schützen die in der NÄCHSTEN Richtung stark sind.
+      // Beispiel: aktueller Stich = Unten, nächster = Oben → Asse schützen!
+      // (Bereits durch isBothDirections abgedeckt, aber nächste Richtung
+      //  priorisiert: verhindert dass Asse in Unten-Stichen weggeworfen werden,
+      //  auch wenn sie in der aktuellen Richtung wertlos sind.)
+      if (gm == GameMode.slalom) {
+        final trickNum = state.currentTrickNumber;
+        final isObenNow = state.slalomStartsOben
+            ? (trickNum % 2 == 1)
+            : (trickNum % 2 == 0);
+        final nextMode = isObenNow ? GameMode.unten : GameMode.oben;
+        final nextStr = GameLogic.cardPlayStrength(c, nextMode, null);
+        if (nextStr >= 7) valuable.add(c); // Stark in nächster Richtung → schützen
+      }
       // Elefant: Buben (Buur) sind extrem wertvoll für die Trumpf-Stiche
       if (gm == GameMode.elefant) {
         if (c.value == CardValue.jack) valuable.add(c);
@@ -3483,6 +3559,7 @@ class MonteCarloAI {
               effectMode == GameMode.trumpUnten)
           ? trump
           : null,
+      isMolotow: state.gameMode == GameMode.molotof,
     );
 
     // Kann eine dieser Karten den aktuellen Gewinner schlagen?

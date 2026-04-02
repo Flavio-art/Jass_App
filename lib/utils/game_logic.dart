@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import '../models/card_model.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
@@ -14,6 +15,7 @@ class GameLogic {
     List<JassCard> currentTrick, {
     GameMode mode = GameMode.trump,
     Suit? trumpSuit,
+    bool isMolotow = false,
   }) {
     if (currentTrick.isEmpty) return List.of(hand);
 
@@ -47,8 +49,38 @@ class GameLogic {
       }
     }
 
+    // ── Molotow-Trumpf: kein Untertrumpfen! ──────────────────────────────
+    if (isMolotow && (mode == GameMode.trump || mode == GameMode.trumpUnten)) {
+      final ledSuit = currentTrick.first.suit;
+      final trumpCards = trumpSuit != null
+          ? hand.where((c) => c.suit == trumpSuit).toList()
+          : <JassCard>[];
+      if (ledSuit == trumpSuit) {
+        return trumpCards.isNotEmpty ? trumpCards : List.of(hand);
+      }
+      final suitCards = hand.where((c) => c.suit == ledSuit).toList();
+      if (suitCards.isNotEmpty) {
+        return <JassCard>{...suitCards, ...trumpCards}.toList();
+      }
+      // Fehlfarbe: nur übertrumpfen, nicht untertrumpfen
+      final highestTrumpInTrick = currentTrick
+          .where((c) => c.suit == trumpSuit)
+          .map((c) => cardPlayStrength(c, mode, trumpSuit))
+          .fold(0, math.max);
+      if (highestTrumpInTrick > 0) {
+        final overTrumps = trumpCards
+            .where((c) => cardPlayStrength(c, mode, trumpSuit) > highestTrumpInTrick)
+            .toList();
+        final nonTrump = hand.where((c) => c.suit != trumpSuit).toList();
+        if (overTrumps.isNotEmpty) {
+          return <JassCard>{...overTrumps, ...nonTrump}.toList();
+        }
+        return nonTrump.isNotEmpty ? nonTrump : List.of(hand);
+      }
+      return List.of(hand);
+    }
+
     // ── Trumpfspiel (trump / trumpUnten): Abstechen immer erlaubt ────────────
-    // Gilt auch für Molotow mit Trumpf (gleiche Regeln wie normales Trumpf)
     if (mode == GameMode.trump || mode == GameMode.trumpUnten) {
       final ledSuit = currentTrick.first.suit;
       final trumpCards = trumpSuit != null
@@ -504,6 +536,7 @@ class GameLogic {
                 effectiveMode == GameMode.trumpUnten)
             ? trump
             : null,
+        isMolotow: state.gameMode == GameMode.molotof,
     );
     if (playable.length == 1) return playable.first;
 
