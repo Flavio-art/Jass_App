@@ -118,9 +118,10 @@ class ModeSelectorAI {
         final sUnten = _scoreUnten(hand);
         final aces = hand.where((c) => c.value == CardValue.ace).length;
         final sixes = hand.where((c) => c.value == CardValue.six).length;
-        // Slalom braucht mindestens 1 Ass UND 1 Sechs für sichere Stiche
-        if (aces == 0 || sixes == 0) {
-          // Ohne beides kein Slalom – überspringen
+        // Slalom braucht mindestens 1 Ass UND 1 Sechs + mind. 3 sichere Stiche
+        final slalomSafeTotal = aces + sixes; // Approximation
+        if (aces == 0 || sixes == 0 || slalomSafeTotal < 3) {
+          // Ohne genug sichere Stiche kein Slalom – überspringen
         } else if (partnerHatGeschoben) {
           // Nach Schieben: Slalom nur mit mind. 2 Asse + 1 Sechser ODER 2 Sechser + 1 Ass
           if ((aces >= 2 && sixes >= 1) || (sixes >= 2 && aces >= 1)) {
@@ -231,10 +232,12 @@ class ModeSelectorAI {
         safeOben += _safeTricksOben(hand, s);
         safeUnten += _safeTricksUnten(hand, s);
       }
-      if (safeOben + safeUnten < 2) {
-        cs[10] *= 0.5; // Keine sicheren Stiche → Slalom stark bestrafen
+      // Mindestens 3 sichere Stiche total (mit Partner evtl. mehr),
+      // mind. 1 in jeder Richtung
+      if (safeOben + safeUnten < 3) {
+        cs[10] *= 0.3; // Zu wenig sichere Stiche → Slalom stark bestrafen
       } else if (safeOben == 0 || safeUnten == 0) {
-        cs[10] *= 0.7; // Nur eine Richtung hat sichere Stiche
+        cs[10] *= 0.5; // Nur eine Richtung hat sichere Stiche
       }
     }
     // 3) Misère (11) / Molotof (14): nur als Notlösung (im Loch).
@@ -551,8 +554,12 @@ class ModeSelectorAI {
           safeOben += _safeTricksOben(best9, s);
           safeUnten += _safeTricksUnten(best9, s);
         }
-        // Richtung mit mehr sicheren Stichen zuerst (5 Stiche in dieser Richtung)
+        // Richtung mit mehr sicheren Stichen zuerst
         slalomOben = safeOben >= safeUnten;
+        // Mindestens 3 sichere Stiche total (nicht im Loch)
+        if (safeOben + safeUnten < 3 && !state.roundWasImLoch) {
+          score *= 0.3; // Zu wenig → Slalom stark bestrafen
+        }
       }
 
       // Multiplikator: Trumpf dämpfen, Nicht-Trump boosten
