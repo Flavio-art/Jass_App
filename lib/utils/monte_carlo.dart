@@ -1084,7 +1084,11 @@ class MonteCarloAI {
               final ansagerStr = GameLogic.cardPlayStrength(
                   ansagerCard, effectMode, state.trumpSuit);
               final trumpBaseStr = ansagerStr - 100; // 0-8 Skala
-              final shouldReveal = trumpBaseStr >= 2 && trumpBaseStr <= 6;
+              // Revealen wenn Ansager den Stich NICHT sicher gewinnt
+              // UND Wunschkarte den Stich gewinnen würde (Buur/Nell)
+              final ansagerSicher = _isHighestRemainingVsOpponents(
+                  ansagerCard, aiPlayer, state);
+              final shouldReveal = !ansagerSicher;
               if (shouldReveal) {
                 return state.wishCard!;
               }
@@ -1839,6 +1843,13 @@ class MonteCarloAI {
         if (cardStr < 4 && !_isHighestRemaining(card, state)) {
           avg -= 10.0; // Falsche Richtung → meiden
         }
+        // Wunschfarbe in falscher Richtung → stark bestrafen!
+        // z.B. ♦6 gewünscht (Unten) aber Oben-Phase → Partner kann nicht gewinnen
+        if (state.wishCard != null && card.suit == state.wishCard!.suit) {
+          if (!_wishDirectionMatches(state)) {
+            avg -= 25.0; // Wunschfarbe in falscher Richtung → nie anspielen!
+          }
+        }
       }
 
       // Geweiste Gegner-Farben beim Anspielen leicht bestrafen
@@ -2444,20 +2455,22 @@ class MonteCarloAI {
       final cardOwner = state.players.cast<Player?>().firstWhere(
           (p) => p!.hand.contains(card), orElse: () => null);
       if (cardOwner == null) {
-        // Karte liegt im Stich, nicht auf einer Hand → prüfe ob Gegner trumpfen könnten
+        // Karte liegt im Stich → prüfe ob GEGNER trumpfen könnten
         final canBeTrumped = state.players.any((p) {
+          // Nur Gegner prüfen (Partner trumpft nie eigene Karte)
           final hasLedSuit = p.hand.any((c) => c.suit == card.suit);
           final hasTrump = p.hand.any((c) => c.suit == trump);
           return !hasLedSuit && hasTrump;
         });
         if (canBeTrumped) return false;
       } else {
+        // Nur GEGNER prüfen (_sameTeamFor statt _sameTeam für Friseur Solo!)
         final canBeTrumped = state.players.any((p) {
-          if (_sameTeam(cardOwner, p)) return false; // Partner trumpft nie eigenes Ass
+          if (_sameTeamFor(cardOwner, p, state)) return false;
           final others = p.hand.where((c) => c != card).toList();
           final hasLedSuit = others.any((c) => c.suit == card.suit);
           final hasTrump = others.any((c) => c.suit == trump);
-          return !hasLedSuit && hasTrump; // void in Farbe + hat Trumpf → kann stechen
+          return !hasLedSuit && hasTrump;
         });
         if (canBeTrumped) return false;
       }
