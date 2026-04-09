@@ -1238,13 +1238,39 @@ class MonteCarloAI {
               if (pts == 0) return false; // 0 Punkte = kein Schmier-Nutzen
               return true;
             }).toList();
-            // Fallback: wertlose Karten von kurzen Farben
+            // Fallback: keine schmierbaren Karten → Karte abwerfen die am
+            // wenigsten Farbtiefe zerstört. Geschützte Sequenzen bewahren!
+            // z.B. Unten: ♦U allein (Str 3) VOR ♥K zu zweit mit ♥7 (geschützt)
             if (schmierPool.isEmpty) {
-              // Sortiere nach: kürzeste Farbe zuerst, dann wenigste Punkte
+              // Bewerte jede Karte: wie sehr zerstört das Abwerfen eine Sequenz?
+              // Karten die NICHT Teil einer geschützten Sequenz sind → zuerst weg
               nonTrump.sort((a, b) {
-                final aCount = aiPlayer.hand.where((h) => h.suit == a.suit).length;
-                final bCount = aiPlayer.hand.where((h) => h.suit == b.suit).length;
-                if (aCount != bCount) return aCount.compareTo(bCount);
+                final aStr = GameLogic.cardPlayStrength(a, effectMode, trump);
+                final bStr = GameLogic.cardPlayStrength(b, effectMode, trump);
+                final aSuitCards = aiPlayer.hand.where((h) => h.suit == a.suit).length;
+                final bSuitCards = aiPlayer.hand.where((h) => h.suit == b.suit).length;
+
+                // Geschützt? (Farbtiefe-Logik: 6/Ass immer, 7/K zu 2, 8/Q zu 3)
+                bool isProtected(JassCard c, int count) {
+                  final s = GameLogic.cardPlayStrength(c, effectMode, trump);
+                  if (s >= 8) return true; // 6 oder Ass: immer
+                  if (s >= 7 && count >= 2) return true; // 7 oder K: zu 2
+                  if (s >= 6 && count >= 3) return true; // 8 oder Q: zu 3
+                  if (s >= 5 && count >= 4) return true; // 9 oder J: zu 4
+                  return false;
+                }
+
+                final aProt = isProtected(a, aSuitCards);
+                final bProt = isProtected(b, bSuitCards);
+
+                // Ungeschützte zuerst abwerfen
+                if (aProt != bProt) return aProt ? 1 : -1;
+
+                // Beide geschützt oder beide ungeschützt:
+                // Tiefste Spielstärke zuerst (weniger Stichpotential)
+                if (aStr != bStr) return aStr.compareTo(bStr);
+
+                // Tiebreak: wenigste Punkte
                 return GameLogic.cardPoints(a, effectMode, trump)
                     .compareTo(GameLogic.cardPoints(b, effectMode, trump));
               });
