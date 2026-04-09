@@ -1102,6 +1102,14 @@ class MonteCarloAI {
             }
           }
 
+          // Nicht letzter Spieler → IMMER Wunschkarte spielen um zu revealen!
+          // Als letzter darf man mit tieferer Karte (8er) gewinnen.
+          final isLastInTrick = state.currentTrickCards.length == 3;
+          if (!isLastInTrick) {
+            return state.wishCard!;
+          }
+
+          // Letzter Spieler: Wunschkarte nur spielen wenn nötig (Stich unsicher)
           // Prüfe ob Ansager den Stich schon hat
           final currentWinnerId = GameLogic.determineTrickWinner(
             cards: state.currentTrickCards,
@@ -1210,6 +1218,12 @@ class MonteCarloAI {
             final tricksPlayed = state.completedTricks.length;
             final isLateGame = tricksPlayed >= 6;
             final schmierPool = nonTrump.where((c) {
+              // Schafkopf: 10er nie schmieren (höchste Nicht-Trumpf-Karte!)
+              if (state.gameMode == GameMode.schafkopf &&
+                  c.value == CardValue.ten &&
+                  _isHighestRemaining(c, state)) {
+                return false;
+              }
               // Asse (Oben/Trump) nie schmieren → eigener Stich
               if (c.value == CardValue.ace &&
                   (effectMode == GameMode.oben || effectMode == GameMode.trump)) {
