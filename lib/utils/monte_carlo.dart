@@ -1684,13 +1684,11 @@ class MonteCarloAI {
     final elefantTrick = state.currentTrickNumber;
 
     // Match-Verfolgung: Prüfen ob das eigene Team bisher ALLE Stiche gewonnen hat
-    final team1Positions = {PlayerPosition.south, PlayerPosition.north};
     bool myTeamHasAllTricks = state.completedTricks.isNotEmpty &&
         state.completedTricks.every((t) {
           if (t.winnerId == null) return false;
           final winner = state.players.firstWhere((p) => p.id == t.winnerId);
-          final winnerIsTeam1 = team1Positions.contains(winner.position);
-          return winnerIsTeam1 == aiIsTeam1;
+          return _sameTeamFor(aiPlayer, winner, state);
         });
     // Auch bei 0 Stichen (Rundenbeginn) Match verfolgen wenn starke Hand
     if (state.completedTricks.isEmpty) myTeamHasAllTricks = true;
@@ -1827,6 +1825,11 @@ class MonteCarloAI {
             avg += 20.0; // Viele Punkte → unbedingt stechen!
           } else if (trickPts >= 4) {
             avg += 8.0; // Einige Punkte → stechen lohnt sich
+          }
+          // Match-Bonus: Team hat bisher ALLE Stiche → aggressiv stechen!
+          // Match = 257 statt 157 Punkte = +100 Bonus!
+          if (myTeamHasAllTricks && state.completedTricks.length >= 4) {
+            avg += 30.0; // Match-Modus: unbedingt stechen, egal wie viele Punkte!
           }
         }
       }
