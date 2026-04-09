@@ -1266,8 +1266,17 @@ class MonteCarloAI {
                 // Ungeschützte zuerst abwerfen
                 if (aProt != bProt) return aProt ? 1 : -1;
 
-                // Beide geschützt oder beide ungeschützt:
-                // Tiefste Spielstärke zuerst (weniger Stichpotential)
+                // Beide geschützt: schwächste Sequenz zuerst auflösen
+                // 8 zu dritt (fragil) VOR 7 zu zweit VOR 6 allein (robust)
+                // → Karte mit tiefster Spielstärke innerhalb der Sequenz zuerst
+                if (aProt && bProt) {
+                  // Tiefste Spielstärke zuerst (Begleiter der Sequenz opfern)
+                  if (aStr != bStr) return aStr.compareTo(bStr);
+                  // Gleiche Stärke: kürzere Farbe zuerst (fragilere Sequenz)
+                  if (aSuitCards != bSuitCards) return aSuitCards.compareTo(bSuitCards);
+                }
+
+                // Beide ungeschützt: tiefste Spielstärke zuerst
                 if (aStr != bStr) return aStr.compareTo(bStr);
 
                 // Tiebreak: wenigste Punkte
