@@ -60,23 +60,23 @@ class GameLogic {
       }
       final suitCards = hand.where((c) => c.suit == ledSuit).toList();
       if (suitCards.isNotEmpty) {
+        // Molotow: Hat Farbe → Farbe spielen ODER übertrumpfen (nicht untertrumpfen!)
+        final highestTrumpSoFar = currentTrick
+            .where((c) => c.suit == trumpSuit)
+            .map((c) => cardPlayStrength(c, mode, trumpSuit))
+            .fold(0, math.max);
+        if (highestTrumpSoFar > 0) {
+          // Trumpf liegt schon → nur Übertrümpfe erlaubt
+          final overTrumps = trumpCards
+              .where((c) => cardPlayStrength(c, mode, trumpSuit) > highestTrumpSoFar)
+              .toList();
+          return <JassCard>{...suitCards, ...overTrumps}.toList();
+        }
+        // Kein Trumpf liegt → Farbe oder beliebiger Trumpf
         return <JassCard>{...suitCards, ...trumpCards}.toList();
       }
-      // Fehlfarbe: nur übertrumpfen, nicht untertrumpfen
-      final highestTrumpInTrick = currentTrick
-          .where((c) => c.suit == trumpSuit)
-          .map((c) => cardPlayStrength(c, mode, trumpSuit))
-          .fold(0, math.max);
-      if (highestTrumpInTrick > 0) {
-        final overTrumps = trumpCards
-            .where((c) => cardPlayStrength(c, mode, trumpSuit) > highestTrumpInTrick)
-            .toList();
-        final nonTrump = hand.where((c) => c.suit != trumpSuit).toList();
-        if (overTrumps.isNotEmpty) {
-          return <JassCard>{...overTrumps, ...nonTrump}.toList();
-        }
-        return nonTrump.isNotEmpty ? nonTrump : List.of(hand);
-      }
+      // Fehlfarbe: beliebiger Trumpf erlaubt (auch Untertrumpfen!)
+      // + Nicht-Trumpf auch erlaubt
       return List.of(hand);
     }
 
