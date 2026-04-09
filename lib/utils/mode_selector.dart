@@ -549,12 +549,14 @@ class ModeSelectorAI {
         final allSuits = cardType == CardType.french
             ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
             : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
+        // Startrichtung: EIGENE sichere Stiche zählen (ohne Wunschkarte!)
+        // Wunschkarte ist beim Partner → die Stiche kann man nicht sofort selbst machen.
         int safeOben = 0, safeUnten = 0;
         for (final s in allSuits) {
-          safeOben += _safeTricksOben(best9, s);
-          safeUnten += _safeTricksUnten(best9, s);
+          safeOben += _safeTricksOben(hand, s);
+          safeUnten += _safeTricksUnten(hand, s);
         }
-        // Richtung mit mehr sicheren Stichen zuerst
+        // Stärkere eigene Richtung zuerst → eigene Stiche sofort machen
         slalomOben = safeOben >= safeUnten;
         // Mindestens 3 sichere Stiche total (nicht im Loch)
         if (safeOben + safeUnten < 3 && !state.roundWasImLoch) {

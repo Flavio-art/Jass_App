@@ -1905,6 +1905,10 @@ class GameProvider extends ChangeNotifier {
         ? _state.trumpSelectorIndex!
         : _state.ansagerIndex;
 
+    // DEBUG: Ansage loggen
+    final ansagerName = _state.players[effectiveAnsagerIndex].name;
+    print('📢 $ansagerName sagt ${mode.name} ${trumpSuit?.symbol ?? ""} an (Wunsch: $wishCard)');
+
     // ── Friseur Solo: Wunschkarte GARANTIEREN ─────────────────────────────
     // Menschlicher Ansager → WishCardSelection-Phase (wählt manuell)
     // KI-Ansager → automatisch generieren wenn nicht mitgeliefert
@@ -2682,6 +2686,7 @@ class GameProvider extends ChangeNotifier {
         : GameLogic.trickPoints(trickCards, scoringMode, _state.trumpSuit);
 
     final winnerPlayer = updatedPlayers.firstWhere((p) => p.id == winnerId);
+    print('🏆 Stich ${_state.completedTricks.length + 1}: ${winnerPlayer.name} gewinnt ($points Pkt)');
     final isAnnouncingTeam = _isAnnouncingTeam(winnerPlayer);
 
     final newScores = Map<String, int>.from(_state.teamScores);
