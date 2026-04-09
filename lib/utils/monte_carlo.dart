@@ -1223,12 +1223,19 @@ class MonteCarloAI {
               // König/Dame: nur schmieren wenn spät im Spiel ODER
               // nicht höchste verbleibende ODER allein in der Farbe
               if (c.value == CardValue.king || c.value == CardValue.queen) {
-                if (isLateGame) return true; // Spät → schmieren OK
-                if (!_isHighestRemaining(c, state)) return true; // Nicht höchste → OK
+                if (isLateGame) return true;
+                if (!_isHighestRemaining(c, state)) return true;
                 final suitCount = aiPlayer.hand.where((h) => h.suit == c.suit).length;
-                if (suitCount <= 1) return true; // Allein → kein Stichpotential
-                return false; // Schützen (höchste + Begleiter → Stichpotential)
+                if (suitCount <= 1) return true;
+                return false;
               }
+              // Nie Karten mit hoher Spielstärke schmieren (Stichpotential!)
+              // z.B. 7er bei Unten (Stärke 7), 8er (Stärke 6) = potentielle Stiche
+              final cardStr = GameLogic.cardPlayStrength(c, effectMode, trump);
+              if (cardStr >= 5) return false; // Hohes Stichpotential → schützen
+              // Nur Karten mit Punkte schmieren (10=10, K=4, Q=3, J=2)
+              final pts = GameLogic.cardPoints(c, effectMode, trump);
+              if (pts == 0) return false; // 0 Punkte = kein Schmier-Nutzen
               return true;
             }).toList();
             // Fallback: wertlose Karten von kurzen Farben
