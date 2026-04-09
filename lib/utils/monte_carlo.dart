@@ -3452,14 +3452,15 @@ class MonteCarloAI {
 
   /// Team-Zuordnung: Schafkopf (Trumpf-Ass) und Friseur Solo (Wunschkarte).
   static bool _sameTeamFor(Player a, Player b, GameState state) {
-    // Friseur Solo vor Partner-Aufdeckung: jeder spielt für sich.
-    // Ausnahme: der Partner kennt seine Rolle und kooperiert mit dem Ansager.
-    if (state.gameType == GameType.friseur && !state.friseurPartnerRevealed) {
+    // Friseur Solo: Teams basieren auf Ansager + Partner (Wunschkarte),
+    // NICHT auf Positionen (Nord/Süd vs Ost/West)!
+    if (state.gameType == GameType.friseur) {
       if (state.wishCard == null) return false;
       final announcerId = state.players[state.ansagerIndex].id;
-      final partnerId = _friseurPartnerId(state);
+      final partnerId = state.friseurPartnerRevealed && state.friseurPartnerIndex != null
+          ? state.players[state.friseurPartnerIndex!].id
+          : _friseurPartnerId(state);
       if (partnerId == null) return false;
-      // Nur Partner+Ansager gelten als Team (vom Partner's Sicht)
       final aIsTeam = a.id == announcerId || a.id == partnerId;
       final bIsTeam = b.id == announcerId || b.id == partnerId;
       return aIsTeam && bIsTeam;
