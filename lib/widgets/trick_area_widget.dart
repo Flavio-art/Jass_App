@@ -344,7 +344,8 @@ class _ModeIndicator extends StatelessWidget {
       subMode = 'Unten ⬆️';
       color = Colors.orange.shade300;
     } else {
-      subMode = 'Trump 🎯';
+      final trumpLabel = trumpSuit != null ? 'Trump ${trumpSuit!.symbol}' : 'Trump 🎯';
+      subMode = trumpLabel;
       color = Colors.amber.shade300;
     }
     return Column(

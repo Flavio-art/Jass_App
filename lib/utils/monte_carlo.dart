@@ -596,20 +596,11 @@ class MonteCarloAI {
         // Fix 2: Eigene Damen (NICHT die Wunsch-Dame) bevorzugen – sie sind die
         // stärksten verbleibenden Trümpfe und garantieren den Stichgewinn.
         if (isAnnouncer && mySchafkopfTrumps.length >= 2) {
-          // Fix 2: Eigene Queens die NICHT die Wunsch-Dame sind → garantierter Stich.
-          // Die Wunsch-Dame ist beim Partner → alle anderen Damen schlagen Gegner.
-          if (state.wishCard != null &&
-              state.gameType == GameType.friseur) {
-            final wishQueen = state.wishCard!;
-            final ownQueens = mySchafkopfTrumps.where((c) =>
-                c.value == CardValue.queen && c != wishQueen).toList();
-            if (ownQueens.isNotEmpty) {
-              // Stärkste eigene Dame (schlägt alle schwächeren Damen der Gegner)
-              return _strongest(ownQueens, state.effectiveMode, trump);
-            }
-          }
+          // ZUERST: Trumpffarben-Punktekarten anspielen (A=11, 10=10, K=4)
+          // → Partner sticht mit Wunsch-Dame → Punkte bleiben im Team!
+          // Eigene Damen AUFSPAREN für nachdem Gegner-Trümpfe weg sind.
 
-          // Trumpffarben-Karten (keine Damen/8er) → tiefe Trümpfe zum Anspielen
+          // Trumpffarben-Karten (keine Damen/8er) → Punktekarten zum Anspielen
           final trumpSuitCards = mySchafkopfTrumps.where((c) =>
               c.suit == trump &&
               c.value != CardValue.queen &&
@@ -626,15 +617,24 @@ class MonteCarloAI {
                     .compareTo(GameLogic.cardPoints(a, state.effectiveMode, trump)));
             return trumpSuitCards.first;
           }
-          // Keine Trumpffarben-Karten (nur Damen/8er) → wertlose
-          // Nicht-Trumpf-Karte spielen statt Dame/8 zu opfern
+          // Keine Trumpffarben-Karten → eigene Damen spielen (Gegner-Trümpfe weg
+          // ODER alle Punktekarten schon gespielt → Dame ist jetzt OK)
+          if (state.wishCard != null && state.gameType == GameType.friseur) {
+            final wishQueen = state.wishCard!;
+            final ownQueens = mySchafkopfTrumps.where((c) =>
+                c.value == CardValue.queen && c != wishQueen).toList();
+            if (ownQueens.isNotEmpty) {
+              return _strongest(ownQueens, state.effectiveMode, trump);
+            }
+          }
+          // Keine Damen → Nicht-Trumpf-Karte spielen
           final nonTrump = playable
               .where((c) => !_isSchafkopfTrump(c, trump))
               .toList();
           if (nonTrump.isNotEmpty) {
             return _weakest(nonTrump, state.effectiveMode, trump);
           }
-          // Wirklich nur Damen/8er → tiefste opfern
+          // Wirklich nur 8er → tiefste opfern
           return _weakest(mySchafkopfTrumps, state.effectiveMode, trump);
         }
 
@@ -645,18 +645,12 @@ class MonteCarloAI {
             state.friseurPartnerIndex != null &&
             aiPlayer.id == state.players[state.friseurPartnerIndex!].id;
         if (isPartner && mySchafkopfTrumps.length >= 2) {
-          // Fix 2: Eigene Queens priorisieren (Wunsch-Dame ist beim Ansager)
-          if (state.wishCard != null &&
-              state.gameType == GameType.friseur) {
-            final wishQueen = state.wishCard!;
-            final ownQueens = mySchafkopfTrumps.where((c) =>
-                c.value == CardValue.queen && c != wishQueen).toList();
-            if (ownQueens.isNotEmpty) {
-              return _strongest(ownQueens, state.effectiveMode, trump);
-            }
+          // Partner hat die Wunsch-Dame → SOFORT spielen! (sicherer Stich,
+          // nur die Ansager-Dame ist höher und die hat der Ansager)
+          if (state.wishCard != null && playable.contains(state.wishCard)) {
+            return state.wishCard!;
           }
-
-          // Trumpffarben-Karten (keine Damen/8er) → Ass für Punkte bevorzugen
+          // Danach: Trumpffarben-Punktekarten (A, 10, K) → Ansager sticht mit Dame
           final trumpSuitCards = mySchafkopfTrumps.where((c) =>
               c.suit == trump &&
               c.value != CardValue.queen &&
@@ -765,9 +759,10 @@ class MonteCarloAI {
           .where((c) => _isHighestRemaining(c, state))
           .toList();
 
-      // Schwach in nächster Richtung (0 sichere Stiche) + habe sicheren Stich jetzt
-      // → lieber ÜBERGEBEN statt eigenen Stich spielen
-      if (safeNextDir == 0 && safeLeads.isNotEmpty && trickNum < 9) {
+      // Schwach in nächster Richtung + KEINE sicheren Stiche in aktueller Richtung
+      // → übergeben damit Partner die nächste Richtung spielen kann
+      // ABER: eigene sichere Stiche IMMER zuerst spielen!
+      if (safeNextDir == 0 && safeLeads.isEmpty && trickNum < 9) {
         // Partner finden
         final partnerMatches = state.players
             .where((p) => p.id != aiPlayer.id && _sameTeamFor(aiPlayer, p, state))
