@@ -1552,9 +1552,16 @@ class MonteCarloAI {
           playable.where((c) => _wouldWin(c, state, trump)).toList();
       if (winning.isNotEmpty) {
         // Molotow: müssen wir den Stich nehmen, spielen wir die HÖCHSTE Karte
-        // (maximale Punkte jetzt loswerden, tiefe Karten für später aufsparen)
         if (state.gameMode == GameMode.molotof) {
           return _strongest(winning, effectMode, trump);
+        }
+        // Letzte Trümpfe: wenn nur noch eigenes Team Trumpf hat →
+        // STÄRKSTE spielen (alle gewinnen sowieso, stärkste jetzt nutzen)
+        if (trump != null && _onlyTeamHasTrump(aiPlayer, state, trump)) {
+          final winningTrumps = winning.where((c) => c.suit == trump).toList();
+          if (winningTrumps.length >= 2) {
+            return _strongest(winningTrumps, effectMode, trump);
+          }
         }
         return _weakest(winning, effectMode, trump);
       }
