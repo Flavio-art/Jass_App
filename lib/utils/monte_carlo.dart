@@ -1093,10 +1093,10 @@ class MonteCarloAI {
               // Ansager NICHT sicher gewinnt vs. Gegner.
               // z.B. Ansager spielt ♥10 (Oben), Gegner haben ♥Ass → nicht sicher
               // → Partner spielt Wunschkarte ♥6 um Stich für Team zu sichern.
-              final isNonTrumpFlat = effectMode == GameMode.oben ||
-                  effectMode == GameMode.unten;
-              if (isNonTrumpFlat &&
-                  !_isHighestRemainingVsOpponents(
+              // Nicht-Trumpf-Farbe angespielt: immer revealen wenn Ansager
+              // nicht sicher gewinnt. Gilt für ALLE Modi (auch trump/trumpUnten
+              // wenn eine Nicht-Trumpf-Farbe angespielt wird).
+              if (!_isHighestRemainingVsOpponents(
                       ansagerCard, aiPlayer, state)) {
                 return state.wishCard!;
               }
