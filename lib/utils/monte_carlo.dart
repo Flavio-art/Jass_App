@@ -3253,6 +3253,12 @@ class MonteCarloAI {
     // Wertvolle Stichkarten schützen: Karten die in zukünftigen Stichen
     // gewinnen könnten (Asse im Oben, 6er im Unten, beide im Slalom/Elefant)
     final valuable = <JassCard>{};
+
+    // Wunschkarte selbst NIE abwerfen! Bei gleicher Stärke (z.B. 2 Bauern
+    // im Tutti) immer die Wunschkarte behalten → Übergabe-Farbe.
+    if (state.wishCard != null && cards.contains(state.wishCard)) {
+      valuable.add(state.wishCard!);
+    }
     final gm = state.gameMode;
     for (final c in cards) {
       if (safeWinners.contains(c)) continue; // bereits geschützt
