@@ -240,6 +240,18 @@ class ModeSelectorAI {
         cs[10] *= 0.5; // Nur eine Richtung hat sichere Stiche
       }
     }
+    // Obenabe ohne Ass → stark bestrafen (kein sicherer Stich!)
+    if (cs.length > 8) {
+      final aces = hand.where((c) => c.value == CardValue.ace).length;
+      if (aces == 0) cs[8] *= 0.3; // Kein Ass → Obenabe fast nie wählen
+      else if (aces == 1) cs[8] *= 0.7; // Nur 1 Ass → riskant
+    }
+    // Undenufe ohne 6er → stark bestrafen
+    if (cs.length > 9) {
+      final sixes = hand.where((c) => c.value == CardValue.six).length;
+      if (sixes == 0) cs[9] *= 0.3; // Keine 6 → Undenufe fast nie
+      else if (sixes == 1) cs[9] *= 0.7; // Nur 1 Sechser → riskant
+    }
     // 3) Misère (11) / Molotof (14): nur als Notlösung (im Loch).
     if (cs.length > 11) cs[11] *= NNTuning.misereDampening;
     if (cs.length > 14) cs[14] *= NNTuning.molotofDampening;
