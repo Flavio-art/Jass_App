@@ -527,7 +527,7 @@ class _GameScreenState extends State<GameScreen> {
                                   isActive:
                                       state.currentPlayer.id == north.id &&
                                           state.phase == GamePhase.playing,
-                                  showCards: true, // DEBUG: offene Karten
+                                  // showCards: true, // DEBUG: offene Karten
                                   teamColor: teamColors[north.id],
                                 ),
                                 if ((wonByPlayer[PlayerPosition.north] ?? 0) > 0)
@@ -593,7 +593,7 @@ class _GameScreenState extends State<GameScreen> {
                                     isActive:
                                         state.currentPlayer.id == west.id &&
                                             state.phase == GamePhase.playing,
-                                    showCards: true, // DEBUG: offene Karten
+                                    // showCards: true, // DEBUG: offene Karten
                                     teamColor: teamColors[west.id],
                                   ),
                                   if (ansagerId == west.id && lochId == west.id)
@@ -685,7 +685,7 @@ class _GameScreenState extends State<GameScreen> {
                                     isActive:
                                         state.currentPlayer.id == east.id &&
                                             state.phase == GamePhase.playing,
-                                    showCards: true, // DEBUG: offene Karten
+                                    // showCards: true, // DEBUG: offene Karten
                                     teamColor: teamColors[east.id],
                                   ),
                                   if (ansagerId == east.id && lochId == east.id)
