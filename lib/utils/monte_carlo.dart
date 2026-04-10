@@ -415,6 +415,25 @@ class MonteCarloAI {
     }
 
     // ── Partner-Weis-Strategie: Ass spielen wenn Partner Folge geweist hat ────
+    // ── Friseur Solo Partner: Trumpf zurückspielen nach Reveal ──────────────
+    // Partner hat den Stich übernommen → soll Trumpf zurück an den Ansager
+    // spielen mit seiner HÖCHSTEN Trumpfkarte (Ansager übernimmt mit Buur etc.)
+    if (state.currentTrickCards.isEmpty &&
+        state.gameType == GameType.friseur &&
+        state.friseurPartnerRevealed &&
+        state.friseurPartnerIndex != null &&
+        aiPlayer.id == state.players[state.friseurPartnerIndex!].id &&
+        (state.gameMode == GameMode.trump || state.gameMode == GameMode.trumpUnten) &&
+        state.trumpSuit != null) {
+      final trump = state.trumpSuit!;
+      final oppTrump = _opponentTrumpCount(aiPlayer, state, trump);
+      final myTrump = playable.where((c) => c.suit == trump).toList();
+      // Nur Trumpf zurückspielen wenn Gegner noch Trümpfe haben
+      if (oppTrump > 0 && myTrump.isNotEmpty) {
+        return _strongest(myTrump, state.effectiveMode, trump);
+      }
+    }
+
     // Wenn Partner z.B. König-Dame-Bauer in einer Farbe geweist hat und man
     // das Ass dieser Farbe hat → Ass spielen, damit Partner danach die höchste
     // Karte hat und den nächsten Stich sicher gewinnt.
