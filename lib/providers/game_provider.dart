@@ -2338,7 +2338,7 @@ class GameProvider extends ChangeNotifier {
 
       // Post-Runde "Im Loch" Kommentar: Gegner kommentieren wenn Score > Schwelle
       if (_state.gameType == GameType.friseur && _state.roundWasImLoch) {
-        final threshold = 80 + Random().nextInt(51); // 80–130
+        final threshold = 95 + Random().nextInt(51); // 95–145
         if (finalTeam1 > threshold) {
           final announcerName = _state.players[_state.ansagerIndex].name;
           final partnerId = _state.friseurPartnerIndex != null
