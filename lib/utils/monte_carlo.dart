@@ -1077,7 +1077,13 @@ class MonteCarloAI {
       final partnerId = _friseurPartnerId(state);
       if (aiPlayer.id == partnerId) {
         final ledSuit = state.currentTrickCards.first.suit;
-        if (state.wishCard!.suit == ledSuit) {
+        final ledCard = state.currentTrickCards.first;
+        // Schafkopf: Wunschkarte (Dame) kann auf JEDEN Trumpf-Stich gespielt werden
+        // (alle Damen sind Trumpf unabhängig von Farbe)
+        final wishSuitMatch = state.gameMode == GameMode.schafkopf
+            ? _isSchafkopfTrump(ledCard, state.trumpSuit!)
+            : state.wishCard!.suit == ledSuit;
+        if (wishSuitMatch) {
           final effectMode = state.effectiveMode;
 
           // Ansager hat den Stich eröffnet → revealen NUR wenn Ansager
