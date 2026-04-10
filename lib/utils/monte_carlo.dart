@@ -426,10 +426,10 @@ class MonteCarloAI {
         (state.gameMode == GameMode.trump || state.gameMode == GameMode.trumpUnten) &&
         state.trumpSuit != null) {
       final trump = state.trumpSuit!;
-      final oppTrump = _opponentTrumpCount(aiPlayer, state, trump);
       final myTrump = playable.where((c) => c.suit == trump).toList();
-      // Nur Trumpf zurückspielen wenn Gegner noch Trümpfe haben
-      if (oppTrump > 0 && myTrump.isNotEmpty) {
+      // Trumpf zurückspielen solange man welchen hat
+      // → Ansager übernimmt, Gegner-Trümpfe werden rausgezogen
+      if (myTrump.isNotEmpty) {
         return _strongest(myTrump, state.effectiveMode, trump);
       }
     }
@@ -2483,7 +2483,7 @@ class MonteCarloAI {
   /// Anzahl Schafkopf-Trümpfe im eigenen Team.
   static int _teamSchafkopfTrumpCount(Player player, GameState state, Suit trump) {
     return state.players
-        .where((p) => _sameTeam(p, player))
+        .where((p) => _sameTeamFor(p, player, state))
         .expand((p) => p.hand)
         .where((c) => _isSchafkopfTrump(c, trump))
         .length;
@@ -2492,7 +2492,7 @@ class MonteCarloAI {
   /// Anzahl Schafkopf-Trümpfe bei den Gegnern.
   static int _opponentSchafkopfTrumpCount(Player player, GameState state, Suit trump) {
     return state.players
-        .where((p) => !_sameTeam(p, player))
+        .where((p) => !_sameTeamFor(p, player, state))
         .expand((p) => p.hand)
         .where((c) => _isSchafkopfTrump(c, trump))
         .length;
@@ -4049,7 +4049,7 @@ class MonteCarloAI {
   /// Anzahl Trumpfkarten des eigenen Teams (Spieler + Partner).
   static int _teamTrumpCount(Player player, GameState state, Suit trump) {
     return state.players
-        .where((p) => _sameTeam(p, player))
+        .where((p) => _sameTeamFor(p, player, state))
         .expand((p) => p.hand)
         .where((c) => c.suit == trump)
         .length;
@@ -4058,7 +4058,7 @@ class MonteCarloAI {
   /// Anzahl Trumpfkarten der Gegner.
   static int _opponentTrumpCount(Player player, GameState state, Suit trump) {
     return state.players
-        .where((p) => !_sameTeam(p, player))
+        .where((p) => !_sameTeamFor(p, player, state))
         .expand((p) => p.hand)
         .where((c) => c.suit == trump)
         .length;
