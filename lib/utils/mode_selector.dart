@@ -806,24 +806,29 @@ class ModeSelectorAI {
       }
 
       // Schwächere Seite verstärken
+      // WICHTIG: nie Farbe wünschen wo man selbst die höchste hat!
+      // Statt ♣6 wünschen wenn man ♣A hat → lieber Farbe wo man 10 oder 8
+      // hat (Punkte ans Team) und Partner danach übernehmen kann.
       if (totalSafeOben <= totalSafeUnten) {
-        // Oben schwächer → Ass wünschen in einer Farbe wo man LOW-Karten hat
-        // aber KEIN Ass (d.h. schwach in Oben), damit Partner Oben übernimmt,
-        // man selbst kümmert sich um Unten.
-        // Meide Farben wo man bereits sichere Oben-Stiche hat (schon stark).
+        // Oben schwächer → Ass wünschen in Farbe wo man KEIN Ass hat
+        // und wo man Punktekarten (10, 8) zum Schmieren hat
         final suitsByPriority = [...allSuits]
           ..sort((a, b) {
+            // Farben wo man selbst die höchste hat (Ass bei Oben) → meiden!
+            final aHasAce = hand.any((c) => c.suit == a && c.value == CardValue.ace);
+            final bHasAce = hand.any((c) => c.suit == b && c.value == CardValue.ace);
+            if (aHasAce != bHasAce) return aHasAce ? 1 : -1; // kein Ass → bevorzugen
             // Bevorzuge Farben mit 0 sicheren Oben-Stichen (schwach in Oben)
             final aOben = safeObenPerSuit[a] ?? 0;
             final bOben = safeObenPerSuit[b] ?? 0;
-            if (aOben != bOben) return aOben.compareTo(bOben); // weniger Oben → bevorzugen
-            // Tiebreak: Farbe wo man tiefe Karten hat (gut für Unten → Partner macht Oben)
-            final aHasLow = hand.where((c) =>
-                c.suit == a && (c.value == CardValue.seven ||
-                c.value == CardValue.eight || c.value == CardValue.nine)).length;
-            final bHasLow = hand.where((c) =>
-                c.suit == b && (c.value == CardValue.seven ||
-                c.value == CardValue.eight || c.value == CardValue.nine)).length;
+            if (aOben != bOben) return aOben.compareTo(bOben);
+            // Tiebreak: Farbe wo man Punktekarten hat (10=10Pkt, 8=8Pkt)
+            final aPts = hand.where((c) =>
+                c.suit == a && (c.value == CardValue.ten ||
+                c.value == CardValue.eight)).length;
+            final bPts = hand.where((c) =>
+                c.suit == b && (c.value == CardValue.ten ||
+                c.value == CardValue.eight)).length;
             if (aHasLow != bHasLow) return bHasLow.compareTo(aHasLow);
             // Tiebreak: König vorhanden (Ass+König = 2 sichere Oben)
             final aHasKing = hand.any((c) => c.suit == a && c.value == CardValue.king) ? 1 : 0;
@@ -840,17 +845,27 @@ class ModeSelectorAI {
           if (card.suit == suit && card.value == CardValue.ace) return card;
         }
       } else {
-        // Unten schwächer → 6 wünschen in einer Farbe wo man HOHE Karten hat
-        // aber KEINE 6 (d.h. schwach in Unten), damit Partner Unten übernimmt,
-        // man selbst kümmert sich um Oben.
-        // Meide Farben wo man bereits sichere Unten-Stiche hat (schon stark).
+        // Unten schwächer → 6 wünschen in Farbe wo man KEINE 6 hat
+        // und wo man Punktekarten (10, 8) zum Schmieren hat
         final suitsByPriority = [...allSuits]
           ..sort((a, b) {
-            // Bevorzuge Farben mit 0 sicheren Unten-Stichen (schwach in Unten)
+            // Farben wo man selbst die 6 hat → meiden!
+            final aHas6 = hand.any((c) => c.suit == a && c.value == CardValue.six);
+            final bHas6 = hand.any((c) => c.suit == b && c.value == CardValue.six);
+            if (aHas6 != bHas6) return aHas6 ? 1 : -1; // keine 6 → bevorzugen
+            // Bevorzuge Farben mit 0 sicheren Unten-Stichen
             final aUnten = safeUntenPerSuit[a] ?? 0;
             final bUnten = safeUntenPerSuit[b] ?? 0;
-            if (aUnten != bUnten) return aUnten.compareTo(bUnten); // weniger Unten → bevorzugen
-            // Tiebreak: Farbe wo man hohe Karten hat (gut für Oben → Partner macht Unten)
+            if (aUnten != bUnten) return aUnten.compareTo(bUnten);
+            // Tiebreak: Farbe wo man Punktekarten hat (10=10Pkt, 8=8Pkt)
+            final aPts = hand.where((c) =>
+                c.suit == a && (c.value == CardValue.ten ||
+                c.value == CardValue.eight)).length;
+            final bPts = hand.where((c) =>
+                c.suit == b && (c.value == CardValue.ten ||
+                c.value == CardValue.eight)).length;
+            if (aPts != bPts) return bPts.compareTo(aPts);
+            // Tiebreak: Farbe wo man hohe Karten hat (gut für Oben)
             final aHasHigh = hand.where((c) =>
                 c.suit == a && (c.value == CardValue.ace ||
                 c.value == CardValue.king || c.value == CardValue.queen)).length;
