@@ -260,26 +260,155 @@ def _only_team_has_trump(p_idx, hands, trump):
                 return False
     return True
 
+def _team_trump_count(p_idx, hands, trump):
+    """Anzahl Trumpfkarten im eigenen Team."""
+    return sum(1 for i in range(4) if i % 2 == p_idx % 2
+               for c in hands[i] if suit_of(c) == trump)
+
+def _opp_trump_count(p_idx, hands, trump):
+    """Anzahl Trumpfkarten der Gegner."""
+    return sum(1 for i in range(4) if i % 2 != p_idx % 2
+               for c in hands[i] if suit_of(c) == trump)
+
+def _play_strength(c, eff_mode, trump):
+    """Spielstärke für keepValue-Berechnung (wie Dart cardPlayStrength)."""
+    v = val_of(c)
+    s = suit_of(c)
+    if eff_mode < 4:
+        return 100 + STR_TOBN[v] if s == eff_mode else STR_OBN[v]
+    elif eff_mode < 8:
+        return 100 + STR_TUNT[v] if s == (eff_mode - 4) else STR_UNT[v]
+    elif eff_mode == 8:
+        return STR_OBN[v]
+    elif eff_mode == 9:
+        return STR_UNT[v]
+    elif eff_mode == 12:
+        return STR_TOBN[v]
+    elif eff_mode >= 15:
+        t = eff_mode - 15
+        if _is_schafkopf_trump(c, t):
+            return 100 + _schafkopf_trump_rank(v, s, t)
+        return STR_OBN[v]
+    return STR_OBN[v]
+
+def _depth_bonus(c, hands, p_idx, eff_mode, trump):
+    """Farbtiefe-Bonus: +4 pro Deckungskarte (nächst-schwächere gleicher Farbe)."""
+    s = suit_of(c)
+    str_c = _play_strength(c, eff_mode, trump)
+    if str_c < 5:
+        return 0
+    bonus = 0
+    for cover in range(str_c - 1, max(str_c - 4, -1), -1):
+        if cover < 0:
+            break
+        found = False
+        for i in range(4):
+            for h in hands[i]:
+                if suit_of(h) == s and h != c and _play_strength(h, eff_mode, trump) == cover:
+                    found = True
+                    break
+            if found:
+                break
+        if found:
+            bonus += 4
+    return bonus
+
+def _keep_value(c, eff_mode, trump, hands, p_idx):
+    """keepValue = Spielstärke + Punkte + Farbtiefe-Bonus."""
+    pts = card_pts(c, eff_mode, None)
+    str_val = _play_strength(c, eff_mode, trump)
+    if str_val >= 100:
+        str_val -= 100  # Trumpf-Offset entfernen für keepValue
+    depth = _depth_bonus(c, hands, p_idx, eff_mode, trump)
+    return str_val + pts + depth
+
+def _smart_discard(allowed, hand, mode, eff_mode, trump, el_trump, hands, p_idx, trick_n=1):
+    """Intelligenter Abwurf: keepValue-basiert mit Farbtiefe-Schutz."""
+    eff_trump = trump if eff_mode < 8 else el_trump
+
+    # Sichere Gewinner identifizieren (behalten)
+    safe_winners = {c for c in allowed
+                    if not _has_stronger_remaining(c, p_idx, hands, eff_mode, eff_trump)}
+
+    # Wertvolle Karten schützen
+    valuable = set()
+    for c in allowed:
+        v = val_of(c)
+        # Trumpfkarten schützen
+        if eff_trump is not None and suit_of(c) == eff_trump and eff_mode < 8:
+            if v == VJ or v == V9 or v == VA:
+                valuable.add(c)
+        # Alles Trumpf: Bauern immer schützen, Nell kontextabhängig
+        if eff_mode == 12:
+            if v == VJ:
+                valuable.add(c)
+            elif v == V9:
+                # Nell abwerfbar wenn Partner diese Farbe nie gespielt hat
+                # (Vereinfacht: Nell schützen in frühen Stichen, ab Stich 6 flexibel)
+                if trick_n < 6:
+                    valuable.add(c)
+                else:
+                    # Prüfe ob Partner noch den Bauer haben könnte
+                    partner_idx = (p_idx + 2) % 4
+                    partner_has_jack = any(val_of(x) == VJ and suit_of(x) == suit_of(c)
+                                           for x in hands[partner_idx])
+                    if partner_has_jack:
+                        valuable.add(c)
+        # Slalom/Elefant: 6er, Asse und 7er (mit 6-Deckung) schützen
+        if _is_slalom_or_elefant(mode):
+            if v == V6 or v == VA:
+                valuable.add(c)
+            # 7er schützen wenn 6 derselben Farbe vorhanden
+            if v == V7 and any(val_of(x) == V6 and suit_of(x) == suit_of(c) for x in hand):
+                valuable.add(c)
+            # König schützen wenn Ass derselben Farbe vorhanden
+            if v == VK and any(val_of(x) == VA and suit_of(x) == suit_of(c) for x in hand):
+                valuable.add(c)
+        # Oben: Asse schützen
+        if eff_mode == 8 and v == VA:
+            valuable.add(c)
+        # Unten: 6er schützen
+        if eff_mode == 9 and v == V6:
+            valuable.add(c)
+
+    # Kandidaten: nicht sichere Gewinner, nicht wertvoll
+    discardable = [c for c in allowed if c not in safe_winners and c not in valuable]
+    if not discardable:
+        discardable = [c for c in allowed if c not in safe_winners]
+    if not discardable:
+        discardable = list(allowed)
+
+    # Sortiere nach keepValue (niedrigster zuerst = bester Abwurf)
+    discardable.sort(key=lambda c: _keep_value(c, eff_mode, trump, hands, p_idx))
+    return discardable[0]
+
+
 def pick_card(p_idx, hand, led_suit, mode, eff_mode, trump, el_trump,
               best_card, best_player_abs, hands):
-    """Kartenwahl mit allen App-konformen Regeln:
-    • Misere/Molotow: Stiche vermeiden, keine exklusiven Farben anspielen
-    • Partner nicht übertrumpfen (auch bei Trumpf-Anspiel, Alles Trumpf, Schafkopf)
-    • Keine Trumpfkarten schmieren
-    • Buur nicht spielen wenn Partner mit Nell gewinnt
-    • Nicht trumpfen wenn nur Team Trumpf hat und Partner noch kommt
-    • Anspielen: garantierte Gewinner zuerst, sichere Leads
-    • Abwurf: 6er/Asse in Slalom/Elefant schützen
+    """Kartenwahl mit allen Heuristiken aus monte_carlo.dart:
+    • Trumpf-Timing: 3 Phasen (dominant, oppTrump>1, oppTrump==1, oppTrump==0)
+    • Alles Trumpf: Bauern zuerst, dann Nell, dann andere
+    • Schafkopf: Trumpf-Ass vor eigenen Damen, Damen zuerst beim Absichern
+    • Slalom: Richtungsbewusste Vorausplanung
+    • Misere/Molotow: Stiche vermeiden, keine exklusiven Farben
+    • Partner-Schutz: nicht übertrumpfen, Schmier mit Spielstärke-Schutz
+    • Farbzwang: keepValue (Spielstärke + Punkte + Farbtiefe)
+    • Abwurf: Farbtiefe-bewusst, 6er/Asse schützen
     """
     allowed = legal_cards(hand, led_suit, mode, trump)
+    if len(allowed) == 1:
+        return allowed[0]
+
     is_team0   = p_idx % 2 == 0
     eff_trump  = trump if eff_mode < 8 else el_trump
     is_misere_like = (eff_mode == 11 or mode == 14)  # Misere oder Molotow
 
+    trick_n = 10 - len(hand)  # Stich-Nummer (1-9)
+
     # ── Anspielen ───────────────────────────────────────────────────────────
     if led_suit is None:
-        # Misere/Molotow: schwächste Karte, keine exklusiven Farben
-        if is_misere_like:
+        # Misere: schwächste Karte, keine exklusiven Farben
+        if eff_mode == 11:
             other_suits = set()
             for i, h in enumerate(hands):
                 if i != p_idx:
@@ -289,13 +418,33 @@ def pick_card(p_idx, hand, led_suit, mode, eff_mode, trump, el_trump,
             pool = safe if safe else allowed
             return min(pool, key=lambda c: card_pts(c, mode, el_trump))
 
+        # Molotow (nach Trigger): nie Farbe mit Jack anspielen, kurze Farben bevorzugen
+        if mode == 14 and eff_mode != 11:
+            other_suits = set()
+            for i, h in enumerate(hands):
+                if i != p_idx:
+                    for c in h:
+                        other_suits.add(suit_of(c))
+            # Farben mit Jack ausschliessen (würde Buur = 20 Pkt)
+            suits_with_jack = {suit_of(c) for c in hand if val_of(c) == VJ}
+            safe_suits = {suit_of(c) for c in allowed} - suits_with_jack
+            safe_suits = safe_suits & other_suits  # Nur Farben die andere auch haben
+            if safe_suits:
+                # Kürzeste Farbe bevorzugen
+                best_suit = min(safe_suits, key=lambda s: sum(1 for c in hand if suit_of(c) == s))
+                pool = [c for c in allowed if suit_of(c) == best_suit]
+                return min(pool, key=lambda c: _play_strength(c, eff_mode, eff_trump))
+            pool = [c for c in allowed if suit_of(c) not in suits_with_jack]
+            if not pool:
+                pool = allowed
+            return min(pool, key=lambda c: _play_strength(c, eff_mode, eff_trump))
+
         # Elefant: sichere Stiche in der richtigen Phase anspielen
         if mode == 13:
             trick_n = 9 - len(hand)  # ungefähre Stich-Nummer
             is_oben = trick_n <= 3
             is_unten = 4 <= trick_n <= 6
             if is_oben:
-                # Asse zuerst (sichere Oben-Stiche)
                 aces = [c for c in allowed if val_of(c) == VA
                         and not _has_stronger_remaining(c, p_idx, hands, 8, None)]
                 if aces:
@@ -305,40 +454,160 @@ def pick_card(p_idx, hand, led_suit, mode, eff_mode, trump, el_trump,
                 if safe:
                     return max(safe, key=lambda c: card_strength(c, suit_of(c), 8, None))
             elif is_unten:
-                # 6er zuerst (sichere Unten-Stiche)
-                sixes = [c for c in allowed if val_of(c) == V6]
+                sixes = [c for c in allowed if val_of(c) == V6
+                         and not _has_stronger_remaining(c, p_idx, hands, 9, None)]
                 if sixes:
                     return sixes[0]
                 safe = [c for c in allowed
                         if not _has_stronger_remaining(c, p_idx, hands, 9, None)]
                 if safe:
                     return max(safe, key=lambda c: card_strength(c, suit_of(c), 9, None))
-            # Keine sicheren Stiche → fall through zu normalem Anspielen
 
-        # Alles Trumpf: keine exklusiven Farben (Gegner können nicht abwerfen)
+        # ── Slalom: Vorausplanung + Handoff bei schwacher Richtung ────────
+        if mode == 10:
+            is_oben_now = (trick_n % 2 == 1)  # Stich 1=oben, 2=unten, 3=oben...
+            next_is_oben = not is_oben_now
+            cur_mode = 8 if is_oben_now else 9
+            next_mode = 8 if next_is_oben else 9
+            # Sichere Stiche in aktueller Richtung?
+            safe_now = [c for c in allowed
+                        if not _has_stronger_remaining(c, p_idx, hands, cur_mode, None)]
+            # Sichere Stiche in NÄCHSTER Richtung?
+            safe_next = [c for c in hand
+                         if not _has_stronger_remaining(c, p_idx, hands, next_mode, None)]
+            # Handoff: wenn KEINE sicheren Stiche in aktueller Richtung,
+            # aber Stiche in nächster → schwächste Karte spielen (Partner übernimmt)
+            if not safe_now and safe_next:
+                return min(allowed, key=lambda c: _play_strength(c, cur_mode, None))
+            # Sonst: sichere Stiche in aktueller Richtung ausspielen
+            if safe_now:
+                safe_now.sort(key=lambda c: card_pts(c, cur_mode, None), reverse=True)
+                return safe_now[0]
+
+        # ── Alles Trumpf: Bauern zuerst, dann Nell, dann andere ──────────
         if eff_mode == 12:
-            other_suits = set()
-            for i, h in enumerate(hands):
-                if i != p_idx:
-                    for c in h:
-                        other_suits.add(suit_of(c))
-            safe = [c for c in allowed if suit_of(c) in other_suits]
-            pool = safe if safe else allowed
-            # Schwächste Karte anspielen (9er/Bauern aufsparen)
-            return min(pool, key=lambda c: card_strength(c, suit_of(c), 12, None))
+            # 1. Bauern (Jacks) zuerst – ziehen gegnerische Trümpfe
+            jacks = [c for c in allowed if val_of(c) == VJ]
+            if jacks:
+                # Farbe mit mehr eigenen Karten bevorzugen
+                jacks.sort(key=lambda c: sum(1 for x in hand if suit_of(x) == suit_of(c) and x != c), reverse=True)
+                return jacks[0]
+            # 2. Nell wenn Bauer der Farbe schon weg (sicherer Gewinner)
+            safe_nells = [c for c in allowed if val_of(c) == V9
+                          and not _has_stronger_remaining(c, p_idx, hands, 12, None)]
+            if safe_nells:
+                return safe_nells[0]
+            # 3. Andere sichere Gewinner
+            safe_leads = [c for c in allowed if val_of(c) != V9
+                          and not _has_stronger_remaining(c, p_idx, hands, 12, None)]
+            if safe_leads:
+                safe_leads.sort(key=lambda c: card_pts(c, 12, None), reverse=True)
+                return safe_leads[0]
+            # Keine sicheren → fall through
 
-        # Trumpf-Modi: spezielle Führungslogik
+        # ── Schafkopf Anspielen ────────────────────────────────────────────
+        if eff_mode >= 15 and trump is not None:
+            t = eff_mode - 15
+            sk_trumps = [c for c in allowed if _is_schafkopf_trump(c, t)]
+            non_sk_trump = [c for c in allowed if not _is_schafkopf_trump(c, t)]
+            opp_sk_trump = sum(1 for i in range(4) if i % 2 != p_idx % 2
+                               for c in hands[i] if _is_schafkopf_trump(c, t))
+            if sk_trumps and opp_sk_trump > 0:
+                # Trumpf-Ass/10 ZUERST (Punkte + Trumpf ziehen)
+                trump_suit_cards = [c for c in sk_trumps
+                                    if suit_of(c) == t and val_of(c) != VQ and val_of(c) != V8]
+                if trump_suit_cards:
+                    trump_ace = [c for c in trump_suit_cards if val_of(c) == VA]
+                    if trump_ace:
+                        return trump_ace[0]
+                    trump_suit_cards.sort(key=lambda c: card_pts(c, eff_mode, None), reverse=True)
+                    return trump_suit_cards[0]
+                # Dann Damen als Fallback
+                queens = [c for c in sk_trumps if val_of(c) == VQ]
+                if queens:
+                    return queens[0]
+            elif opp_sk_trump == 0 and non_sk_trump:
+                # Gegner trumpflos → Seitenfarben spielen
+                safe_side = [c for c in non_sk_trump
+                             if not _has_stronger_remaining(c, p_idx, hands, eff_mode, eff_trump)]
+                if safe_side:
+                    safe_side.sort(key=lambda c: card_pts(c, eff_mode, None), reverse=True)
+                    return safe_side[0]
+                # 10er sind höchste Nicht-Trumpf in Schafkopf
+                tens = [c for c in non_sk_trump if val_of(c) == V10]
+                if tens:
+                    return tens[0]
+
+        # ── Trumpf-Timing: 3 Phasen ──────────────────────────────────────
         if eff_trump is not None and eff_mode < 8:
             trump_cards = [c for c in allowed if suit_of(c) == eff_trump]
             non_trump = [c for c in allowed if suit_of(c) != eff_trump]
-            # Nur Team hat Trumpf → Trumpf sparen, Nebenfarbe spielen
-            if _only_team_has_trump(p_idx, hands, eff_trump) and non_trump:
-                safe_nt = [c for c in non_trump
-                           if not _has_stronger_remaining(c, p_idx, hands, eff_mode, eff_trump)]
-                return max(safe_nt if safe_nt else non_trump,
-                           key=lambda c: card_strength(c, suit_of(c), eff_mode, eff_trump))
+            opp_trump = _opp_trump_count(p_idx, hands, eff_trump)
+            my_team_trump = _team_trump_count(p_idx, hands, eff_trump)
 
-        # Garantierter Gewinner: keine stärkere Karte mehr bei anderen Spielern
+            # Nur Team hat Trumpf → Trumpf sparen, Nebenfarbe spielen
+            if opp_trump == 0:
+                if non_trump:
+                    safe_nt = [c for c in non_trump
+                               if not _has_stronger_remaining(c, p_idx, hands, eff_mode, eff_trump)]
+                    if safe_nt:
+                        safe_nt.sort(key=lambda c: card_pts(c, mode, el_trump), reverse=True)
+                        return safe_nt[0]
+                    return min(non_trump, key=lambda c: _play_strength(c, eff_mode, eff_trump))
+                if trump_cards:
+                    return max(trump_cards, key=lambda c: _play_strength(c, eff_mode, eff_trump))
+
+            if trump_cards:
+                has_buur = any(val_of(c) == VJ for c in trump_cards)
+                has_nell = any(val_of(c) == V9 for c in trump_cards)
+                is_dominant = has_buur and has_nell and len(trump_cards) >= 4
+
+                if is_dominant and opp_trump > 0:
+                    # Dominant: immer Trumpf ziehen
+                    return max(trump_cards, key=lambda c: _play_strength(c, eff_mode, eff_trump))
+
+                if opp_trump > 1:
+                    # Höchste Trumpfkarte sicher? → spielen
+                    has_highest = any(not _has_stronger_remaining(c, p_idx, hands, eff_mode, eff_trump)
+                                      for c in trump_cards)
+                    if has_highest:
+                        return max(trump_cards, key=lambda c: _play_strength(c, eff_mode, eff_trump))
+                    # Trumpf-Übergewicht → tief ziehen
+                    if my_team_trump > opp_trump and len(trump_cards) > 1:
+                        return min(trump_cards, key=lambda c: _play_strength(c, eff_mode, eff_trump))
+                    # Sichere Seitenfarbe
+                    safe_side = [c for c in non_trump
+                                 if not _has_stronger_remaining(c, p_idx, hands, eff_mode, eff_trump)]
+                    if safe_side:
+                        safe_side.sort(key=lambda c: card_pts(c, mode, el_trump), reverse=True)
+                        return safe_side[0]
+
+                elif opp_trump == 1:
+                    if len(trump_cards) >= 2:
+                        return max(trump_cards, key=lambda c: _play_strength(c, eff_mode, eff_trump))
+                    # 1 eigener Trumpf → aufsparen, Seitenfarbe
+                    safe_side = [c for c in non_trump
+                                 if not _has_stronger_remaining(c, p_idx, hands, eff_mode, eff_trump)]
+                    if safe_side:
+                        safe_side.sort(key=lambda c: card_pts(c, mode, el_trump), reverse=True)
+                        return safe_side[0]
+                    if trump_cards:
+                        return max(trump_cards, key=lambda c: _play_strength(c, eff_mode, eff_trump))
+
+                # Has Jass → play it
+                if has_buur:
+                    return next(c for c in trump_cards if val_of(c) == VJ)
+                if has_nell:
+                    jass_gone = not any(val_of(c) == VJ and suit_of(c) == eff_trump
+                                        for i in range(4) for c in hands[i])
+                    if jass_gone:
+                        return next(c for c in trump_cards if val_of(c) == V9)
+                    # Nell schonen: tiefsten anderen Trumpf
+                    non_nell = [c for c in trump_cards if val_of(c) != V9]
+                    if non_nell:
+                        return min(non_nell, key=lambda c: _play_strength(c, eff_mode, eff_trump))
+
+        # Garantierter Gewinner
         guaranteed = [c for c in allowed
                       if not _has_stronger_remaining(c, p_idx, hands, eff_mode, eff_trump)]
         if guaranteed:
@@ -347,7 +616,7 @@ def pick_card(p_idx, hand, led_suit, mode, eff_mode, trump, el_trump,
             return max(candidates,
                        key=lambda c: card_strength(c, suit_of(c), eff_mode, eff_trump))
 
-        # Kein garantierter Gewinner → sichere Leads aus oberstem Drittel
+        # Kein garantierter Gewinner → sichere Leads
         safe = [c for c in allowed if _is_safe_lead(c, hand, eff_mode)]
         pool = safe if safe else allowed
         def lead_str(c):
@@ -357,10 +626,12 @@ def pick_card(p_idx, hand, led_suit, mode, eff_mode, trump, el_trump,
         top = max(1, len(ranked) // 3)
         return random.choice(ranked[:top])
 
-    # ── Folgen ──────────────────────────────────────────────────────────────
+    # ══════════════════════════════════════════════════════════════════════════
+    #  FOLGEN (led_suit is not None)
+    # ══════════════════════════════════════════════════════════════════════════
     my_str  = lambda c: card_strength(c, led_suit, eff_mode, eff_trump)
     best_s  = card_strength(best_card, led_suit, eff_mode, eff_trump) if best_card else (0, 0)
-    partner = best_player_abs is not None and (best_player_abs % 2 == is_team0)
+    partner = best_player_abs is not None and (best_player_abs % 2 == p_idx % 2)
 
     # Misere/Molotow: versuche NICHT zu gewinnen
     if is_misere_like:
@@ -370,81 +641,117 @@ def pick_card(p_idx, hand, led_suit, mode, eff_mode, trump, el_trump,
         return min(allowed, key=lambda c: card_pts(c, mode, el_trump))
 
     if partner:
-        is_trump_mode = (eff_mode < 8 or eff_mode == 12 or eff_mode >= 15)
-        is_discarding = not any(suit_of(c) == led_suit for c in allowed if suit_of(c) == led_suit)
-        # Korrektur: prüfe ob allowed Karten der led_suit hat
         has_led_suit = any(suit_of(c) == led_suit for c in allowed)
+        is_trump_mode = (eff_mode < 8 or eff_mode == 12 or eff_mode >= 15)
+        is_trump_like = eff_trump is not None and is_trump_mode
 
         # Partner gewinnt → nicht mit Trumpf überstechen!
-        is_trump_like = eff_trump is not None and is_trump_mode
         if is_trump_like or eff_mode == 12:
             if not has_led_suit and eff_trump is not None:
                 # Fehlfarbe: nicht trumpfen wenn Partner gewinnt
                 non_trump = [c for c in allowed if suit_of(c) != eff_trump]
                 if non_trump:
-                    return min(non_trump, key=lambda c: card_pts(c, mode, el_trump))
+                    return _smart_discard(non_trump, hand, mode, eff_mode, trump, el_trump, hands, p_idx, trick_n)
                 return min(allowed, key=lambda c: card_pts(c, mode, el_trump))
             # Trumpf angespielt oder Alles Trumpf: nicht übertrumpfen
             if (eff_trump is not None and led_suit == eff_trump) or eff_mode == 12:
                 not_winning = [c for c in allowed if my_str(c) <= best_s]
                 if not_winning:
-                    return min(not_winning, key=lambda c: card_pts(c, mode, el_trump))
-                return min(allowed, key=lambda c: card_pts(c, mode, el_trump))
+                    return min(not_winning, key=lambda c: _play_strength(c, eff_mode, eff_trump))
+                return min(allowed, key=lambda c: _play_strength(c, eff_mode, eff_trump))
+
+        # Schafkopf: Partner-Stich unsicher → Damen zuerst zum Absichern
+        if eff_mode >= 15 and not _has_stronger_remaining(best_card, p_idx, hands, eff_mode, eff_trump) is False:
+            # Prüfe ob Partner-Stich sicher ist vs Gegner
+            partner_secure = not any(
+                card_strength(c, led_suit, eff_mode, eff_trump) > best_s
+                for i in range(4) if i % 2 != p_idx % 2
+                for c in hands[i]
+            )
+            if not partner_secure:
+                winners = [c for c in allowed if my_str(c) > best_s]
+                if winners and eff_mode >= 15:
+                    queens = [c for c in winners if val_of(c) == VQ]
+                    if queens:
+                        return queens[0]
+                    eights = [c for c in winners if val_of(c) == V8]
+                    if eights:
+                        return eights[0]
 
         # Buur nicht spielen wenn Partner mit Nell gewinnt
         if eff_trump is not None and best_card is not None:
             if val_of(best_card) == V9 and suit_of(best_card) == eff_trump:
                 buur = card(eff_trump, VJ)
                 if buur in allowed and len(allowed) > 1:
-                    allowed_no_buur = [c for c in allowed if c != buur]
-                    if allowed_no_buur:
-                        allowed = allowed_no_buur
+                    allowed = [c for c in allowed if c != buur]
 
-        # Partner gewinnt → Schmieren (KEINE Trumpfkarten schmieren, nicht in Alles Trumpf)
+        # ── Nur Team hat Trumpf → NICHT trumpfen, schmieren ────────────
+        if eff_trump is not None and _only_team_has_trump(p_idx, hands, eff_trump):
+            if not has_led_suit:
+                # Fehlfarbe: Schafkopf-bewusst (Damen/8er sind Trumpf)
+                if eff_mode >= 15:
+                    non_trump = [c for c in allowed if not _is_schafkopf_trump(c, eff_mode - 15)]
+                else:
+                    non_trump = [c for c in allowed if suit_of(c) != eff_trump]
+                if non_trump:
+                    # Schmieren: höchste Punkte, aber keine Stichgewinner
+                    schmier_pool = [c for c in non_trump
+                                    if card_pts(c, mode, el_trump) > 0
+                                    and _has_stronger_remaining(c, p_idx, hands, eff_mode, eff_trump)
+                                    and _play_strength(c, eff_mode, eff_trump) < 5]
+                    if schmier_pool:
+                        return max(schmier_pool, key=lambda c: card_pts(c, mode, el_trump))
+                    return _smart_discard(non_trump, hand, mode, eff_mode, trump, el_trump, hands, p_idx, trick_n)
+                # Nur Trumpf → schwächsten
+                not_winning2 = [c for c in allowed if my_str(c) <= best_s]
+                return min(not_winning2 if not_winning2 else allowed,
+                           key=lambda c: _play_strength(c, eff_mode, eff_trump))
+
+        # Partner gewinnt → Schmieren
         not_winning = [c for c in allowed if my_str(c) <= best_s]
         if not_winning:
+            # Schmierbar: >= 8 Punkte, nicht Trumpf, nicht höchste verbleibende,
+            # nicht Asse (Oben) oder 6er (Unten), nicht hohe Spielstärke (>=5)
             schmierbar = [c for c in not_winning
                           if card_pts(c, mode, el_trump) >= 8
                           and (eff_trump is None or suit_of(c) != eff_trump)
-                          and eff_mode != 12]  # Alles Trumpf: nie schmieren
+                          and eff_mode != 12
+                          and not (val_of(c) == VA and eff_mode == 8)
+                          and not (val_of(c) == V6 and eff_mode == 9)
+                          and _has_stronger_remaining(c, p_idx, hands, eff_mode, eff_trump)
+                          and _play_strength(c, eff_mode, eff_trump) < 5]
             if schmierbar:
                 return max(schmierbar, key=lambda c: card_pts(c, mode, el_trump))
-            return max(not_winning, key=lambda c: card_pts(c, mode, el_trump))
-        return min(allowed, key=lambda c: card_pts(c, mode, el_trump))
+            # Fallback: keepValue-basiert (schwächste zuerst)
+            not_winning.sort(key=lambda c: _keep_value(c, eff_mode, trump, hands, p_idx))
+            return not_winning[0]
+        return min(allowed, key=lambda c: _play_strength(c, eff_mode, eff_trump))
 
-    # Gegner gewinnt: nicht trumpfen wenn nur Team Trumpf hat + Partner kommt noch
+    # ── Gegner gewinnt ──────────────────────────────────────────────────────
+
+    # Nicht trumpfen wenn nur Team Trumpf hat + Partner kommt noch
     if eff_trump is not None and _only_team_has_trump(p_idx, hands, eff_trump):
         has_led_suit = any(suit_of(c) == led_suit for c in allowed)
         if not has_led_suit:
-            # Zähle Spieler die noch kommen
-            played_count = len([c for c in [best_card] if c is not None]) + 1  # inkl. current
-            # Vereinfacht: wenn nicht letzter Spieler → Partner kommt noch
+            played_count = len([c for c in [best_card] if c is not None]) + 1
             non_trump = [c for c in allowed if suit_of(c) != eff_trump]
             if non_trump and played_count < 4:
-                return min(non_trump, key=lambda c: _combined_pts(c, mode, el_trump))
+                return _smart_discard(non_trump, hand, mode, eff_mode, trump, el_trump, hands, p_idx, trick_n)
 
-    # Gegner gewinnt: billigste Gewinnerkarte spielen
+    # Billigste Gewinnerkarte spielen
     winning = [c for c in allowed if my_str(c) > best_s]
     if winning:
         return min(winning, key=my_str)
 
-    # Kann nicht gewinnen: Abwurf mit Schutz für 6er/Asse
-    # Elefant: 6er IMMER schützen (auch in Oben-Phase), 7er wenn 6 vorhanden
-    if mode == 13:
-        protected = set()
-        for c in allowed:
-            if val_of(c) == V6:
-                protected.add(c)
-            if val_of(c) == V7 and any(val_of(x) == V6 and suit_of(x) == suit_of(c) for x in hand):
-                protected.add(c)
-            if val_of(c) == VA:
-                protected.add(c)
-        unprotected = [c for c in allowed if c not in protected]
-        if unprotected:
-            return min(unprotected, key=lambda c: _combined_pts(c, mode, el_trump))
-    unprotected = [c for c in allowed if not _is_protected_card(c, mode, eff_mode)]
-    discard_pool = unprotected if unprotected else allowed
-    return min(discard_pool, key=lambda c: _combined_pts(c, mode, el_trump))
+    # Kann nicht gewinnen → Farbzwang: keepValue-basiert
+    has_led_suit = any(suit_of(c) == led_suit for c in allowed)
+    if has_led_suit:
+        suit_cards = [c for c in allowed if suit_of(c) == led_suit]
+        suit_cards.sort(key=lambda c: _keep_value(c, eff_mode, trump, hands, p_idx))
+        return suit_cards[0]
+
+    # Fehlfarbe: intelligenter Abwurf
+    return _smart_discard(allowed, hand, mode, eff_mode, trump, el_trump, hands, p_idx, trick_n)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  SPIELSIMULATION
