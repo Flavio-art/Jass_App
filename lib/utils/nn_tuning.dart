@@ -33,27 +33,28 @@ class NNTuning {
   static const bool slalomFromObenUnten = true; // Index 10 = (8+9)/2
 
   // ── Schieber Moduswahl-Multiplikatoren ─────────────────
-  static const double schieberMultTrump = 1.72;
-  static const double schieberMultOben = 1.24;
-  static const double schieberMultUnten = 1.72;
-  static const double schieberMultSlalom = 1.92;
+  // Angepasst nach NN-Retraining (2026-04-11, 100k Samples, R²=0.86)
+  static const double schieberMultTrump = 0.75;    // 32%→~28%
+  static const double schieberMultOben = 1.20;     // 20% ✅
+  static const double schieberMultUnten = 1.18;    // 18%→~19%
+  static const double schieberMultSlalom = 1.40;   // 30%→~34%
   static const double schiebenSlalomPenalty = 0.85;
   static const double schieberMultMisere = 0.7;    // Misere im Schieber ~10%
   static const double schieberMultMolotof = 0.7;   // Molotof im Schieber ~10%
 
   // ── Friseur Solo Moduswahl-Multiplikatoren ─────────────
-  // Angepasst nach NN-Retraining (2026-03-18): neue Heuristiken in Simulation.
+  // Angepasst nach NN-Retraining (2026-04-11, 100k Samples, R²=0.86)
   // Formel: adjusted = raw × mult (direkte Multiplikation)
-  static const double friseurMultTrumpOben = 0.98;
-  static const double friseurMultTrumpUnten = 1.02;
-  static const double friseurMultAllesTrumpf = 1.05;
-  static const double friseurMultOben = 0.95;
-  static const double friseurMultUnten = 1.10;
-  static const double friseurMultSlalom = 1.15;
-  static const double friseurMultSchafkopf = 0.92;
-  static const double friseurMultMisere = 1.20;
-  static const double friseurMultMolotof = 1.18;
-  static const double friseurMultElefant = 3.20;
+  static const double friseurMultTrumpOben = 0.91;   // 17% ✅
+  static const double friseurMultTrumpUnten = 0.90;  // 16% ✅
+  static const double friseurMultAllesTrumpf = 0.98; // 5% ✅
+  static const double friseurMultOben = 1.07;        // 15%→~12%
+  static const double friseurMultUnten = 0.95;       // 6% ✅
+  static const double friseurMultSlalom = 1.25;      // 12% ✅
+  static const double friseurMultSchafkopf = 1.06;   // 26% ✅
+  static const double friseurMultMisere = 1.02;      // 1%→~4%
+  static const double friseurMultMolotof = 0.85;     // OK
+  static const double friseurMultElefant = 2.80;     // 2%→~4%
 
   // ── Friseur Solo Im-Loch-Boost (2× geschoben) ───────────
   // Im Loch wird Misère/Molotof als Fallback attraktiver.
@@ -67,8 +68,8 @@ class NNTuning {
   // NN-Score auf Original-Hand (ohne Wunschkarte).
   // Dynamisch: Schwelle = min + (max − min) × (offeneVarianten / 10)
   // Mehr Varianten offen → wählerischer (aufsparen lohnt sich)
-  static const double friseurSchiebenNNMin = 0.84;   // letzte Variante (~70% schieben)
-  static const double friseurSchiebenNNMax = 0.90;   // alle Varianten offen (~92% schieben)
+  static const double friseurSchiebenNNMin = 0.70;   // letzte Variante
+  static const double friseurSchiebenNNMax = 0.76;   // alle Varianten offen (~85% schieben)
   static const double friseurSchiebenHeuMin = 95.0;   // letzte Variante
   static const double friseurSchiebenHeuMax = 130.0;  // alle Varianten offen
 }

@@ -325,6 +325,19 @@ class GameProvider extends ChangeNotifier {
   }
 
   /// Schieber: Punktemultiplikator für den gewählten Spielmodus (aus state.schieberMultipliers).
+  /// Prüft ob ein Team alle 9 Stiche gewonnen hat (für Match-Bonus).
+  bool _allTricksWonByTeam(String team) {
+    final teamPositions = team == 'team1'
+        ? {PlayerPosition.south, PlayerPosition.north}
+        : {PlayerPosition.east, PlayerPosition.west};
+    for (final trick in _state.completedTricks) {
+      if (trick.winnerId == null) return false;
+      final winner = _state.players.firstWhere((p) => p.id == trick.winnerId);
+      if (!teamPositions.contains(winner.position)) return false;
+    }
+    return _state.completedTricks.length == 9;
+  }
+
   int _schieberMultiplier(GameMode mode, Suit? trumpSuit) {
     final m = _state.schieberMultipliers;
     if (mode == GameMode.slalom) return m['slalom'] ?? 4;
@@ -396,8 +409,8 @@ class GameProvider extends ChangeNotifier {
     final stocke2 = _state.stockeRoundPoints['team2'] ?? 0;
     final pureRaw1 = raw1 - stocke1;
     final pureRaw2 = raw2 - stocke2;
-    final finalTeam1 = ((pureRaw1 == 157 ? 257 : pureRaw1) + wyssBonus1 + stocke1) * mult;
-    final finalTeam2 = ((pureRaw2 == 157 ? 257 : pureRaw2) + wyssBonus2 + stocke2) * mult;
+    final finalTeam1 = ((pureRaw1 == 157 && _allTricksWonByTeam('team1') ? 257 : pureRaw1) + wyssBonus1 + stocke1) * mult;
+    final finalTeam2 = ((pureRaw2 == 157 && _allTricksWonByTeam('team2') ? 257 : pureRaw2) + wyssBonus2 + stocke2) * mult;
 
     final varKey = _state.variantKey(_state.gameMode, trumpSuit: _state.trumpSuit);
     final partnerIdx = (_state.ansagerIndex + 2) % 4;
@@ -2328,8 +2341,8 @@ class GameProvider extends ChangeNotifier {
         // Stöcke aus Rohpunkten herausrechnen (werden als Wysspunkte gezeigt)
         pureRaw1 = rawTeam1 - stocke1;
         pureRaw2 = rawTeam2 - stocke2;
-        finalTeam1 = ((pureRaw1 == 157 ? 257 : pureRaw1) + wyssBonus1 + stocke1) * mult;
-        finalTeam2 = ((pureRaw2 == 157 ? 257 : pureRaw2) + wyssBonus2 + stocke2) * mult;
+        finalTeam1 = ((pureRaw1 == 157 && _allTricksWonByTeam('team1') ? 257 : pureRaw1) + wyssBonus1 + stocke1) * mult;
+        finalTeam2 = ((pureRaw2 == 157 && _allTricksWonByTeam('team2') ? 257 : pureRaw2) + wyssBonus2 + stocke2) * mult;
         roundWyssPoints1 = (wyssBonus1 + stocke1) * mult;
         roundWyssPoints2 = (wyssBonus2 + stocke2) * mult;
       } else if (_state.gameType == GameType.differenzler) {

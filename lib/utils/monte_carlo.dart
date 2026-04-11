@@ -42,6 +42,27 @@ class MonteCarloAI {
     var playable = _getPlayable(aiPlayer, state);
     if (playable.length == 1) return playable.first;
 
+    // ── Friseur Solo Partner: Trumpf zurückspielen nach Reveal ──────────────
+    // MUSS VOR allen anderen Trumpf-Heuristiken stehen, damit der Partner
+    // nach dem Reveal IMMER Trumpf zurückspielt (Ansager übernimmt mit Buur).
+    // Sonst fällt der Partner in die allgemeine Trumpf-Heuristik/MC und
+    // spielt stattdessen sichere Nebenfarben (z.B. ♥6 in Unten).
+    if (state.currentTrickCards.isEmpty &&
+        state.gameType == GameType.friseur &&
+        state.friseurPartnerRevealed &&
+        state.friseurPartnerIndex != null &&
+        aiPlayer.id == state.players[state.friseurPartnerIndex!].id &&
+        (state.gameMode == GameMode.trump || state.gameMode == GameMode.trumpUnten) &&
+        state.trumpSuit != null) {
+      final trump = state.trumpSuit!;
+      final myTrump = playable.where((c) => c.suit == trump).toList();
+      // Trumpf zurückspielen solange man welchen hat
+      // → Ansager übernimmt, Gegner-Trümpfe werden rausgezogen
+      if (myTrump.isNotEmpty) {
+        return _strongest(myTrump, state.effectiveMode, trump);
+      }
+    }
+
     // ── Trumpf-Heuristik: Anspielen ──────────────────────────────────────────
     // Flat-MC unterschätzt hohe Trumpfkarten beim Anspielen systematisch.
     // Strategie:
@@ -414,26 +435,6 @@ class MonteCarloAI {
       }
     }
 
-    // ── Partner-Weis-Strategie: Ass spielen wenn Partner Folge geweist hat ────
-    // ── Friseur Solo Partner: Trumpf zurückspielen nach Reveal ──────────────
-    // Partner hat den Stich übernommen → soll Trumpf zurück an den Ansager
-    // spielen mit seiner HÖCHSTEN Trumpfkarte (Ansager übernimmt mit Buur etc.)
-    if (state.currentTrickCards.isEmpty &&
-        state.gameType == GameType.friseur &&
-        state.friseurPartnerRevealed &&
-        state.friseurPartnerIndex != null &&
-        aiPlayer.id == state.players[state.friseurPartnerIndex!].id &&
-        (state.gameMode == GameMode.trump || state.gameMode == GameMode.trumpUnten) &&
-        state.trumpSuit != null) {
-      final trump = state.trumpSuit!;
-      final myTrump = playable.where((c) => c.suit == trump).toList();
-      // Trumpf zurückspielen solange man welchen hat
-      // → Ansager übernimmt, Gegner-Trümpfe werden rausgezogen
-      if (myTrump.isNotEmpty) {
-        return _strongest(myTrump, state.effectiveMode, trump);
-      }
-    }
-
     // Wenn Partner z.B. König-Dame-Bauer in einer Farbe geweist hat und man
     // das Ass dieser Farbe hat → Ass spielen, damit Partner danach die höchste
     // Karte hat und den nächsten Stich sicher gewinnt.
@@ -722,19 +723,43 @@ class MonteCarloAI {
     // Bauern (J) sind in jeder Farbe unschlagbar (20 Pkt), Nell (9) ebenfalls
     // wenn der Bauer dieser Farbe bereits gespielt wurde (14 Pkt).
     // MC unterschätzt diese garantierten Stiche systematisch.
+    // PRIORITÄT: Bauern ZUERST (zieht gegnerische Nell/König), dann Nell, dann Rest.
     if (state.currentTrickCards.isEmpty &&
         state.gameMode == GameMode.allesTrumpf) {
+      // 1. Bauern zuerst ausspielen – ziehen gegnerische Trümpfe
+      final jacks = playable
+          .where((c) => c.value == CardValue.jack)
+          .toList();
+      if (jacks.isNotEmpty) {
+        // Farbe mit mehr eigenen Karten bevorzugen (Nell/König dahinter)
+        jacks.sort((a, b) {
+          final countA = aiPlayer.hand.where((c) => c.suit == a.suit && c != a).length;
+          final countB = aiPlayer.hand.where((c) => c.suit == b.suit && c != b).length;
+          return countB.compareTo(countA);
+        });
+        return jacks.first;
+      }
+      // 2. Nell ausspielen wenn Bauer der Farbe schon weg (= sicherer Gewinner)
+      final safeNells = playable
+          .where((c) => c.value == CardValue.nine && _isHighestRemaining(c, state))
+          .toList();
+      if (safeNells.isNotEmpty) {
+        safeNells.sort((a, b) {
+          final countA = aiPlayer.hand.where((c) => c.suit == a.suit && c != a).length;
+          final countB = aiPlayer.hand.where((c) => c.suit == b.suit && c != b).length;
+          return countB.compareTo(countA);
+        });
+        return safeNells.first;
+      }
+      // 3. Andere sichere Gewinner (König, Ass, etc.)
       final safeLeads = playable
-          .where((c) => _isHighestRemaining(c, state))
+          .where((c) => c.value != CardValue.nine && _isHighestRemaining(c, state))
           .toList();
       if (safeLeads.isNotEmpty) {
-        // Höchste Punkte zuerst (Bauer=20, Nell=14, König=4)
-        // Bei gleichem Wert: Farbe bevorzugen wo man noch weitere Karten hat
         safeLeads.sort((a, b) {
           final ptsA = GameLogic.cardPoints(a, GameMode.allesTrumpf, null);
           final ptsB = GameLogic.cardPoints(b, GameMode.allesTrumpf, null);
           if (ptsA != ptsB) return ptsB.compareTo(ptsA);
-          // Farbe mit mehr eigenen Karten bevorzugen (keine Fehlfarbe)
           final countA = aiPlayer.hand.where((c) => c.suit == a.suit && c != a).length;
           final countB = aiPlayer.hand.where((c) => c.suit == b.suit && c != b).length;
           return countB.compareTo(countA);
@@ -1153,6 +1178,18 @@ class MonteCarloAI {
             return state.wishCard!;
           }
 
+          // Elefant Unten-Phase (Stich 4-5): Partner ÜBERNIMMT den Stich
+          // auch wenn Ansager gewinnt! Partner hat starke Unten-Karten (6er)
+          // und kann die restlichen Unten-Stiche kontrollieren.
+          // NICHT im letzten Unten-Stich (6) — danach kommt Trump, da
+          // braucht der Ansager die Führung.
+          if (state.gameMode == GameMode.elefant &&
+              state.currentTrickNumber >= 4 &&
+              state.currentTrickNumber <= 5 &&
+              _wouldWin(state.wishCard!, state, state.trumpSuit)) {
+            return state.wishCard!;
+          }
+
           // ── Ansager gewinnt schon ──
 
           // Alles Trumpf: Ansager gewinnt mit Nell + Farbe noch frisch →
@@ -1349,7 +1386,16 @@ class MonteCarloAI {
             // → mit starker eigener Karte absichern wenn möglich
             final winners = playable.where((c) => _wouldWin(c, state, trump)).toList();
             if (winners.isNotEmpty) {
-              // Stärkste Karte spielen die den Stich sichert
+              // Schafkopf: Damen ZUERST spielen (höchster Trumpf, sichert
+              // den Stich am besten und zieht Gegner-Trümpfe).
+              // Dann 8er, dann Trumpf-Farbkarten.
+              if (state.gameMode == GameMode.schafkopf) {
+                final queens = winners.where((c) => c.value == CardValue.queen).toList();
+                if (queens.isNotEmpty) return queens.first;
+                final eights = winners.where((c) => c.value == CardValue.eight).toList();
+                if (eights.isNotEmpty) return eights.first;
+              }
+              // Andere Modi: schwächste gewinnende Karte (stärkere aufsparen)
               return _weakest(winners, effectMode, trump);
             }
             // Kann nicht absichern → schmieren wie üblich (fall through)
@@ -1651,15 +1697,35 @@ class MonteCarloAI {
       final ledSuit2 = state.currentTrickCards.first.suit;
       final hasLedSuit2 = playable.any((c) => c.suit == ledSuit2);
       if (hasLedSuit2) {
-        // Farbzwang: Karte mit wenigsten Punkten spielen
+        // Farbzwang: Karte abwerfen die am wenigsten kostet (Punkte + Stichpotential).
+        // Nicht nur Punkte zählen! Eine 7 in Unten (Stärke 7, 0 Pkt) ist ein
+        // potentieller Stichgewinner und wertvoller als eine Dame (Stärke 2, 3 Pkt).
+        // keepValue = Spielstärke + Punkte + Farbtiefe-Bonus.
+        // Farbtiefe-Bonus: Karten mit Deckung (nächst-schwächere Karten derselben
+        // Farbe existieren noch) sind geschützte Stichgewinner → +4 pro Deckungskarte.
+        // Bsp: 7 in Unten mit 8+9 als Deckung → keepValue = 7 + 0 + 8 = 15 > 10 (Zehn).
         final suitCards = playable.where((c) => c.suit == ledSuit2).toList();
         suitCards.sort((a, b) {
+          int depthBonus(JassCard c) {
+            final str = GameLogic.cardPlayStrength(c, effectMode, trump);
+            if (str < 5) return 0; // nur starke Karten profitieren von Deckung
+            int bonus = 0;
+            for (int cover = str - 1; cover >= str - 3 && cover >= 0; cover--) {
+              final coverExists = state.players.any((p) => p.hand.any((h) =>
+                  h.suit == c.suit &&
+                  h != c &&
+                  GameLogic.cardPlayStrength(h, effectMode, trump) == cover));
+              if (coverExists) bonus += 4;
+            }
+            return bonus;
+          }
           final aPts = GameLogic.cardPoints(a, effectMode, trump);
           final bPts = GameLogic.cardPoints(b, effectMode, trump);
-          if (aPts != bPts) return aPts.compareTo(bPts); // wenigste Punkte zuerst
-          // Tiebreak: schwächste Spielstärke zuerst (starke Karten aufsparen)
-          return GameLogic.cardPlayStrength(a, effectMode, trump)
-              .compareTo(GameLogic.cardPlayStrength(b, effectMode, trump));
+          final aStr = GameLogic.cardPlayStrength(a, effectMode, trump);
+          final bStr = GameLogic.cardPlayStrength(b, effectMode, trump);
+          final aKeep = aStr + aPts + depthBonus(a);
+          final bKeep = bStr + bPts + depthBonus(b);
+          return aKeep.compareTo(bKeep); // niedrigster keepValue zuerst abwerfen
         });
         return suitCards.first;
       }
@@ -3374,18 +3440,22 @@ class MonteCarloAI {
         }
       }
       // Alles Trumpf: Bauern (20 Pkt) NIE abwerfen, Nell (14 Pkt) nur schützen
-      // wenn die Farbe noch NIE gespielt wurde (sonst normale Abwurfregeln).
+      // wenn Partner den Bauer dieser Farbe noch spielen könnte.
       if (gm == GameMode.allesTrumpf) {
         if (c.value == CardValue.jack) {
           valuable.add(c); // Buur immer schützen
         } else if (c.value == CardValue.nine) {
-          // Nell nur schützen wenn Farbe noch unberührt (kein Stich dieser Farbe)
-          final suitEverPlayed = state.completedTricks.any(
-              (t) => t.cards.values.any((played) => played.suit == c.suit));
-          if (!suitEverPlayed) {
-            valuable.add(c); // Farbe noch frisch → Nell schützen
+          // Nell abwerfbar wenn Partner diese Farbe bis Stich 6 nie gespielt hat
+          // → Partner hat wahrscheinlich keinen Bauer dieser Farbe
+          final trickNum = state.completedTricks.length + 1;
+          final currentPlayer = state.players[state.currentPlayerIndex];
+          final partnerSuits = _suitsPlayedByPartner(state, currentPlayer);
+          final partnerPlayedThisSuit = partnerSuits.contains(c.suit);
+          if (trickNum >= 6 && !partnerPlayedThisSuit) {
+            // Partner hat Farbe nie gespielt → kein Bauer → Nell abwerfbar
+          } else {
+            valuable.add(c); // Nell schützen – Partner könnte Bauer noch haben
           }
-          // Sonst: Farbe schon angespielt → Nell nach normalen Regeln abwerfbar
         }
       }
       // Misere: tiefe Karten behalten (6, 7, 8 = sichere Verlierer, nie abwerfen!)

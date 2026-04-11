@@ -170,12 +170,10 @@ class ModeSelectorAI {
       }
     }
 
-    final rawMean = rawEntries.map((e) => e.raw).reduce((a, b) => a + b)
-        / rawEntries.length;
-
     double bestScore = double.negativeInfinity;
     for (final e in rawEntries) {
-      var adjusted = rawMean + (e.raw - rawMean) * e.m;
+      // Direkte Multiplikation (wie Friseur Solo): raw × mult
+      var adjusted = e.raw * e.m;
       if ((e.mode == GameMode.molotof || e.mode == GameMode.misere) &&
           molotofPointsBoost != 1.0) {
         adjusted *= molotofPointsBoost;
@@ -257,11 +255,9 @@ class ModeSelectorAI {
     if (cs.length > 14) cs[14] *= NNTuning.molotofDampening;
 
     // Mittelwert der korrigierten Scores als Baseline für Delta-Verstärkung.
-    // Formel: adjusted = mean + (raw - mean) × mult
-    // Damit verstärkt ein Multiplikator nur den Vorteil ÜBER dem Durchschnitt,
-    // nicht den Absolutwert.
-    final nnMean = cs.reduce((a, b) => a + b) / cs.length;
-    double adj(double raw, double m) => nnMean + (raw - nnMean) * m;
+    // Direkte Multiplikation: adjusted = raw × mult
+    // Einfacher und intuitiver als Delta-Amplifikation.
+    double adj(double raw, double m) => raw * m;
 
     // NN-Score-Bereich für Normalisierung von Heuristik-Fallbacks.
     final nnMin = cs.fold(double.infinity,  (a, b) => a < b ? a : b);
@@ -841,7 +837,7 @@ class ModeSelectorAI {
             final bPts = hand.where((c) =>
                 c.suit == b && (c.value == CardValue.ten ||
                 c.value == CardValue.eight)).length;
-            if (aHasLow != bHasLow) return bHasLow.compareTo(aHasLow);
+            if (aPts != bPts) return bPts.compareTo(aPts);
             // Tiebreak: König vorhanden (Ass+König = 2 sichere Oben)
             final aHasKing = hand.any((c) => c.suit == a && c.value == CardValue.king) ? 1 : 0;
             final bHasKing = hand.any((c) => c.suit == b && c.value == CardValue.king) ? 1 : 0;
