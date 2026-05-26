@@ -42,6 +42,86 @@ class MonteCarloAI {
     var playable = _getPlayable(aiPlayer, state);
     if (playable.length == 1) return playable.first;
 
+    // ── HARD-OVERRIDE: Buur nie auf Partner-Nell drauf (Trumpf-Modus) ──────
+    // Wenn das Team mit Trumpf-Nell im Stich führt, kann nur der Buur
+    // überstechen. Der Buur ist beim AI oder Partner → Stich ist sicher!
+    // NIE den Buur drauf hauen – 14+20 = 34 Pkt an Partner verschwendet,
+    // plus Buur weg = keine Trumpf-Zieh-Macht mehr.
+    if (state.currentTrickCards.isNotEmpty &&
+        (state.gameMode == GameMode.trump || state.gameMode == GameMode.trumpUnten) &&
+        state.trumpSuit != null) {
+      final trump = state.trumpSuit!;
+      // Gewinnt das Team gerade mit der Trumpf-Nell?
+      final winnerId = GameLogic.determineTrickWinner(
+        cards: state.currentTrickCards,
+        playerIds: state.currentTrickPlayerIds,
+        gameMode: state.gameMode, trumpSuit: trump,
+        trickNumber: state.currentTrickNumber,
+        molotofSubMode: state.molotofSubMode,
+        slalomStartsOben: state.slalomStartsOben,
+      );
+      final winnerIdx = state.currentTrickPlayerIds.indexOf(winnerId);
+      final winningCard = winnerIdx >= 0 ? state.currentTrickCards[winnerIdx] : null;
+      final winner = state.players.firstWhere((p) => p.id == winnerId);
+      final teamWinsWithNell = winningCard != null &&
+          winningCard.suit == trump &&
+          winningCard.value == CardValue.nine &&
+          _sameTeamFor(aiPlayer, winner, state);
+      if (teamWinsWithNell) {
+        // Buur aus der Kartenwahl entfernen – alternative Karten finden
+        final withoutBuur = playable
+            .where((c) => !(c.suit == trump && c.value == CardValue.jack))
+            .toList();
+        if (withoutBuur.isNotEmpty) {
+          playable = withoutBuur;
+        }
+      }
+    }
+
+    // ── HARD-OVERRIDE: Schafkopf-Ansager übernimmt Partner-Trumpfstich ────
+    // Wenn Partner einen Trumpf zurückspielt und der Ansager 2+ Damen oder
+    // 8er hat, soll er mit der schwächsten stechenden Dame/8er übernehmen
+    // statt die schwache ♠U abzulegen. Stich verliert sonst an Gegner mit
+    // höherem Trumpf (8er sticht Trumpfarbe-König).
+    if (state.currentTrickCards.isNotEmpty &&
+        state.gameMode == GameMode.schafkopf &&
+        state.trumpSuit != null &&
+        state.currentTrickNumber >= 2 &&
+        aiPlayer.id == state.players[state.ansagerIndex].id) {
+      final trumpS = state.trumpSuit!;
+      final winnerIdS = GameLogic.determineTrickWinner(
+        cards: state.currentTrickCards,
+        playerIds: state.currentTrickPlayerIds,
+        gameMode: state.gameMode, trumpSuit: trumpS,
+        trickNumber: state.currentTrickNumber,
+        molotofSubMode: state.molotofSubMode,
+        slalomStartsOben: state.slalomStartsOben,
+      );
+      final winnerS = state.players.firstWhere((p) => p.id == winnerIdS);
+      final winnerIdxS = state.currentTrickPlayerIds.indexOf(winnerIdS);
+      final winningCardS = state.currentTrickCards[winnerIdxS];
+      final partnerWinsS = _sameTeamFor(aiPlayer, winnerS, state);
+      if (partnerWinsS && _isSchafkopfTrump(winningCardS, trumpS)) {
+        final myQueens = aiPlayer.hand
+            .where((c) => c.value == CardValue.queen)
+            .length;
+        // Mit ≥2 Damen → höchste verfügbare Dame zum Übernehmen.
+        // Nur 8er → nicht stechen (8er für später aufsparen).
+        if (myQueens >= 2) {
+          final queens = playable
+              .where((c) => c.value == CardValue.queen && _wouldWin(c, state, trumpS))
+              .toList();
+          if (queens.isNotEmpty) {
+            // Höchste Dame zuerst (♣O = Eichel-Ober ist top im Schafkopf)
+            queens.sort((a, b) => GameLogic.cardPlayStrength(b, state.effectiveMode, trumpS)
+                .compareTo(GameLogic.cardPlayStrength(a, state.effectiveMode, trumpS)));
+            print('🔧 Schafkopf-Override: Ansager übernimmt mit Dame ${queens.first}');
+            return queens.first;
+          }
+        }
+      }
+    }
+
     // ── Friseur Solo Partner: Trumpf zurückspielen nach Reveal ──────────────
     // MUSS VOR allen anderen Trumpf-Heuristiken stehen, damit der Partner
     // nach dem Reveal IMMER Trumpf zurückspielt (Ansager übernimmt mit Buur).
@@ -359,8 +439,6 @@ class MonteCarloAI {
       final hasBuur = myTrump.any((c) => c.value == CardValue.jack);
       final hasNell = myTrump.any((c) => c.value == CardValue.nine);
       final isDominant = hasBuur && hasNell && myTrump.length >= 4;
-      // Partner-Trumpf-Check: nur eigenes Team hat Trumpf → nicht weiter ziehen
-      final onlyTeamHasTrump = oppTrump == 0;
 
       if (isDominant && oppTrump > 0) {
         // Dominant: immer Trumpf ziehen bis Gegner komplett raus sind
@@ -559,10 +637,6 @@ class MonteCarloAI {
       final announcerId = state.players[state.ansagerIndex].id;
       final isAnnouncer = aiPlayer.id == announcerId;
       final partnerId = _schafkopfPartnerId(state);
-      final partnerHasDame = partnerId != null && state.players
-          .firstWhere((p) => p.id == partnerId)
-          .hand.any((c) => c.value == CardValue.queen &&
-              _isSchafkopfTrump(c, trump));
 
       if (oppTrump == 0) {
         // Gegner haben keine Trümpfe mehr → Trümpfe auf Stiche verteilen!
@@ -975,6 +1049,39 @@ class MonteCarloAI {
       }
     }
 
+    // ── Friseur Solo Partner Oben/Unten: Wunschfarbe an Ansager zurück ────
+    // Nach Reveal: wenn KEIN eigener sicherer Stich → Wunschkarten-Farbe
+    // anspielen mit mittelhoher Karte (K, 10) damit Ansager mit niedrigerer
+    // Karte (7, 9) stechen kann. Vermeidet "blindes" Anspielen einer Farbe
+    // wo der Ansager keine Indikation hat.
+    if (state.currentTrickCards.isEmpty &&
+        state.gameType == GameType.friseur &&
+        state.friseurPartnerRevealed &&
+        state.friseurPartnerIndex != null &&
+        aiPlayer.id == state.players[state.friseurPartnerIndex!].id &&
+        state.wishCard != null &&
+        state.currentTrickNumber >= 2 &&
+        (state.gameMode == GameMode.oben ||
+            state.gameMode == GameMode.unten)) {
+      final wishSuit = state.wishCard!.suit;
+      final wishCards = playable.where((c) => c.suit == wishSuit).toList();
+      if (wishCards.isNotEmpty) {
+        final notSafe = wishCards
+            .where((c) => !_isHighestRemaining(c, state))
+            .toList();
+        if (notSafe.isNotEmpty) {
+          // Höchste Stärke unter den nicht-sicheren = mittelhohe Karte
+          // (Stärke in Unten: 6=hoch, A=tief; in Oben: A=hoch, 6=tief)
+          // Höchste Stärke = Karte am ehesten zum Stich, aber nicht sicher
+          notSafe.sort((a, b) =>
+              GameLogic.cardPlayStrength(b, state.gameMode, null)
+                  .compareTo(GameLogic.cardPlayStrength(a, state.gameMode, null)));
+          print('🔧 Partner-Wunschfarbe-Anspiel: ${notSafe.first}');
+          return notSafe.first;
+        }
+      }
+    }
+
     // ── Friseur Solo: Ansager spielt Wunschkarten-Farbe an ─────────────────
     // Wenn der Ansager keine sicheren Gewinner hat, spielt er die Farbe der
     // Wunschkarte an, damit der Partner mit der Wunschkarte stechen kann.
@@ -1126,9 +1233,6 @@ class MonteCarloAI {
               // = Ass/6, König/7, Dame/8, 10 etc. je nach Richtung
               // NICHT bei Buur(108)/Nell(107) → aufsparen
               // NICHT bei tiefsten 2 (100-101) → zu riskant
-              final ansagerStr = GameLogic.cardPlayStrength(
-                  ansagerCard, effectMode, state.trumpSuit);
-              final trumpBaseStr = ansagerStr - 100; // 0-8 Skala
               // Revealen wenn Ansager den Stich NICHT sicher gewinnt
               // UND Wunschkarte den Stich gewinnen würde (Buur/Nell)
               final ansagerSicher = _isHighestRemainingVsOpponents(
@@ -1401,6 +1505,34 @@ class MonteCarloAI {
             // Kann nicht absichern → schmieren wie üblich (fall through)
           }
 
+          // ── Schafkopf-Ansager mit hohen Trümpfen: Stich SELBST machen ──
+          // Wenn Ansager 2+ Damen/8er hat und Partner mit Trumpf sticht,
+          // soll er übertrumpfen statt ♠U abzuwerfen — Initiative behalten.
+          if (partnerStichSicher &&
+              state.gameMode == GameMode.schafkopf &&
+              trump != null &&
+              aiPlayer.id == state.players[state.ansagerIndex].id) {
+            final winners = playable.where((c) => _wouldWin(c, state, trump)).toList();
+            final myHighTrumps = aiPlayer.hand
+                .where((c) => c.value == CardValue.queen || c.value == CardValue.eight)
+                .length;
+            if (myHighTrumps >= 2 && winners.isNotEmpty) {
+              // Damen zuerst (höchster Rang), dann 8er
+              final queens = winners.where((c) => c.value == CardValue.queen).toList();
+              if (queens.isNotEmpty) {
+                queens.sort((a, b) => GameLogic.cardPlayStrength(a, effectMode, trump)
+                    .compareTo(GameLogic.cardPlayStrength(b, effectMode, trump)));
+                return queens.first; // schwächste Dame um höhere zu behalten
+              }
+              final eights = winners.where((c) => c.value == CardValue.eight).toList();
+              if (eights.isNotEmpty) {
+                eights.sort((a, b) => GameLogic.cardPlayStrength(a, effectMode, trump)
+                    .compareTo(GameLogic.cardPlayStrength(b, effectMode, trump)));
+                return eights.first;
+              }
+            }
+          }
+
           // Partner hat den Stich sicher → prüfe ob Überstechen mit 2+ Top-Karten sinnvoll.
           // Beispiel: Partner spielt ♠U, AI hat ♠A ♠K ♠O → überstechen und Farbe weiter führen.
           // Bedingung: AI hat 2+ Karten der Anspielfarbe die stärker sind als ALLE Gegner-Karten.
@@ -1626,7 +1758,6 @@ class MonteCarloAI {
             // Erst ab Stich 4 schmieren
             if (state.completedTricks.length < 4) return false;
             // Nicht auf Buur (J) schmieren – zu viele Punkte auf einem Stich
-            final ledSuit = state.currentTrickCards.first.suit;
             final winnerIdx = state.currentTrickPlayerIds.indexOf(currentWinnerId);
             if (winnerIdx >= 0) {
               final winnerCard = state.currentTrickCards[winnerIdx];
@@ -2570,11 +2701,6 @@ class MonteCarloAI {
         .length;
   }
 
-  /// Ob nur das eigene Team noch Schafkopf-Trümpfe hat.
-  static bool _onlyTeamHasSchafkopfTrump(Player player, GameState state, Suit trump) {
-    return _opponentSchafkopfTrumpCount(player, state, trump) == 0;
-  }
-
   /// Ob [card] ein sicherer Stichgewinner ist:
   /// - Keine stärkere Karte der gleichen Farbe bei anderen Spielern, UND
   /// - Kein Trumpf mehr bei Gegnern (sonst wird die Karte gestochen).
@@ -2649,18 +2775,6 @@ class MonteCarloAI {
         p.hand.contains(strongerInHands.first));
     if (_sameTeam(aiPlayer, strongerHolder)) return false;
     return true;
-  }
-
-  /// Zweithöchste Stärke einer Farbe in der eigenen Hand (unterhalb von [topStrength]).
-  static int _secondHighestStrength(Suit suit, List<JassCard> hand,
-      GameMode mode, Suit? trump, int topStrength) {
-    final sameSuit = hand
-        .where((c) => c.suit == suit)
-        .map((c) => GameLogic.cardPlayStrength(c, mode, trump))
-        .where((s) => s < topStrength)
-        .toList();
-    if (sameSuit.isEmpty) return -1;
-    return sameSuit.reduce((a, b) => a > b ? a : b);
   }
 
   // ─── Hilfsmethoden ────────────────────────────────────────────────────────

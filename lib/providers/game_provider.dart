@@ -9,7 +9,9 @@ import '../models/deck.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
 import '../models/game_record.dart';
+import '../models/round_replay.dart';
 import '../services/stats_service.dart';
+import '../services/replay_service.dart';
 import '../utils/game_logic.dart';
 import '../utils/monte_carlo.dart';
 import '../utils/mode_selector.dart';
@@ -239,6 +241,8 @@ class GameProvider extends ChangeNotifier {
   }) {
     _aiRunning = false;
     _humanWyssDecisionPending = false;
+    // Cleanup: ungeteilte Replays vom vorherigen Spiel löschen
+    _replayService.clearAll();
     final deck = Deck(cardType: cardType);
     final hands = deck.deal(4);
 
@@ -317,6 +321,7 @@ class GameProvider extends ChangeNotifier {
       enabledVariants: enabledVariants ?? const {'trump_oben', 'trump_unten', 'oben', 'unten', 'slalom', 'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof'},
     );
     notifyListeners();
+    _debugLogModePicks();
 
     // KI-Ansager wählt automatisch
     if (!_state.currentAnsager.isHuman) {
@@ -571,6 +576,7 @@ class GameProvider extends ChangeNotifier {
       playerScores: {for (final p in updatedPlayers) p.id: 0},
     );
     notifyListeners();
+    _debugLogModePicks();
 
     if (!_state.currentAnsager.isHuman) {
       _autoSelectMode();
@@ -698,6 +704,7 @@ class GameProvider extends ChangeNotifier {
       playerScores: {for (final p in updatedPlayers) p.id: 0},
     );
     notifyListeners();
+    _debugLogModePicks();
 
     if (!_state.currentAnsager.isHuman) {
       _autoSelectMode();
@@ -769,6 +776,7 @@ class GameProvider extends ChangeNotifier {
       playerScores: {for (final p in updatedPlayers) p.id: 0},
     );
     notifyListeners();
+    _debugLogModePicks();
 
     if (!_state.currentAnsager.isHuman) {
       _autoSelectMode();
@@ -1513,21 +1521,40 @@ class GameProvider extends ChangeNotifier {
 
   // ─── KI wählt automatisch einen Spielmodus ───────────────────────────────
 
-  void _autoSelectMode() {
-    final selector = _state.currentTrumpSelector;
-
-    // DEBUG: Was würde jeder Spieler wählen?
-    if (_state.gameType == GameType.friseur) {
-      for (final p in _state.players) {
-        final avail = _state.availableVariantsForPlayer(p.id);
-        if (avail.isEmpty) continue;
+  /// Debug: gibt für ALLE Spieler Hand + bevorzugten Modus aus.
+  /// Wird aufgerufen sobald die Mode-Auswahl-Phase startet (Mensch oder Bot).
+  void _debugLogModePicks() {
+    print('═══════════════════════════════════════════════════════════════');
+    print('🎯 Mode-Auswahl Runde ${_state.roundNumber} | Ansager: ${_state.currentTrumpSelector.name}');
+    for (final p in _state.players) {
+      final hand = p.hand.map((c) => '${c.suit.symbol}${c.displayValue}').join(' ');
+      List<String> avail;
+      if (_state.gameType == GameType.friseur) {
+        avail = _state.availableVariantsForPlayer(p.id);
+      } else if (_state.gameType == GameType.schieber) {
+        avail = const ['trump_ss', 'trump_re', 'oben', 'unten', 'slalom'];
+      } else {
+        final isT1 = p.position == PlayerPosition.south || p.position == PlayerPosition.north;
+        avail = _state.availableVariants(isT1);
+      }
+      String pick = '—';
+      if (avail.isNotEmpty) {
         try {
           final r = ModeSelectorAI.selectMode(player: p, state: _state, availableVariants: avail);
-          final hand = p.hand.map((c) => '${c.suit.symbol}${c.displayValue}').join(' ');
-          print('🃏 ${p.name}: würde ${r.mode.name} ${r.trumpSuit?.symbol ?? ""} wählen (Wunsch: ${r.wishCard}) | $hand');
-        } catch (_) {}
+          final wish = r.wishCard != null ? ' Wunsch:${r.wishCard!.suit.symbol}${r.wishCard!.displayValue}' : '';
+          pick = '${r.mode.name}${r.trumpSuit != null ? " ${r.trumpSuit!.symbol}" : ""}$wish';
+        } catch (e) {
+          pick = 'Fehler: $e';
+        }
       }
+      print('🃏 ${p.name.padRight(8)} → $pick');
+      print('   Hand: $hand');
     }
+    print('═══════════════════════════════════════════════════════════════');
+  }
+
+  void _autoSelectMode() {
+    final selector = _state.currentTrumpSelector;
 
     // Für Friseur Solo: Varianten pro Spieler; nach 2× Schieben alle Varianten erlaubt
     final List<String> available;
@@ -1680,24 +1707,28 @@ class GameProvider extends ChangeNotifier {
     }
 
     // Bei Obenabe: Ass wünschen, Fallback König/Ober/Zehner einer Farbe
-    // die man anspielen kann (z.B. König wünschen wo man Ass hat)
+    // die man anspielen kann. WICHTIG: nie eine Farbe wünschen, von der
+    // man keine Karte hat — lieber zum nächsten Wert (K → Q → 10) wechseln.
     if (mode == GameMode.oben) {
       final handSuits = selector.hand.map((c) => c.suit).toSet();
       for (final val in [CardValue.ace, CardValue.king, CardValue.queen, CardValue.ten]) {
-        // Bevorzuge Farben wo man eine höhere Karte hat zum Anspielen
         final candidates = available.where((c) => c.value == val).toList();
         if (candidates.isEmpty) continue;
-        // Farbe wo man die nächsthöhere Karte hat (z.B. Ass für König-Wunsch)
+        // PRIO 1: Farbe in Hand UND eine höhere Karte zum Anspielen
         final withLead = candidates.where((c) =>
             selector.hand.any((h) => h.suit == c.suit &&
                 GameLogic.cardPlayStrength(h, GameMode.oben, null) >
                 GameLogic.cardPlayStrength(c, GameMode.oben, null))).toList();
         if (withLead.isNotEmpty) return withLead.first;
-        // Sonst: Farbe die man zumindest auf der Hand hat
+        // PRIO 2: Farbe zumindest auf der Hand
         final inHand = candidates.where((c) => handSuits.contains(c.suit)).toList();
         if (inHand.isNotEmpty) return inHand.first;
-        return candidates.first;
+        // KEIN Fallback auf candidates.first — gehe zum nächsten Wert!
+        // (Sonst würde z.B. Schaufel-Ass gewünscht obwohl man keine Schaufel hat.)
       }
+      // Notfall: nichts passte (keine Karten von Hand-Farben mit Ass/K/Q/10
+      // im Pool). Sollte praktisch nie passieren — bedeutet sehr ungewöhnliche
+      // Hand-Verteilung. Dann irgendeine verfügbare Karte.
       return available.first;
     }
 
@@ -1737,7 +1768,8 @@ class GameProvider extends ChangeNotifier {
         if (withLead.isNotEmpty) return withLead.first;
         final inHand = candidates.where((c) => handSuits.contains(c.suit)).toList();
         if (inHand.isNotEmpty) return inHand.first;
-        return candidates.first;
+        // KEIN Fallback auf candidates.first — gehe zum nächsten Wert (7 → 8).
+        // Verhindert Wunsch in einer Farbe, von der man keine Karte hat.
       }
       return available.first;
     }
@@ -1904,33 +1936,35 @@ class GameProvider extends ChangeNotifier {
       return available.first;
     }
 
-    // Slalom: Ass oder Sechs wünschen, aber NICHT von einer Farbe wo man
-    // selbst die Gegenrichtung hat (z.B. Ass wünschen wenn man die 6 hat
-    // → Partner muss eventuell seine 6 hergeben beim Oben-Stich).
+    // Slalom: Wunschfarbe wählen — Regeln:
+    //   1. Farbe muss man mindestens 1 Karte von haben (Anspielmöglichkeit)
+    //   2. Weder 6 noch Ass dieser Farbe selbst halten — so bleiben mehr
+    //      Karten dieser Farbe im Spiel und die niedrigen Karten der
+    //      Mitspieler kommen wahrscheinlicher zum Stich.
     if (mode == GameMode.slalom) {
       final allSuits = selector.hand.first.cardType == CardType.french
           ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
           : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
-      final counts = {for (final s in allSuits) s: 0};
-      for (final c in selector.hand) {
-        counts[c.suit] = (counts[c.suit] ?? 0) + 1;
-      }
-      final sortedSuits = [...allSuits]
-        ..sort((a, b) => counts[b]!.compareTo(counts[a]!));
 
-      // Gegenkarten auf der eigenen Hand: Ass↔6
+      final counts = {for (final s in allSuits) s: 0};
       final hasAceOf = <Suit>{};
       final hasSixOf = <Suit>{};
       for (final c in selector.hand) {
+        counts[c.suit] = (counts[c.suit] ?? 0) + 1;
         if (c.value == CardValue.ace) hasAceOf.add(c.suit);
         if (c.value == CardValue.six) hasSixOf.add(c.suit);
       }
 
+      // Sortierung: Farben mit mehr Karten zuerst (mehr Anspiel-Kontrolle)
+      final sortedSuits = [...allSuits]
+        ..sort((a, b) => counts[b]!.compareTo(counts[a]!));
+
+      // PRIO 1: ≥1 Karte UND weder Ass noch 6 dieser Farbe → ideal.
+      // Beide (Ass und 6) sind sicher verfügbar — wir wünschen Ass.
       for (final suit in sortedSuits) {
+        if (counts[suit]! == 0) continue;
+        if (hasAceOf.contains(suit) || hasSixOf.contains(suit)) continue;
         for (final val in [CardValue.ace, CardValue.six]) {
-          // Nicht Ass wünschen wenn man selbst die 6 dieser Farbe hat (und umgekehrt)
-          if (val == CardValue.ace && hasSixOf.contains(suit)) continue;
-          if (val == CardValue.six && hasAceOf.contains(suit)) continue;
           final card = available.firstWhere(
             (c) => c.suit == suit && c.value == val,
             orElse: () => available[0],
@@ -1938,7 +1972,42 @@ class GameProvider extends ChangeNotifier {
           if (card.suit == suit && card.value == val) return card;
         }
       }
-      // Fallback: ohne Einschränkung
+
+      // PRIO 2: ≥1 Karte und nur eine der beiden (Ass ODER 6) selbst
+      // → die ANDERE wünschen
+      for (final suit in sortedSuits) {
+        if (counts[suit]! == 0) continue;
+        for (final val in [CardValue.ace, CardValue.six]) {
+          if (val == CardValue.ace && hasAceOf.contains(suit)) continue;
+          if (val == CardValue.six && hasSixOf.contains(suit)) continue;
+          final card = available.firstWhere(
+            (c) => c.suit == suit && c.value == val,
+            orElse: () => available[0],
+          );
+          if (card.suit == suit && card.value == val) return card;
+        }
+      }
+
+      // PRIO 3 (Fallback — Regel 1 weiter strikt: ≥1 Karte zwingend,
+      // Ass/6-Einschränkung gelockert):
+      // Falls in jeder ≥1-Farbe sowohl Ass als auch 6 selbst gehalten,
+      // bleibt im available pool für diese Farben gar nichts — also
+      // kein gültiger Wunsch möglich. Daher: hier weiter strikt
+      // counts[suit] > 0 erzwingen.
+      for (final suit in sortedSuits) {
+        if (counts[suit]! == 0) continue;
+        for (final val in [CardValue.ace, CardValue.six]) {
+          final card = available.firstWhere(
+            (c) => c.suit == suit && c.value == val,
+            orElse: () => available[0],
+          );
+          if (card.suit == suit && card.value == val) return card;
+        }
+      }
+
+      // PRIO 4 (extreme Edge): in JEDER Farbe mit ≥1 Karte hält der Spieler
+      // sowohl Ass als auch 6 → kein gültiger Wunsch in eigener Farbe.
+      // Sehr selten (>= 8 Karten gebunden). Erst hier 0-count Farbe erlaubt.
       for (final suit in sortedSuits) {
         for (final val in [CardValue.ace, CardValue.six]) {
           final card = available.firstWhere(
@@ -2988,11 +3057,13 @@ class GameProvider extends ChangeNotifier {
     final human = _state.players.firstWhere((p) => p.isHuman,
         orElse: () => _state.players.first);
     if (!human.isHuman) return {};
-    // Zwischen Stichen (kein Stich läuft): nur wenn Spieler erster ist
+    // Mensch hat in diesem Stich schon gespielt → keine Pre-Selection
+    // für den nächsten Stich erlauben.
+    if (_state.currentTrickPlayerIds.contains(human.id)) return {};
+    // Zwischen Stichen (Stich leer): nur wenn Spieler Anführer ist
     if (_state.currentTrickCards.isEmpty && _state.currentPlayer.id != human.id) {
       return {};
     }
-    // Stich läuft oder Spieler ist dran: spielbare Karten berechnen
     return GameLogic.getPlayableCards(human.hand, _state.currentTrickCards,
         mode: _state.effectiveMode,
         trumpSuit: (_state.effectiveMode == GameMode.trump ||
@@ -3021,5 +3092,69 @@ class GameProvider extends ChangeNotifier {
   static Map<String, Set<String>> _deepCopyFriseurAnnounced(
       Map<String, Set<String>> original) {
     return original.map((k, v) => MapEntry(k, Set<String>.from(v)));
+  }
+
+  // ─── Replay-Aufnahme ─────────────────────────────────────────────────────
+
+  final ReplayService _replayService = ReplayService();
+  ReplayService get replayService => _replayService;
+
+  /// Erstellt einen Replay der zuletzt abgeschlossenen Runde aus dem aktuellen State.
+  /// Rekonstruiert die initialen Hände aus den 9 Stichen.
+  /// Liefert null wenn keine vollständige Runde vorhanden ist.
+  RoundReplay? buildLastRoundReplay() {
+    if (_state.completedTricks.length != 9) return null;
+    final tricks = _state.completedTricks;
+
+    final initialHands = <String, List<JassCard>>{
+      for (final p in _state.players) p.id: <JassCard>[],
+    };
+    for (final trick in tricks) {
+      trick.cards.forEach((playerId, card) {
+        initialHands[playerId]?.add(card);
+      });
+    }
+
+    final ansagerId = _state.players[_state.ansagerIndex].id;
+    final partnerId = _state.gameType == GameType.friseur &&
+            _state.friseurPartnerIndex != null
+        ? _state.players[_state.friseurPartnerIndex!].id
+        : null;
+
+    final ansagerTeamScore = _state.gameType == GameType.friseur
+        ? (_state.teamScores['team1'] ?? 0)
+        : (_state.isTeam1Ansager
+            ? (_state.teamScores['team1'] ?? 0)
+            : (_state.teamScores['team2'] ?? 0));
+    final opponentTeamScore = _state.gameType == GameType.friseur
+        ? (_state.teamScores['team2'] ?? 0)
+        : (_state.isTeam1Ansager
+            ? (_state.teamScores['team2'] ?? 0)
+            : (_state.teamScores['team1'] ?? 0));
+
+    return RoundReplay(
+      roundId:
+          '${DateTime.now().millisecondsSinceEpoch}_${_state.roundNumber}',
+      savedAt: DateTime.now(),
+      cardType: _state.cardType,
+      gameType: _state.gameType,
+      gameMode: _state.gameMode,
+      trumpSuit: _state.trumpSuit,
+      wishCard: _state.wishCard,
+      slalomStartsOben: _state.slalomStartsOben,
+      molotofSubMode: _state.molotofSubMode,
+      geschoben: _state.roundGeschoben,
+      initialHands: initialHands,
+      playerNames: {for (final p in _state.players) p.id: p.name},
+      playerPositions: {
+        for (final p in _state.players) p.id: p.position.name
+      },
+      ansagerId: ansagerId,
+      partnerId: partnerId,
+      tricks: tricks,
+      finalScores: Map<String, int>.from(_state.teamScores),
+      ansagerTeamScore: ansagerTeamScore,
+      opponentTeamScore: opponentTeamScore,
+    );
   }
 }

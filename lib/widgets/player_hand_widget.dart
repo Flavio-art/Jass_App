@@ -117,7 +117,7 @@ class _PlayerHandWidgetState extends State<PlayerHandWidget> {
         // totalWidth + 2 * cardWidth * 1.5 * sin(angle) + 4 = maxWidth
         // cardWidth * (1 + (n-1)*ratio + 2*1.5*sin) = maxWidth - 4
         final maxW = (constraints.maxWidth > 0 ? constraints.maxWidth : 400.0) - 4.0;
-        final cardWidth = (maxW / (1 + (n - 1) * ratio + 2 * cardAspect * sinAngle)).clamp(40.0, 120.0);
+        final cardWidth = (maxW / (1 + (n - 1) * ratio + 2 * cardAspect * sinAngle)).clamp(40.0, 140.0);
         final overlap = cardWidth * ratio;
         final totalWidth = cardWidth + (n - 1) * overlap;
 
@@ -290,7 +290,7 @@ class _PlayerHandWidgetState extends State<PlayerHandWidget> {
     }
   }
 
-  void _startAutoPlay(JassCard card, {int delayMs = 1500}) {
+  void _startAutoPlay(JassCard card, {int delayMs = 3000}) {
     _autoPlayTimer?.cancel();
     _autoPlayTimer = Timer(Duration(milliseconds: delayMs), () {
       if (mounted && _selectedCard == card &&

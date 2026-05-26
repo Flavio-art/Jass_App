@@ -1,13 +1,17 @@
 import 'dart:convert';
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_colors.dart';
 import '../models/card_model.dart';
 import '../models/game_state.dart';
+import '../models/round_replay.dart';
 import '../providers/game_provider.dart';
 import '../widgets/card_widget.dart';
 import 'game_screen.dart';
+import 'replay_screen.dart';
 import 'rules_screen.dart';
 import 'settings_screen.dart';
 import 'stats_screen.dart';
@@ -337,6 +341,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: const Text('Regeln',
                         style: TextStyle(color: Colors.white38, fontSize: 15)),
                   ),
+                  TextButton.icon(
+                    onPressed: _openReplay,
+                    icon: const Icon(Icons.play_circle_outline,
+                        color: Colors.white38, size: 18),
+                    label: const Text('Replay öffnen',
+                        style: TextStyle(color: Colors.white38, fontSize: 15)),
+                  ),
                   SizedBox(height: constraints.maxHeight * 0.02),
                 ],
               ),
@@ -507,6 +518,33 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _openReplay() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+        allowMultiple: false,
+        withData: false,
+      );
+      if (result == null || result.files.isEmpty) return;
+      final path = result.files.single.path;
+      if (path == null) return;
+      final file = File(path);
+      final raw = await file.readAsString();
+      final j = jsonDecode(raw) as Map<String, dynamic>;
+      final replay = RoundReplay.fromJson(j);
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => ReplayScreen(replay: replay)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Konnte Replay nicht öffnen: $e')),
+      );
+    }
   }
 }
 

@@ -29,6 +29,79 @@ class _GameScreenState extends State<GameScreen> {
   String? _lastLimitReachedBy; // Tracking für Schieber-Limit-Popup
   bool _limitDialogShowing = false;
 
+  Future<void> _showShareDialog(BuildContext context, GameProvider provider) async {
+    final replay = provider.buildLastRoundReplay();
+    if (replay == null) return;
+    final commentController = TextEditingController();
+    final shouldShare = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1B4D2E),
+        title: const Text('Runde teilen',
+            style: TextStyle(color: Colors.white)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Kommentar (optional):',
+                style: TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: commentController,
+                maxLines: 3,
+                maxLength: 280,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Z.B. "Stich 5 war komisch..."',
+                  hintStyle: const TextStyle(color: Colors.white38),
+                  filled: true,
+                  fillColor: Colors.black26,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Colors.white24),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Abbrechen',
+                style: TextStyle(color: Colors.white70)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.share, size: 18),
+            label: const Text('Teilen'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.gold,
+              foregroundColor: Colors.black,
+            ),
+          ),
+        ],
+      ),
+    );
+    if (shouldShare != true) return;
+    final withComment = replay.copyWith(
+      comment: commentController.text.trim().isEmpty
+          ? null
+          : commentController.text.trim(),
+    );
+    try {
+      await provider.replayService.shareReplay(withComment);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fehler beim Teilen: $e')),
+      );
+    }
+  }
+
   static WyssEntry? _bestWyssFor(GameState state, String playerId) {
     final entries = state.playerWyss[playerId] ?? [];
     if (entries.isEmpty) return null;
@@ -265,6 +338,7 @@ class _GameScreenState extends State<GameScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.feltGreen,
+      resizeToAvoidBottomInset: false,
       body: SafeArea(
         bottom: false,
         child: Consumer<GameProvider>(
@@ -478,10 +552,11 @@ class _GameScreenState extends State<GameScreen> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          // Links: Angesagtes Spiel (Friseur Solo)
+                          // Links: Angesagtes Spiel (Friseur Solo + Schieber)
                           SizedBox(
                             width: 88,
-                            child: state.gameType == GameType.friseur &&
+                            child: (state.gameType == GameType.friseur ||
+                                    state.gameType == GameType.schieber) &&
                                     (state.phase == GamePhase.playing || state.phase == GamePhase.trickClearPending)
                                 ? _FriseurModeLabel(
                                     gameMode: state.gameMode,
@@ -656,7 +731,7 @@ class _GameScreenState extends State<GameScreen> {
                                 gameType: state.gameType,
                                 cardType: state.cardType,
                                 geschoben: state.roundGeschoben,
-                                hideModeIndicator: state.gameType == GameType.friseur,
+                                hideModeIndicator: state.gameType == GameType.friseur || state.gameType == GameType.schieber,
                               ),
                             ),
                           ),
@@ -1092,6 +1167,7 @@ class _GameScreenState extends State<GameScreen> {
                           enabledVariants: state.enabledVariants,
                           onNextRound: () => provider.startNewRound(),
                           onHome: () => Navigator.pop(context),
+                          onShare: () => _showShareDialog(context, provider),
                         ),
 
                 // ── Spielübersicht Overlay (📊) ────────────────────────
@@ -1528,6 +1604,7 @@ class _RoundEndOverlay extends StatelessWidget {
   final String? postRoundComment;
   final VoidCallback onNextRound;
   final VoidCallback onHome;
+  final VoidCallback? onShare;
   final Set<String> enabledVariants;
 
   // Feste Reihenfolge aller Varianten
@@ -1577,6 +1654,7 @@ class _RoundEndOverlay extends StatelessWidget {
     this.postRoundComment,
     required this.onNextRound,
     required this.onHome,
+    this.onShare,
     this.enabledVariants = const {'trump_oben', 'trump_unten', 'oben', 'unten', 'slalom', 'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof'},
   });
 
@@ -1685,16 +1763,31 @@ class _RoundEndOverlay extends StatelessWidget {
                 const Divider(color: Colors.white24, height: 1),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  child: Center(
-                    child: ElevatedButton(
-                      onPressed: onNextRound,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.gold,
-                        foregroundColor: Colors.black,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (onShare != null) ...[
+                        OutlinedButton.icon(
+                          onPressed: onShare,
+                          icon: const Icon(Icons.share, size: 18),
+                          label: const Text('Teilen'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.white54),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                      ],
+                      ElevatedButton(
+                        onPressed: onNextRound,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.gold,
+                          foregroundColor: Colors.black,
+                        ),
+                        child: const Text('Nächste Runde',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
-                      child: const Text('Nächste Runde',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
-                    ),
+                    ],
                   ),
                 ),
               ],
@@ -1765,16 +1858,31 @@ class _RoundEndOverlay extends StatelessWidget {
                 const Divider(color: Colors.white24, height: 1),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  child: Center(
-                    child: ElevatedButton(
-                      onPressed: onNextRound,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.gold,
-                        foregroundColor: Colors.black,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (onShare != null) ...[
+                        OutlinedButton.icon(
+                          onPressed: onShare,
+                          icon: const Icon(Icons.share, size: 18),
+                          label: const Text('Teilen'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: const BorderSide(color: Colors.white54),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                      ],
+                      ElevatedButton(
+                        onPressed: onNextRound,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.gold,
+                          foregroundColor: Colors.black,
+                        ),
+                        child: const Text('Nächste Runde',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
-                      child: const Text('Nächste Runde',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
-                    ),
+                    ],
                   ),
                 ),
               ],
@@ -1873,18 +1981,33 @@ class _RoundEndOverlay extends StatelessWidget {
               const Divider(color: Colors.white24, height: 1),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                child: Center(
-                  child: ElevatedButton(
-                    onPressed: onNextRound,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.gold,
-                      foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 24, vertical: 10),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (onShare != null) ...[
+                      OutlinedButton.icon(
+                        onPressed: onShare,
+                        icon: const Icon(Icons.share, size: 18),
+                        label: const Text('Teilen'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: Colors.white54),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                    ],
+                    ElevatedButton(
+                      onPressed: onNextRound,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.gold,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 10),
+                      ),
+                      child: const Text('Nächste Runde',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
                     ),
-                    child: const Text('Nächste Runde',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-                  ),
+                  ],
                 ),
               ),
             ],
@@ -4134,12 +4257,22 @@ class _FriseurModeLabel extends StatelessWidget {
           _text(label, color),
           if (trumpSuit != null)
             Padding(
-              padding: const EdgeInsets.only(top: 1),
-              child: cardType == CardType.german
-                  ? Image.asset('assets/suit_icons/${trumpSuit!.name}.png',
-                      width: 18, height: 18)
-                  : Text(trumpSuit!.symbol,
-                      style: const TextStyle(fontSize: 14)),
+              padding: const EdgeInsets.only(top: 2),
+              child: Container(
+                width: 26,
+                height: 26,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: Center(
+                  child: cardType == CardType.german
+                      ? Image.asset('assets/suit_icons/${trumpSuit!.name}.png',
+                          width: 20, height: 20)
+                      : Text(trumpSuit!.symbol,
+                          style: const TextStyle(fontSize: 16, color: Colors.black)),
+                ),
+              ),
             ),
         ],
       );
