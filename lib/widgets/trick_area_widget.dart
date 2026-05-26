@@ -123,16 +123,28 @@ class TrickAreaWidget extends StatelessWidget {
       orElse: () => players.first,
     );
 
-    final alignment = switch (player.position) {
-      PlayerPosition.south => const Alignment(0, 0.65),
-      PlayerPosition.north => const Alignment(0, -0.65),
-      PlayerPosition.west  => const Alignment(-0.65, 0),
-      PlayerPosition.east  => const Alignment(0.65, 0),
-    };
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Responsive: Karten und Abstände an Trick-Area-Grösse anpassen
+        final areaWidth = constraints.maxWidth;
+        final areaHeight = constraints.maxHeight;
+        final isSmall = areaWidth < 280 || areaHeight < 200;
+        final cardWidth = isSmall ? 95.0 : 121.0;
+        final vSpread = isSmall ? 0.55 : 0.65;
+        final hSpread = isSmall ? 0.75 : 0.85;
 
-    return Align(
-      alignment: alignment,
-      child: CardWidget(card: card, width: 92),
+        final alignment = switch (player.position) {
+          PlayerPosition.south => Alignment(0, vSpread),
+          PlayerPosition.north => Alignment(0, -vSpread),
+          PlayerPosition.west  => Alignment(-hSpread, 0),
+          PlayerPosition.east  => Alignment(hSpread, 0),
+        };
+
+        return Align(
+          alignment: alignment,
+          child: CardWidget(card: card, width: cardWidth),
+        );
+      },
     );
   }
 }

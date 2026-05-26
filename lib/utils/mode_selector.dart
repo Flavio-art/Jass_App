@@ -750,12 +750,16 @@ class ModeSelectorAI {
       );
     }
 
-    // Bei Obenabe: Ass wünschen
+    // Bei Obenabe: Ass wünschen, bei 4 Assen → König
     if (mode == GameMode.oben) {
-      return available.firstWhere(
-        (c) => c.value == CardValue.ace,
-        orElse: () => available.first,
-      );
+      for (final val in [CardValue.ace, CardValue.king]) {
+        final c = available.firstWhere(
+          (c) => c.value == val,
+          orElse: () => available.first,
+        );
+        if (c.value == val) return c;
+      }
+      return available.first;
     }
 
     // Bei Undenufe: Sechs wünschen – bevorzugt Farbe wo man hohe
@@ -782,10 +786,15 @@ class ModeSelectorAI {
         });
         return sixes.first;
       }
-      return available.firstWhere(
-        (c) => c.value == CardValue.seven,
-        orElse: () => available.first,
-      );
+      // Keine 6 verfügbar → 7 wünschen, dann 8
+      for (final val in [CardValue.seven, CardValue.eight]) {
+        final c = available.firstWhere(
+          (c) => c.value == val,
+          orElse: () => available.first,
+        );
+        if (c.value == val) return c;
+      }
+      return available.first;
     }
 
     // Slalom: Sichere Stiche zählen und schwächere Richtung verstärken.
@@ -822,6 +831,12 @@ class ModeSelectorAI {
         // und wo man Punktekarten (10, 8) zum Schmieren hat
         final suitsByPriority = [...allSuits]
           ..sort((a, b) {
+            // Bevorzuge Farbe wo WEDER Ass NOCH 6 in Hand (echtes Slalom-Loch)
+            final aMissesBoth = !hand.any((c) => c.suit == a &&
+                (c.value == CardValue.ace || c.value == CardValue.six));
+            final bMissesBoth = !hand.any((c) => c.suit == b &&
+                (c.value == CardValue.ace || c.value == CardValue.six));
+            if (aMissesBoth != bMissesBoth) return aMissesBoth ? -1 : 1;
             // Farben wo man selbst die höchste hat (Ass bei Oben) → meiden!
             final aHasAce = hand.any((c) => c.suit == a && c.value == CardValue.ace);
             final bHasAce = hand.any((c) => c.suit == b && c.value == CardValue.ace);
@@ -857,6 +872,12 @@ class ModeSelectorAI {
         // und wo man Punktekarten (10, 8) zum Schmieren hat
         final suitsByPriority = [...allSuits]
           ..sort((a, b) {
+            // Bevorzuge Farbe wo WEDER 6 NOCH Ass in Hand (echtes Slalom-Loch)
+            final aMissesBoth = !hand.any((c) => c.suit == a &&
+                (c.value == CardValue.six || c.value == CardValue.ace));
+            final bMissesBoth = !hand.any((c) => c.suit == b &&
+                (c.value == CardValue.six || c.value == CardValue.ace));
+            if (aMissesBoth != bMissesBoth) return aMissesBoth ? -1 : 1;
             // Farben wo man selbst die 6 hat → meiden!
             final aHas6 = hand.any((c) => c.suit == a && c.value == CardValue.six);
             final bHas6 = hand.any((c) => c.suit == b && c.value == CardValue.six);
