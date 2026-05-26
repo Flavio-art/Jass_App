@@ -751,21 +751,35 @@ class ModeSelectorAI {
     }
 
     // Bei Obenabe: Ass wünschen, bei 4 Assen → König
+    // WICHTIG: nur in Farben wo der Spieler selbst Karten hat (sonst kann
+    // er die Wunschfarbe nie anspielen).
     if (mode == GameMode.oben) {
+      final handSuitsO = hand.map((c) => c.suit).toSet();
       for (final val in [CardValue.ace, CardValue.king]) {
-        final c = available.firstWhere(
-          (c) => c.value == val,
-          orElse: () => available.first,
-        );
-        if (c.value == val) return c;
+        // Priorität: in einer Farbe wo der Spieler Karten hat
+        final preferred = available.where(
+          (c) => c.value == val && handSuitsO.contains(c.suit)).toList();
+        if (preferred.isNotEmpty) return preferred.first;
+        // Fallback: irgendein Ass/König
+        final any = available.where((c) => c.value == val).toList();
+        if (any.isNotEmpty) return any.first;
       }
       return available.first;
     }
 
     // Bei Undenufe: Sechs wünschen – bevorzugt Farbe wo man hohe
     // Opferkarten hat (K, Q, J → opfern wenn 6 gespielt, 7 bleibt)
+    // WICHTIG: nur in Farben wo der Spieler selbst Karten hat.
     if (mode == GameMode.unten) {
-      final sixes = available.where((c) => c.value == CardValue.six).toList();
+      final handSuitsU = hand.map((c) => c.suit).toSet();
+      // Sechsen in Farben wo Spieler eigene Karten hat (kann anspielen)
+      var sixes = available
+          .where((c) => c.value == CardValue.six && handSuitsU.contains(c.suit))
+          .toList();
+      // Fallback: alle Sechsen (auch wenn Farbe nicht in Hand)
+      if (sixes.isEmpty) {
+        sixes = available.where((c) => c.value == CardValue.six).toList();
+      }
       if (sixes.isNotEmpty) {
         // Farbe mit den meisten hohen Opferkarten (K, Q, J, 10, A = schwach in Unten)
         const highVals = {CardValue.ace, CardValue.king, CardValue.queen,
@@ -786,13 +800,13 @@ class ModeSelectorAI {
         });
         return sixes.first;
       }
-      // Keine 6 verfügbar → 7 wünschen, dann 8
+      // Keine 6 verfügbar → 7 wünschen, dann 8 — auch hier in Hand-Farben bevorzugen
       for (final val in [CardValue.seven, CardValue.eight]) {
-        final c = available.firstWhere(
-          (c) => c.value == val,
-          orElse: () => available.first,
-        );
-        if (c.value == val) return c;
+        final preferred = available.where(
+          (c) => c.value == val && handSuitsU.contains(c.suit)).toList();
+        if (preferred.isNotEmpty) return preferred.first;
+        final any = available.where((c) => c.value == val).toList();
+        if (any.isNotEmpty) return any.first;
       }
       return available.first;
     }

@@ -48,14 +48,13 @@ class MonteCarloAI {
     // NIE den Buur drauf hauen – 14+20 = 34 Pkt an Partner verschwendet,
     // plus Buur weg = keine Trumpf-Zieh-Macht mehr.
     if (state.currentTrickCards.isNotEmpty &&
-        (state.gameMode == GameMode.trump || state.gameMode == GameMode.trumpUnten) &&
-        state.trumpSuit != null) {
-      final trump = state.trumpSuit!;
-      // Gewinnt das Team gerade mit der Trumpf-Nell?
+        (state.gameMode == GameMode.trump ||
+            state.gameMode == GameMode.trumpUnten ||
+            state.gameMode == GameMode.allesTrumpf)) {
       final winnerId = GameLogic.determineTrickWinner(
         cards: state.currentTrickCards,
         playerIds: state.currentTrickPlayerIds,
-        gameMode: state.gameMode, trumpSuit: trump,
+        gameMode: state.gameMode, trumpSuit: state.trumpSuit,
         trickNumber: state.currentTrickNumber,
         molotofSubMode: state.molotofSubMode,
         slalomStartsOben: state.slalomStartsOben,
@@ -63,17 +62,92 @@ class MonteCarloAI {
       final winnerIdx = state.currentTrickPlayerIds.indexOf(winnerId);
       final winningCard = winnerIdx >= 0 ? state.currentTrickCards[winnerIdx] : null;
       final winner = state.players.firstWhere((p) => p.id == winnerId);
-      final teamWinsWithNell = winningCard != null &&
-          winningCard.suit == trump &&
-          winningCard.value == CardValue.nine &&
+      final isAllTrumpf = state.gameMode == GameMode.allesTrumpf;
+      final partnerWins = winningCard != null &&
           _sameTeamFor(aiPlayer, winner, state);
-      if (teamWinsWithNell) {
-        // Buur aus der Kartenwahl entfernen – alternative Karten finden
-        final withoutBuur = playable
-            .where((c) => !(c.suit == trump && c.value == CardValue.jack))
-            .toList();
-        if (withoutBuur.isNotEmpty) {
-          playable = withoutBuur;
+      // Nur Trumpf-Farbe in Trump/TrumpUnten; alle Farben in Tutti
+      final suitOk = winningCard != null &&
+          (isAllTrumpf ||
+              (state.trumpSuit != null &&
+                  winningCard.suit == state.trumpSuit));
+      if (partnerWins && suitOk) {
+        final winSuit = winningCard.suit;
+        final value = winningCard.value;
+        // Wieviel Karten dieser Farbe sind schon gespielt (inkl. aktuell)?
+        int playedOfSuit = 0;
+        for (final t in state.completedTricks) {
+          for (final c in t.cards.values) {
+            if (c.suit == winSuit) playedOfSuit++;
+          }
+        }
+        for (final c in state.currentTrickCards) {
+          if (c.suit == winSuit) playedOfSuit++;
+        }
+        // Nell schon gespielt (in completedTricks oder aktueller Stich)?
+        bool nellGone = false;
+        for (final t in state.completedTricks) {
+          for (final c in t.cards.values) {
+            if (c.suit == winSuit && c.value == CardValue.nine) {
+              nellGone = true;
+              break;
+            }
+          }
+        }
+        if (!nellGone) {
+          for (final c in state.currentTrickCards) {
+            if (c.suit == winSuit && c.value == CardValue.nine) {
+              nellGone = true;
+              break;
+            }
+          }
+        }
+        final isNell = value == CardValue.nine;
+        final isAceWithNellGone = value == CardValue.ace && nellGone;
+        final shouldHoldBuur =
+            (isNell || isAceWithNellGone) && playedOfSuit < 8;
+        if (shouldHoldBuur) {
+          final withoutBuur = playable
+              .where((c) => !(c.suit == winSuit && c.value == CardValue.jack))
+              .toList();
+          if (withoutBuur.isNotEmpty) {
+            playable = withoutBuur;
+          }
+        }
+      }
+    }
+
+    // ── HARD-OVERRIDE: Kein Trumpf-Anspiel wenn nur Team Trumpf hat ─────
+    // Trumpf-Ziehen kostet 2 Team-Trümpfe für 1 Stich — sinnlos wenn die
+    // Gegner trumpflos sind. Sicherer: Seitenfarbe anspielen, Partner sticht
+    // wenn Gegner gewinnt.
+    if (state.currentTrickCards.isEmpty &&
+        state.trumpSuit != null &&
+        (state.gameMode == GameMode.trump ||
+            state.gameMode == GameMode.trumpUnten) &&
+        _onlyTeamHasTrump(aiPlayer, state, state.trumpSuit!)) {
+      final trump = state.trumpSuit!;
+      final nonTrump = playable.where((c) => c.suit != trump).toList();
+      if (nonTrump.isNotEmpty) {
+        playable = nonTrump;
+      }
+    }
+
+    // ── HARD-OVERRIDE: Wunschkarte nicht unnötig wegwerfen ─────────────────
+    // Wenn die Wunschkarte spielbar ist, aber NICHT den Stich gewinnen würde
+    // und Alternativen vorhanden sind, entferne sie aus dem Pool. Ausnahme:
+    // letzter Stich (Stich 9) — da muss sie eh raus.
+    if (state.currentTrickCards.isNotEmpty &&
+        state.gameType == GameType.friseur &&
+        state.wishCard != null &&
+        playable.contains(state.wishCard) &&
+        playable.length >= 2 &&
+        state.currentTrickNumber < 9) {
+      final wishWouldWin = _wouldWin(state.wishCard!, state, state.trumpSuit);
+      if (!wishWouldWin) {
+        final withoutWish =
+            playable.where((c) => c != state.wishCard).toList();
+        if (withoutWish.isNotEmpty) {
+          playable = withoutWish;
         }
       }
     }
@@ -118,6 +192,38 @@ class MonteCarloAI {
             print('🔧 Schafkopf-Override: Ansager übernimmt mit Dame ${queens.first}');
             return queens.first;
           }
+        }
+      }
+    }
+
+    // ── Friseur Solo Partner Elefant: Wunschfarbe zurück bei K/7-Wunsch ────
+    // Strikte Konstellation:
+    //   - Wunsch = König in Oben-Phase (Stich 1-3) → Ansager hat sicher Ass
+    //   - Wunsch = 7 in Unten-Phase (Stich 4-6) → Ansager hat sicher 6
+    // Partner spielt schwächste Karte in Wunschfarbe → Ansager sticht.
+    if (state.currentTrickCards.isEmpty &&
+        state.gameType == GameType.friseur &&
+        state.friseurPartnerRevealed &&
+        state.friseurPartnerIndex != null &&
+        aiPlayer.id == state.players[state.friseurPartnerIndex!].id &&
+        state.gameMode == GameMode.elefant &&
+        state.wishCard != null) {
+      final wishS = state.wishCard!;
+      final tn = state.currentTrickNumber;
+      final isObenPhase = tn <= 3;
+      final isUntenPhase = tn >= 4 && tn <= 6;
+      final matches =
+          (isObenPhase && wishS.value == CardValue.king) ||
+          (isUntenPhase && wishS.value == CardValue.seven);
+      if (matches) {
+        final wishSuitCards =
+            playable.where((c) => c.suit == wishS.suit).toList();
+        if (wishSuitCards.isNotEmpty) {
+          final phaseMode = isObenPhase ? GameMode.oben : GameMode.unten;
+          wishSuitCards.sort((a, b) =>
+              GameLogic.cardPlayStrength(a, phaseMode, null)
+                  .compareTo(GameLogic.cardPlayStrength(b, phaseMode, null)));
+          return wishSuitCards.first;
         }
       }
     }
@@ -839,6 +945,81 @@ class MonteCarloAI {
           return countB.compareTo(countA);
         });
         return safeLeads.first;
+      }
+    }
+
+    // ── Slalom Ansager: Wunschfarbe übergeben wenn Gegen-Richtung kippt ──
+    // Wenn AI = Ansager + aktuelle Richtung = Wunsch-Richtung (z.B. Unten +
+    // Wunsch ♦6) und nach JETZT-Verbrauch keine sichere Karte mehr in der
+    // Gegen-Richtung übrig wäre → JETZT übergeben (schwächste Wunschfarbe
+    // anspielen), damit Partner mit Wunschkarte sticht und AI ihre wertvolle
+    // Karte für die richtige Phase aufspart.
+    if (state.currentTrickCards.isEmpty &&
+        state.gameMode == GameMode.slalom &&
+        state.gameType == GameType.friseur &&
+        aiPlayer.id == state.players[state.ansagerIndex].id &&
+        state.wishCard != null) {
+      final trickNumS = state.currentTrickNumber;
+      final isObenTrick = state.slalomStartsOben
+          ? (trickNumS % 2 == 1) : (trickNumS % 2 == 0);
+      final dirModeS = isObenTrick ? GameMode.oben : GameMode.unten;
+      final oppModeS = isObenTrick ? GameMode.unten : GameMode.oben;
+      final wishS = state.wishCard!;
+      final wishMatchesDir =
+          (wishS.value == CardValue.six && !isObenTrick) ||
+          (wishS.value == CardValue.ace && isObenTrick);
+      if (wishMatchesDir) {
+        // Verbleibende Gegen-Richtung-Stiche (nach diesem Stich)
+        int remainingOpp = 0;
+        for (int t = trickNumS + 1; t <= 9; t++) {
+          final tOben = state.slalomStartsOben ? (t % 2 == 1) : (t % 2 == 0);
+          if (tOben != isObenTrick) remainingOpp++;
+        }
+        // Sichere Karten in beiden Richtungen zählen
+        int safePureDir = 0, safePureOpp = 0, safeJoker = 0;
+        for (final c in aiPlayer.hand) {
+          final myStrDir = GameLogic.cardPlayStrength(c, dirModeS, null);
+          final myStrOpp = GameLogic.cardPlayStrength(c, oppModeS, null);
+          final anyHigherDir = state.players
+              .where((p) => p.id != aiPlayer.id)
+              .expand((p) => p.hand)
+              .any((o) =>
+                  o.suit == c.suit &&
+                  GameLogic.cardPlayStrength(o, dirModeS, null) > myStrDir);
+          final anyHigherOpp = state.players
+              .where((p) => p.id != aiPlayer.id)
+              .expand((p) => p.hand)
+              .any((o) =>
+                  o.suit == c.suit &&
+                  GameLogic.cardPlayStrength(o, oppModeS, null) > myStrOpp);
+          final safeInDir = !anyHigherDir;
+          final safeInOpp = !anyHigherOpp;
+          if (safeInDir && safeInOpp) {
+            safeJoker++;
+          } else if (safeInDir) {
+            safePureDir++;
+          } else if (safeInOpp) {
+            safePureOpp++;
+          }
+        }
+        final safeDir = safePureDir + safeJoker;
+        final safeOpp = safePureOpp + safeJoker;
+        // Würde AI Joker verbrauchen (= keine pure-dir Karte vorhanden)?
+        final usesJoker = safePureDir == 0;
+        final safeOppAfter = usesJoker ? safeOpp - 1 : safeOpp;
+        // Wunschfarben-Karten zum Anspielen
+        final wishSuitCards = playable
+            .where((c) => c.suit == wishS.suit)
+            .toList();
+        final mustHandoff = (safeDir == 0) ||
+            (safeOppAfter < 1 && remainingOpp >= 1);
+        if (mustHandoff && wishSuitCards.isNotEmpty) {
+          // Schwächste Wunschfarbe-Karte in dieser Richtung (Partner sticht)
+          wishSuitCards.sort((a, b) =>
+              GameLogic.cardPlayStrength(a, dirModeS, null)
+                  .compareTo(GameLogic.cardPlayStrength(b, dirModeS, null)));
+          return wishSuitCards.first;
+        }
       }
     }
 
