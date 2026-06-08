@@ -19,6 +19,16 @@ class MonteCarloAI {
 
   static final math.Random _rng = math.Random();
 
+  /// Letzter genommener Entscheidungspfad (für Debug-Logs im Replay).
+  /// Wird vom GameProvider nach jedem chooseCard()-Aufruf gelesen.
+  static String lastChoicePath = '';
+
+  /// Helper: setzt lastChoicePath und returnt die Karte (für Wrapping).
+  static JassCard _pick(String path, JassCard card) {
+    lastChoicePath = path;
+    return card;
+  }
+
 
   // ─── Öffentlicher Einstiegspunkt ──────────────────────────────────────────
 
@@ -30,6 +40,17 @@ class MonteCarloAI {
     return chooseCard(aiPlayer: player, state: state);
   }
 
+  /// Wie computeEntry, aber zusätzlich mit dem genommenen Entscheidungs-Pfad
+  /// (für Debug-Logs im Replay).
+  static ({JassCard card, String path}) computeEntryWithLog(
+      (String, GameState) args) {
+    final (playerId, state) = args;
+    final player = state.players.firstWhere((p) => p.id == playerId);
+    lastChoicePath = '';
+    final card = chooseCard(aiPlayer: player, state: state);
+    return (card: card, path: lastChoicePath);
+  }
+
   static JassCard chooseCard({
     required Player aiPlayer,
     required GameState state,
@@ -39,8 +60,9 @@ class MonteCarloAI {
       return GameLogic.chooseCard(aiPlayer: aiPlayer, state: state);
     }
 
+    lastChoicePath = 'unset';
     var playable = _getPlayable(aiPlayer, state);
-    if (playable.length == 1) return playable.first;
+    if (playable.length == 1) return _pick('OnlyOne', playable.first);
 
     // ── HARD-OVERRIDE: Buur nie auf Partner-Nell drauf (Trumpf-Modus) ──────
     // Wenn das Team mit Trumpf-Nell im Stich führt, kann nur der Buur
@@ -140,7 +162,7 @@ class MonteCarloAI {
           trumpSuitCards.sort((a, b) =>
               GameLogic.cardPlayStrength(a, mode, trumpW)
                   .compareTo(GameLogic.cardPlayStrength(b, mode, trumpW)));
-          return trumpSuitCards.first;
+          return _pick('FriseurSolo_Wunsch_Buur_Anspiel', trumpSuitCards.first);
         }
       }
     }
@@ -160,6 +182,34 @@ class MonteCarloAI {
         playable = nonTrump;
       }
     }
+    // ── HARD-OVERRIDE: Friseur-Solo Ansager spielt Wunschfarbe an wenn nur
+    // Team Trumpf hat. Partner sticht garantiert (Wunsch=Buur/Ass/6),
+    // eigene Trumpf-Karten bleiben für später.
+    if (state.currentTrickCards.isEmpty &&
+        state.trumpSuit != null &&
+        state.gameType == GameType.friseur &&
+        state.wishCard != null &&
+        (state.gameMode == GameMode.trump ||
+            state.gameMode == GameMode.trumpUnten) &&
+        _onlyTeamHasTrump(aiPlayer, state, state.trumpSuit!) &&
+        aiPlayer.id == state.players[state.ansagerIndex].id) {
+      final wishW = state.wishCard!;
+      final wishSuitCards = playable
+          .where((c) => c.suit == wishW.suit && c != wishW)
+          .toList();
+      if (wishSuitCards.isNotEmpty) {
+        // Schwächste Karte in Wunschrichtung → Partner sticht mit Wunschkarte
+        final richtungW = state.gameMode == GameMode.trumpUnten
+            ? GameMode.unten
+            : GameMode.oben;
+        wishSuitCards.sort((a, b) =>
+            GameLogic.cardPlayStrength(a, richtungW, null)
+                .compareTo(GameLogic.cardPlayStrength(b, richtungW, null)));
+        return _pick('FriseurSolo_Wunschfarbe_OnlyTeamHasTrump',
+            wishSuitCards.first);
+      }
+    }
+
     // Schafkopf: Trumpf-Definition = Damen + 8er + Trumpfarbe.
     if (state.currentTrickCards.isEmpty &&
         state.trumpSuit != null &&
@@ -238,11 +288,15 @@ class MonteCarloAI {
       }
     }
 
-    // ── Friseur Solo Partner Elefant: Wunschfarbe zurück bei K/7-Wunsch ────
-    // Strikte Konstellation:
+    // ── Friseur Solo Partner Elefant: Wunschfarbe zurück ────────────────
+    // Strikte Konstellation 1 (Wunschkarte noch nicht gespielt):
     //   - Wunsch = König in Oben-Phase (Stich 1-3) → Ansager hat sicher Ass
     //   - Wunsch = 7 in Unten-Phase (Stich 4-6) → Ansager hat sicher 6
-    // Partner spielt schwächste Karte in Wunschfarbe → Ansager sticht.
+    // Konstellation 2 (Wunschkarte schon gespielt, Partner offen):
+    //   - Partner hat keine sicheren Stiche in aktueller Phase → Wunschfarbe
+    //     zurück damit Ansager mit eigenen Karten sticht
+    //   - Ausnahme: Partner hat in einer Farbe selbst K+A (Oben) bzw. 6+7
+    //     (Unten) → spielt K bzw. 7 für eigenen Doppel-Stich
     if (state.currentTrickCards.isEmpty &&
         state.gameType == GameType.friseur &&
         state.friseurPartnerRevealed &&
@@ -254,18 +308,56 @@ class MonteCarloAI {
       final tn = state.currentTrickNumber;
       final isObenPhase = tn <= 3;
       final isUntenPhase = tn >= 4 && tn <= 6;
-      final matches =
-          (isObenPhase && wishS.value == CardValue.king) ||
-          (isUntenPhase && wishS.value == CardValue.seven);
-      if (matches) {
-        final wishSuitCards =
-            playable.where((c) => c.suit == wishS.suit).toList();
-        if (wishSuitCards.isNotEmpty) {
-          final phaseMode = isObenPhase ? GameMode.oben : GameMode.unten;
-          wishSuitCards.sort((a, b) =>
-              GameLogic.cardPlayStrength(a, phaseMode, null)
-                  .compareTo(GameLogic.cardPlayStrength(b, phaseMode, null)));
-          return wishSuitCards.first;
+      if (isObenPhase || isUntenPhase) {
+        final phaseMode = isObenPhase ? GameMode.oben : GameMode.unten;
+        final topVal =
+            isObenPhase ? CardValue.ace : CardValue.six;
+        final secondVal =
+            isObenPhase ? CardValue.king : CardValue.seven;
+
+        // Konstellation 1: Wunschkarte = K (Oben) bzw. 7 (Unten),
+        // noch nicht gespielt → Ansager hat Ass/6 → Wunschfarbe zurück
+        final matchesK7 =
+            (isObenPhase && wishS.value == CardValue.king) ||
+            (isUntenPhase && wishS.value == CardValue.seven);
+        if (matchesK7) {
+          final wishSuitCards =
+              playable.where((c) => c.suit == wishS.suit).toList();
+          if (wishSuitCards.isNotEmpty) {
+            wishSuitCards.sort((a, b) =>
+                GameLogic.cardPlayStrength(a, phaseMode, null)
+                    .compareTo(GameLogic.cardPlayStrength(b, phaseMode, null)));
+            return _pick('FriseurSolo_Partner_Elefant_Wunschfarbe_K7',
+                wishSuitCards.first);
+          }
+        }
+
+        // Konstellation 2: Wunschkarte schon gespielt → Partner offen
+        final wishPlayed = state.completedTricks
+            .expand((t) => t.cards.values)
+            .any((c) => c.suit == wishS.suit && c.value == wishS.value);
+        if (wishPlayed) {
+          // Ausnahme: AI hat selbst K+A (Oben) oder 6+7 (Unten) in gleicher
+          // Farbe → eigenen Doppel-Stich via K/7 anspielen
+          for (final c in playable) {
+            final hasTop = aiPlayer.hand.any((h) =>
+                h.suit == c.suit && h.value == topVal);
+            if (c.value == secondVal && hasTop) {
+              return _pick('FriseurSolo_Partner_Elefant_DoppelStich',
+                  c);
+            }
+          }
+          // Sonst: Wunschfarbe zurück (schwächste in Phasen-Richtung)
+          final wishSuitCards =
+              playable.where((c) => c.suit == wishS.suit).toList();
+          if (wishSuitCards.isNotEmpty) {
+            wishSuitCards.sort((a, b) =>
+                GameLogic.cardPlayStrength(a, phaseMode, null)
+                    .compareTo(GameLogic.cardPlayStrength(b, phaseMode, null)));
+            return _pick(
+                'FriseurSolo_Partner_Elefant_Wunschfarbe_NachReveal',
+                wishSuitCards.first);
+          }
         }
       }
     }
