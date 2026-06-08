@@ -29,6 +29,10 @@ class RoundReplay {
 
   final String? comment;
 
+  /// KI-Entscheidungs-Logs pro Stich (key = "trick_N", N = 1..9).
+  /// Jeder Eintrag: "<Spielername>: <Pfad> → <Karte>".
+  final Map<String, List<String>> aiDecisionLogs;
+
   const RoundReplay({
     required this.roundId,
     required this.savedAt,
@@ -50,6 +54,7 @@ class RoundReplay {
     required this.ansagerTeamScore,
     required this.opponentTeamScore,
     this.comment,
+    this.aiDecisionLogs = const {},
   });
 
   RoundReplay copyWith({String? comment}) => RoundReplay(
@@ -73,6 +78,7 @@ class RoundReplay {
         ansagerTeamScore: ansagerTeamScore,
         opponentTeamScore: opponentTeamScore,
         comment: comment ?? this.comment,
+        aiDecisionLogs: aiDecisionLogs,
       );
 
   Map<String, dynamic> toJson() => {
@@ -98,6 +104,7 @@ class RoundReplay {
         'ansagerTeamScore': ansagerTeamScore,
         'opponentTeamScore': opponentTeamScore,
         if (comment != null) 'comment': comment,
+        if (aiDecisionLogs.isNotEmpty) 'aiDecisionLogs': aiDecisionLogs,
       };
 
   static RoundReplay fromJson(Map<String, dynamic> j) => RoundReplay(
@@ -139,5 +146,10 @@ class RoundReplay {
         ansagerTeamScore: j['ansagerTeamScore'] as int,
         opponentTeamScore: j['opponentTeamScore'] as int,
         comment: j['comment'] as String?,
+        aiDecisionLogs: j['aiDecisionLogs'] != null
+            ? (j['aiDecisionLogs'] as Map<String, dynamic>).map(
+                (k, v) => MapEntry(
+                    k, (v as List).map((e) => e as String).toList()))
+            : const {},
       );
 }

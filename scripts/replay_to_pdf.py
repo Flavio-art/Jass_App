@@ -63,6 +63,7 @@ def main(json_path, pdf_path):
             marker = " <span class='partner'>PARTNER</span>"
         hands_html += f'<div class="hand"><strong>{name}</strong> ({pos}){marker}<br>{cards}</div>'
 
+    ai_logs = data.get("aiDecisionLogs", {})
     tricks_html = ""
     for trick in data["tricks"]:
         tn = trick["trickNumber"]
@@ -73,10 +74,18 @@ def main(json_path, pdf_path):
             pname = names.get(pid, pid)
             highlight = " class='winner'" if pid == winner_id else ""
             rows += f"<tr{highlight}><td>{pname}</td><td>{card_html(card)}</td></tr>"
+        # KI-Entscheidungs-Logs für diesen Stich
+        logs = ai_logs.get(f"trick_{tn}", [])
+        logs_html = ""
+        if logs:
+            logs_html = "<div class='logs'>" + "<br>".join(
+                f"<span class='logentry'>{l}</span>" for l in logs
+            ) + "</div>"
         tricks_html += f"""
         <div class="trick">
           <h3>Stich {tn} &rarr; {winner_name}</h3>
           <table>{rows}</table>
+          {logs_html}
         </div>
         """
 
@@ -99,6 +108,8 @@ def main(json_path, pdf_path):
       .trick td {{ padding: 0 2px; border-bottom: 1px dotted #eee; }}
       .winner {{ background: #d4edda; font-weight: bold; }}
       .comment {{ background: #fff3cd; padding: 4px 6px; border-radius: 3px; border-left: 3px solid #ffc107; margin: 4px 0; font-style: italic; font-size: 8pt; }}
+      .logs {{ margin-top: 4px; padding: 2px 4px; background: #eef; border-left: 2px solid #88a; font-size: 6.5pt; color: #335; }}
+      .logentry {{ font-family: monospace; }}
     </style></head><body>
       <h1>Jass Replay &ndash; {mode}{trump_str}</h1>
       <div class="meta">

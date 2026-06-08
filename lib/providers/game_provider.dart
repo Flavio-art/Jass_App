@@ -30,6 +30,10 @@ class GameProvider extends ChangeNotifier {
   static String _cachedPlayerName = 'Du';
   Timer? _saveDebounce;
 
+  /// KI-Entscheidungs-Logs der aktuellen Runde (key = trickNumber).
+  /// Wird zu Beginn jeder neuen Runde geleert und ins Replay übernommen.
+  final Map<int, List<String>> _aiDecisionLogs = {};
+
   GameState get state => _state;
 
   @override
@@ -241,6 +245,7 @@ class GameProvider extends ChangeNotifier {
   }) {
     _aiRunning = false;
     _humanWyssDecisionPending = false;
+    _aiDecisionLogs.clear();
     // Cleanup: ungeteilte Replays vom vorherigen Spiel löschen
     _replayService.clearAll();
     final deck = Deck(cardType: cardType);
@@ -470,6 +475,7 @@ class GameProvider extends ChangeNotifier {
 
   void startNewRound() {
     _aiRunning = false;
+    _aiDecisionLogs.clear();
     final currentState = _state;
 
     if (currentState.gameType == GameType.friseur) {
@@ -3014,13 +3020,21 @@ class GameProvider extends ChangeNotifier {
         final aiPlayer = _state.currentPlayer;
         final playerIdx = _state.currentPlayerIndex;
 
-        final card = await compute(
-          MonteCarloAI.computeEntry,
+        final result = await compute(
+          MonteCarloAI.computeEntryWithLog,
           (aiPlayer.id, _state),
         );
+        final card = result.card;
+        final path = result.path;
 
         if (_state.phase != GamePhase.playing) break;
         if (_state.currentPlayerIndex != playerIdx) break;
+
+        // Log: KI-Entscheidung pro Stich speichern
+        final trickN = _state.currentTrickNumber;
+        final cardStr = '${card.suit.symbol}${card.displayValue}';
+        final logEntry = '${aiPlayer.name}: $path → $cardStr';
+        _aiDecisionLogs.putIfAbsent(trickN, () => []).add(logEntry);
 
         _doPlayCard(aiPlayer.id, card, playerIdx);
       }
@@ -3155,6 +3169,9 @@ class GameProvider extends ChangeNotifier {
       finalScores: Map<String, int>.from(_state.teamScores),
       ansagerTeamScore: ansagerTeamScore,
       opponentTeamScore: opponentTeamScore,
+      aiDecisionLogs: _aiDecisionLogs.map(
+        (k, v) => MapEntry('trick_$k', List<String>.from(v)),
+      ),
     );
   }
 }
