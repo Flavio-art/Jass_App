@@ -2005,6 +2005,34 @@ class MonteCarloAI {
             }
             // Stich-Wert zu klein für Dame-Opfer → Fall-through zu Schmier-Logik
           }
+
+          // ── Schafkopf: Fehlfarbe + Gegner gewinnt + KEIN Stich-Trumpf
+          // → niedrigste Punkte-Karte werfen ("nicht schenken").
+          // Reihenfolge: 6/7/9 (0 Pkt) → U (2) → K (4) → A (11) → 10 zuletzt
+          // (10 ist höchste Karte im Schafkopf-Nicht-Trumpf!)
+          if (winners.isEmpty) {
+            int priority(JassCard c) {
+              if (c.value == CardValue.six ||
+                  c.value == CardValue.seven ||
+                  c.value == CardValue.nine) return 0;
+              if (c.value == CardValue.jack) return 1; // Unter
+              if (c.value == CardValue.king) return 2;
+              if (c.value == CardValue.ace) return 3;
+              if (c.value == CardValue.ten) return 4; // höchste, zuletzt
+              return 5; // andere (Damen/8er gehören zu Trumpf — nicht hier)
+            }
+            final sorted = List<JassCard>.from(playable);
+            sorted.sort((a, b) {
+              final pa = priority(a);
+              final pb = priority(b);
+              if (pa != pb) return pa.compareTo(pb);
+              // Tiebreak: weniger Punkte zuerst
+              return GameLogic.cardPoints(a, effectMode, trump)
+                  .compareTo(GameLogic.cardPoints(b, effectMode, trump));
+            });
+            return _pick('Schafkopf_Fehlfarbe_GegnerStich_NichtSchenken',
+                sorted.first);
+          }
         }
       }
 
