@@ -138,6 +138,97 @@ class MonteCarloAI {
       }
     }
 
+    // ── HARD-OVERRIDE: Oben/Unten — Initiative vom Partner übernehmen wenn
+    // Anspielfarbe schon "leer". Wenn AI ≥2 Karten der Anspielfarbe hat und
+    // schon ≥4 Karten dieser Farbe gespielt sind (inkl. aktueller Stich),
+    // sticht AI mit der niedrigsten stechenden Karte. Damit:
+    // 1. Stich gehört AI (statt Partner — beide im Team, gleichwertig)
+    // 2. AI führt nächsten Stich an und nutzt zweite Anspielfarben-Karte als
+    //    sicheren Stich (niemand bedient → sticht)
+    if (state.currentTrickCards.isNotEmpty &&
+        (state.gameMode == GameMode.oben ||
+            state.gameMode == GameMode.unten)) {
+      final ledSuitO = state.currentTrickCards.first.suit;
+      final mySuitCardsO = playable
+          .where((c) => c.suit == ledSuitO)
+          .toList();
+      if (mySuitCardsO.length >= 2) {
+        // Wie viele Karten dieser Farbe schon gespielt? (completed + current)
+        int playedSuit = 0;
+        for (final t in state.completedTricks) {
+          for (final c in t.cards.values) {
+            if (c.suit == ledSuitO) playedSuit++;
+          }
+        }
+        for (final c in state.currentTrickCards) {
+          if (c.suit == ledSuitO) playedSuit++;
+        }
+        if (playedSuit >= 4) {
+          // Partner gewinnt aktuell?
+          final winnerIdO = GameLogic.determineTrickWinner(
+            cards: state.currentTrickCards,
+            playerIds: state.currentTrickPlayerIds,
+            gameMode: state.gameMode, trumpSuit: state.trumpSuit,
+            trickNumber: state.currentTrickNumber,
+            molotofSubMode: state.molotofSubMode,
+            slalomStartsOben: state.slalomStartsOben,
+          );
+          final winnerO = state.players.firstWhere((p) => p.id == winnerIdO);
+          final partnerWinsO = _sameTeamFor(aiPlayer, winnerO, state);
+          if (partnerWinsO) {
+            // Niedrigste stechende Karte = niedrigste Stärke die noch sticht
+            final winningCards = mySuitCardsO
+                .where((c) => _wouldWin(c, state, state.trumpSuit))
+                .toList();
+            if (winningCards.isNotEmpty) {
+              winningCards.sort((a, b) =>
+                  GameLogic.cardPlayStrength(a, state.gameMode, null)
+                      .compareTo(
+                          GameLogic.cardPlayStrength(b, state.gameMode, null)));
+              return _pick('OberUnter_PartnerStich_Uebernehmen',
+                  winningCards.first);
+            }
+          }
+        }
+      }
+    }
+
+    // ── HARD-OVERRIDE: Schafkopf 4. Spieler — Partner-Stich nicht übertrumpfen
+    // Wenn AI als 4. Spieler dran ist, Partner aktuell den Stich gewinnt und
+    // AI nur ≤3 hohe Trümpfe (Damen oder 8er) hat → nicht übertrumpfen,
+    // sondern schmieren. Mit ≥4 hohen Trümpfen ist Übertrumpfen sinnvoll
+    // (genug Stich-Power für später).
+    if (state.gameMode == GameMode.schafkopf &&
+        state.trumpSuit != null &&
+        state.currentTrickCards.length == 3) {
+      final trumpSk = state.trumpSuit!;
+      final winnerIdSk = GameLogic.determineTrickWinner(
+        cards: state.currentTrickCards,
+        playerIds: state.currentTrickPlayerIds,
+        gameMode: state.gameMode, trumpSuit: trumpSk,
+        trickNumber: state.currentTrickNumber,
+        molotofSubMode: state.molotofSubMode,
+        slalomStartsOben: state.slalomStartsOben,
+      );
+      final winnerSk = state.players.firstWhere((p) => p.id == winnerIdSk);
+      final partnerWinsSk = _sameTeamFor(aiPlayer, winnerSk, state);
+      if (partnerWinsSk) {
+        final highTrumpsCount = aiPlayer.hand
+            .where((c) =>
+                c.value == CardValue.queen || c.value == CardValue.eight)
+            .length;
+        if (highTrumpsCount <= 3) {
+          // Schmieren statt übertrumpfen → alle stechenden Karten raus
+          final withoutWinners = playable
+              .where((c) => !_wouldWin(c, state, trumpSk))
+              .toList();
+          if (withoutWinners.isNotEmpty) {
+            playable = withoutWinners;
+          }
+        }
+      }
+    }
+
     // ── HARD-OVERRIDE: Friseur-Solo Ansager spielt Wunschfarbe an wenn
     // Wunschkarte beim Partner ein sicherer Trumpf-Stich ist (Buur).
     // Zieht Gegner-Trümpfe, Partner sticht garantiert, eigene Trümpfe bleiben.
@@ -282,7 +373,7 @@ class MonteCarloAI {
             queens.sort((a, b) => GameLogic.cardPlayStrength(b, state.effectiveMode, trumpS)
                 .compareTo(GameLogic.cardPlayStrength(a, state.effectiveMode, trumpS)));
             print('🔧 Schafkopf-Override: Ansager übernimmt mit Dame ${queens.first}');
-            return queens.first;
+            return _pick('auto_L321', queens.first);
           }
         }
       }
@@ -379,7 +470,7 @@ class MonteCarloAI {
       // Trumpf zurückspielen solange man welchen hat
       // → Ansager übernimmt, Gegner-Trümpfe werden rausgezogen
       if (myTrump.isNotEmpty) {
-        return _strongest(myTrump, state.effectiveMode, trump);
+        return _pick('auto_L418', _strongest(myTrump, state.effectiveMode, trump));
       }
     }
 
@@ -408,7 +499,7 @@ class MonteCarloAI {
                 .where((c) => _isHighestRemaining(c, state))
                 .toList();
             if (safeNonTrump.isNotEmpty) {
-              return _strongest(safeNonTrump, state.effectiveMode, trump);
+              return _pick('auto_L447', _strongest(safeNonTrump, state.effectiveMode, trump));
             }
             // Keine sicheren Gewinner → Friseur: Wunschkarten-Farbe bevorzugen
             if (state.gameType == GameType.friseur &&
@@ -418,11 +509,11 @@ class MonteCarloAI {
               final wishSuitCards =
                   nonTrump.where((c) => c.suit == wishSuit).toList();
               if (wishSuitCards.isNotEmpty) {
-                return _weakest(wishSuitCards, state.effectiveMode, trump);
+                return _pick('auto_L457', _weakest(wishSuitCards, state.effectiveMode, trump));
               }
             }
             // Sonst tiefe Karte, Partner kann ggf. gewinnen
-            return _weakest(nonTrump, state.effectiveMode, trump);
+            return _pick('auto_L461', _weakest(nonTrump, state.effectiveMode, trump));
           }
         }
 
@@ -447,34 +538,34 @@ class MonteCarloAI {
           if (wishIsNell && trumpCards.length > 1) {
             final nonJass = trumpCards.where((c) => c.value != CardValue.jack).toList();
             if (nonJass.isNotEmpty) {
-              return _weakest(nonJass, state.gameMode, trump);
+              return _pick('auto_L486', _weakest(nonJass, state.gameMode, trump));
             }
           }
           // Jass ist unschlagbar → als Erster spielen
-          return trumpCards.firstWhere((c) => c.value == CardValue.jack);
+          return _pick('auto_L490', trumpCards.firstWhere((c) => c.value == CardValue.jack));
         }
         final hasNell = trumpCards.any((c) => c.value == CardValue.nine);
         if (hasNell) {
           if (jassGone) {
             // Jass bereits gespielt → Nell ist jetzt stärkster Trumpf → direkt spielen
-            return trumpCards.firstWhere((c) => c.value == CardValue.nine);
+            return _pick('auto_L496', trumpCards.firstWhere((c) => c.value == CardValue.nine));
           }
           // Nell schonen: niedrigsten anderen Trumpf spielen um den Jass herauszulocken
           final nonNell = trumpCards.where((c) => c.value != CardValue.nine).toList();
           if (nonNell.isNotEmpty) {
-            return _weakest(nonNell, state.gameMode, trump);
+            return _pick('auto_L501', _weakest(nonNell, state.gameMode, trump));
           }
           // Nur Nell vorhanden → MC entscheidet (führen riskant)
         } else if (jassGone && nellGone) {
           // Jass + Nell weg → hat garantierten Nicht-Trumpf? MC entscheiden lassen
           if (safeNonTrump.isEmpty) {
-            return _strongest(trumpCards, state.gameMode, trump);
+            return _pick('auto_L507', _strongest(trumpCards, state.gameMode, trump));
           }
           // sonst: MC wägt Trumpf vs. sicherer Farbkarte ab → fall-through
         } else {
           // Niedrige Trumpfkarten (kein Jass/Nell) → hat garantierten Nicht-Trumpf?
           if (safeNonTrump.isEmpty) {
-            return _weakest(trumpCards, state.gameMode, trump);
+            return _pick('auto_L513', _weakest(trumpCards, state.gameMode, trump));
           }
           // sonst: MC entscheidet ob Trumpf ziehen besser ist → fall-through
         }
@@ -564,7 +655,7 @@ class MonteCarloAI {
       // Fallback: alle spielbaren Karten (nur Jack-Farben übrig)
       if (bestPool.isEmpty) bestPool = playable;
 
-      return _weakest(bestPool, effectMode, trump);
+      return _pick('auto_L603', _weakest(bestPool, effectMode, trump));
     }
 
     // ── Molotow-Trump: keine sicheren Gewinner früh ausspielen ──────────────
@@ -580,10 +671,10 @@ class MonteCarloAI {
       final nonTrump = playable.where((c) => c.suit != trump).toList();
       if (nonTrump.isNotEmpty) {
         // Schwächste Nicht-Trumpf-Karte → Gegner können nicht einfach abwerfen
-        return _weakest(nonTrump, state.effectiveMode, trump);
+        return _pick('auto_L619', _weakest(nonTrump, state.effectiveMode, trump));
       }
       // Nur Trumpf: schwächsten Trumpf spielen (Bauer/Nell aufsparen)
-      return _weakest(playable, state.effectiveMode, trump);
+      return _pick('auto_L622', _weakest(playable, state.effectiveMode, trump));
     }
 
     // ── Misère: intelligentes Anspielen ─────────────────────────────────────
@@ -601,10 +692,10 @@ class MonteCarloAI {
           .where((c) => suitsOthersHave.contains(c.suit))
           .toList();
       if (safeLead.isNotEmpty) {
-        return _weakest(safeLead, state.effectiveMode, state.trumpSuit);
+        return _pick('auto_L640', _weakest(safeLead, state.effectiveMode, state.trumpSuit));
       }
       // Alle Farben exklusiv → schwächste Karte (unvermeidbar)
-      return _weakest(playable, state.effectiveMode, state.trumpSuit);
+      return _pick('auto_L643', _weakest(playable, state.effectiveMode, state.trumpSuit));
     }
 
     // ── Elefant: sichere Stiche in der richtigen Phase anspielen ────────────
@@ -627,14 +718,14 @@ class MonteCarloAI {
             final wishAce = aces.where((c) => c.suit == state.wishCard!.suit).toList();
             if (wishAce.isNotEmpty) return wishAce.first;
           }
-          return aces.first;
+          return _pick('auto_L666', aces.first);
         }
         // Keine Asse → sichere Gewinner
         final safe = playable.where((c) => _isHighestRemaining(c, state)).toList();
         if (safe.isNotEmpty) {
           safe.sort((a, b) => GameLogic.cardPlayStrength(b, GameMode.oben, null)
               .compareTo(GameLogic.cardPlayStrength(a, GameMode.oben, null)));
-          return safe.first;
+          return _pick('auto_L673', safe.first);
         }
       } else if (isUnten) {
         // Unten-Phase: 6er zuerst, dann 6+7 Farben
@@ -646,14 +737,14 @@ class MonteCarloAI {
             final wishSix = sixes.where((c) => c.suit == state.wishCard!.suit).toList();
             if (wishSix.isNotEmpty) return wishSix.first;
           }
-          return sixes.first;
+          return _pick('auto_L685', sixes.first);
         }
         // Keine 6er → 7er wenn sichere Gewinner
         final safe = playable.where((c) => _isHighestRemaining(c, state)).toList();
         if (safe.isNotEmpty) {
           safe.sort((a, b) => GameLogic.cardPlayStrength(b, GameMode.unten, null)
               .compareTo(GameLogic.cardPlayStrength(a, GameMode.unten, null)));
-          return safe.first;
+          return _pick('auto_L692', safe.first);
         }
       }
       // Keine sicheren Stiche → MC entscheidet (fall-through)
@@ -683,19 +774,19 @@ class MonteCarloAI {
       if (isDominant && oppTrump > 0) {
         // Dominant: immer Trumpf ziehen bis Gegner komplett raus sind
         // Buur = sicherer Stich → stärksten spielen
-        return _strongest(myTrump, effectMode, trump);
+        return _pick('auto_L722', _strongest(myTrump, effectMode, trump));
       }
 
       if (oppTrump > 1) {
         // Höchste verbleibende Trumpfkarte? → Stärke zeigen, Stich ist sicher
         final hasHighestTrump = myTrump.any((c) => _isHighestRemaining(c, state));
         if (hasHighestTrump) {
-          return _strongest(myTrump, effectMode, trump);
+          return _pick('auto_L729', _strongest(myTrump, effectMode, trump));
         }
         // Nicht die höchste → Stich geht wsl zum Gegner
         // Trotzdem Trumpf ziehen wenn Übergewicht, aber TIEF (wenig Punkte verlieren)
         if (myTeamTrump > oppTrump && myTrump.length > 1) {
-          return _weakest(myTrump, effectMode, trump);
+          return _pick('auto_L734', _weakest(myTrump, effectMode, trump));
         }
         // Nicht genug Trumpf-Übergewicht → sichere Seitenfarbe spielen
         final safeSide = myNonTrump
@@ -705,14 +796,14 @@ class MonteCarloAI {
           safeSide.sort((a, b) =>
               GameLogic.cardPoints(b, effectMode, trump)
                   .compareTo(GameLogic.cardPoints(a, effectMode, trump)));
-          return safeSide.first;
+          return _pick('auto_L744', safeSide.first);
         }
       } else if (oppTrump == 1) {
         // Fast trumpflos: nur noch 1 Gegner-Trumpf → letzten rausholen
         // ODER sichere Seitenfarben spielen (Gegner kann nur 1x stechen)
         if (myTrump.length >= 2) {
           // Genug eigene Trümpfe → letzten Gegner-Trumpf rausziehen
-          return _strongest(myTrump, effectMode, trump);
+          return _pick('auto_L751', _strongest(myTrump, effectMode, trump));
         }
         // Nur 1 eigener Trumpf → aufsparen zum Stechen, Seitenfarbe spielen
         final safeSide = myNonTrump
@@ -722,11 +813,11 @@ class MonteCarloAI {
           safeSide.sort((a, b) =>
               GameLogic.cardPoints(b, effectMode, trump)
                   .compareTo(GameLogic.cardPoints(a, effectMode, trump)));
-          return safeSide.first;
+          return _pick('auto_L761', safeSide.first);
         }
         // Keine sicheren Seitenfarben → Trumpf spielen um letzten rauszuholen
         if (myTrump.isNotEmpty) {
-          return _strongest(myTrump, effectMode, trump);
+          return _pick('auto_L765', _strongest(myTrump, effectMode, trump));
         }
       } else {
         // Phase 2: Gegner trumpflos → NUR Seitenfarben ausspielen!
@@ -741,14 +832,14 @@ class MonteCarloAI {
             safeSide.sort((a, b) =>
                 GameLogic.cardPoints(b, effectMode, trump)
                     .compareTo(GameLogic.cardPoints(a, effectMode, trump)));
-            return safeSide.first;
+            return _pick('auto_L780', safeSide.first);
           }
           // Keine sicheren → schwächste Seitenfarbe (Partner sticht wenn nötig)
-          return _weakest(myNonTrump, effectMode, trump);
+          return _pick('auto_L783', _weakest(myNonTrump, effectMode, trump));
         }
         // Nur noch Trumpf auf Hand → muss Trumpf spielen, stärksten
         if (myTrump.isNotEmpty) {
-          return _strongest(myTrump, effectMode, trump);
+          return _pick('auto_L787', _strongest(myTrump, effectMode, trump));
         }
       }
     }
@@ -807,7 +898,7 @@ class MonteCarloAI {
             GameLogic.cardPoints(b, state.effectiveMode, state.trumpSuit)
                 .compareTo(
                     GameLogic.cardPoints(a, state.effectiveMode, state.trumpSuit)));
-        return safeNonTrump.first;
+        return _pick('auto_L846', safeNonTrump.first);
       }
       // Keine eigenen sicheren Nicht-Trumpf-Stiche mehr → Wunschfarbe an Partner
       // (Partner sticht mit Wunschkarte). Eigene Trumpf-Karten aufbewahren.
@@ -826,7 +917,7 @@ class MonteCarloAI {
           wishSuitCards.sort((a, b) =>
               GameLogic.cardPlayStrength(a, richtung, null)
                   .compareTo(GameLogic.cardPlayStrength(b, richtung, null)));
-          return wishSuitCards.first;
+          return _pick('auto_L865', wishSuitCards.first);
         }
       }
     }
@@ -866,14 +957,14 @@ class MonteCarloAI {
           safeOtherSuit.sort((a, b) =>
               GameLogic.cardPoints(b, effectMode, trump)
                   .compareTo(GameLogic.cardPoints(a, effectMode, trump)));
-          return safeOtherSuit.first;
+          return _pick('auto_L905', safeOtherSuit.first);
         }
 
         // 2. Dann Monopol-Farbe spielen (stärkste zuerst)
         for (final suit in monopolSuits) {
           final mySuitCards = playable.where((c) => c.suit == suit).toList();
           if (mySuitCards.isNotEmpty) {
-            return _strongest(mySuitCards, effectMode, trump);
+            return _pick('auto_L912', _strongest(mySuitCards, effectMode, trump));
           }
         }
       }
@@ -919,7 +1010,7 @@ class MonteCarloAI {
               .toList();
           if (unsafeNonTrump.isNotEmpty) {
             // Schwächste anspielen damit Partner sicher stechen kann
-            return _weakest(unsafeNonTrump, state.effectiveMode, trump);
+            return _pick('auto_L958', _weakest(unsafeNonTrump, state.effectiveMode, trump));
           }
         }
 
@@ -936,9 +1027,9 @@ class MonteCarloAI {
             safe.sort((a, b) =>
                 GameLogic.cardPoints(b, state.effectiveMode, trump)
                     .compareTo(GameLogic.cardPoints(a, state.effectiveMode, trump)));
-            return safe.first;
+            return _pick('auto_L975', safe.first);
           }
-          return _strongest(nonTrump, state.effectiveMode, trump);
+          return _pick('auto_L977', _strongest(nonTrump, state.effectiveMode, trump));
         }
       } else if (oppTrump > 0 && mySchafkopfTrumps.isNotEmpty) {
         final myTeamTrump = _teamSchafkopfTrumpCount(aiPlayer, state, trump);
@@ -950,46 +1041,62 @@ class MonteCarloAI {
         // Fix 2: Eigene Damen (NICHT die Wunsch-Dame) bevorzugen – sie sind die
         // stärksten verbleibenden Trümpfe und garantieren den Stichgewinn.
         if (isAnnouncer && mySchafkopfTrumps.length >= 2) {
-          // ZUERST: Trumpffarben-Punktekarten anspielen (A=11, 10=10, K=4)
-          // → Partner sticht mit Wunsch-Dame → Punkte bleiben im Team!
-          // Eigene Damen AUFSPAREN für nachdem Gegner-Trümpfe weg sind.
+          // Prüfen: Wunsch-Dame noch beim Partner (nicht gespielt)?
+          final wishStillAtPartner = state.wishCard != null &&
+              state.gameType == GameType.friseur &&
+              state.wishCard!.value == CardValue.queen &&
+              !state.completedTricks.any((t) => t.cards.values.any(
+                  (c) => c == state.wishCard));
 
-          // Trumpffarben-Karten (keine Damen/8er) → Punktekarten zum Anspielen
-          final trumpSuitCards = mySchafkopfTrumps.where((c) =>
-              c.suit == trump &&
-              c.value != CardValue.queen &&
-              c.value != CardValue.eight).toList();
-
-          if (trumpSuitCards.isNotEmpty) {
-            // Trumpf-Ass bevorzugen (11 Punkte im Team + zieht Gegner-Trumpf)
-            final trumpAce = trumpSuitCards
-                .where((c) => c.value == CardValue.ace).toList();
-            if (trumpAce.isNotEmpty) return trumpAce.first;
-            // Kein Ass → Trumpf-10 (10 Pkt), dann nach Punkten absteigend
-            trumpSuitCards.sort((a, b) =>
-                GameLogic.cardPoints(b, state.effectiveMode, trump)
-                    .compareTo(GameLogic.cardPoints(a, state.effectiveMode, trump)));
-            return trumpSuitCards.first;
-          }
-          // Keine Trumpffarben-Karten → eigene Damen spielen (Gegner-Trümpfe weg
-          // ODER alle Punktekarten schon gespielt → Dame ist jetzt OK)
-          if (state.wishCard != null && state.gameType == GameType.friseur) {
-            final wishQueen = state.wishCard!;
-            final ownQueens = mySchafkopfTrumps.where((c) =>
-                c.value == CardValue.queen && c != wishQueen).toList();
-            if (ownQueens.isNotEmpty) {
-              return _strongest(ownQueens, state.effectiveMode, trump);
+          if (wishStillAtPartner) {
+            // ZUERST: Trumpffarben-Punktekarten anspielen (A=11, 10=10, K=4)
+            // → Partner sticht mit Wunsch-Dame → Punkte bleiben im Team!
+            // Eigene Damen AUFSPAREN für nachdem Gegner-Trümpfe weg sind.
+            final trumpSuitCards = mySchafkopfTrumps.where((c) =>
+                c.suit == trump &&
+                c.value != CardValue.queen &&
+                c.value != CardValue.eight).toList();
+            if (trumpSuitCards.isNotEmpty) {
+              final trumpAce = trumpSuitCards
+                  .where((c) => c.value == CardValue.ace).toList();
+              if (trumpAce.isNotEmpty) {
+                return _pick('Schafkopf_Ansager_TrumpAss_PartnerHatWunsch',
+                    trumpAce.first);
+              }
+              trumpSuitCards.sort((a, b) =>
+                  GameLogic.cardPoints(b, state.effectiveMode, trump)
+                      .compareTo(GameLogic.cardPoints(a, state.effectiveMode, trump)));
+              return _pick('Schafkopf_Ansager_TrumpfarbePunkt_PartnerHatWunsch',
+                  trumpSuitCards.first);
             }
+          }
+
+          // Wunsch-Dame schon gespielt → eigene höchste Dame anspielen (sicherer
+          // Stich, zieht andere Damen raus). Niemals Trumpfarbe-Punktkarte
+          // verschenken wenn Partner nicht mehr stechen kann.
+          final ownQueens = mySchafkopfTrumps.where((c) =>
+              c.value == CardValue.queen &&
+              (state.wishCard == null || c != state.wishCard)).toList();
+          if (ownQueens.isNotEmpty) {
+            return _pick('Schafkopf_Ansager_EigeneDame_WunschGespielt',
+                _strongest(ownQueens, state.effectiveMode, trump));
+          }
+          // Keine eigenen Damen mehr → eigene 8er ausspielen wenn vorhanden
+          final ownEights = mySchafkopfTrumps.where((c) =>
+              c.value == CardValue.eight).toList();
+          if (ownEights.isNotEmpty) {
+            return _pick('Schafkopf_Ansager_Eigener8er',
+                _strongest(ownEights, state.effectiveMode, trump));
           }
           // Keine Damen → Nicht-Trumpf-Karte spielen
           final nonTrump = playable
               .where((c) => !_isSchafkopfTrump(c, trump))
               .toList();
           if (nonTrump.isNotEmpty) {
-            return _weakest(nonTrump, state.effectiveMode, trump);
+            return _pick('auto_L1041', _weakest(nonTrump, state.effectiveMode, trump));
           }
           // Wirklich nur 8er → tiefste opfern
-          return _weakest(mySchafkopfTrumps, state.effectiveMode, trump);
+          return _pick('auto_L1044', _weakest(mySchafkopfTrumps, state.effectiveMode, trump));
         }
 
         // Fix 1: Partner nach Reveal: auch Trumpf ziehen (Damen ausspielen!)
@@ -1002,7 +1109,7 @@ class MonteCarloAI {
           // Partner hat die Wunsch-Dame → SOFORT spielen! (sicherer Stich,
           // nur die Ansager-Dame ist höher und die hat der Ansager)
           if (state.wishCard != null && playable.contains(state.wishCard)) {
-            return state.wishCard!;
+            return _pick('auto_L1057', state.wishCard!);
           }
           // Danach: Trumpffarben-Punktekarten (A, 10, K) → Ansager sticht mit Dame
           final trumpSuitCards = mySchafkopfTrumps.where((c) =>
@@ -1016,15 +1123,15 @@ class MonteCarloAI {
             trumpSuitCards.sort((a, b) =>
                 GameLogic.cardPoints(b, state.effectiveMode, trump)
                     .compareTo(GameLogic.cardPoints(a, state.effectiveMode, trump)));
-            return trumpSuitCards.first;
+            return _pick('auto_L1071', trumpSuitCards.first);
           }
           final nonTrumpPartner = playable
               .where((c) => !_isSchafkopfTrump(c, trump))
               .toList();
           if (nonTrumpPartner.isNotEmpty) {
-            return _weakest(nonTrumpPartner, state.effectiveMode, trump);
+            return _pick('auto_L1077', _weakest(nonTrumpPartner, state.effectiveMode, trump));
           }
-          return _weakest(mySchafkopfTrumps, state.effectiveMode, trump);
+          return _pick('auto_L1079', _weakest(mySchafkopfTrumps, state.effectiveMode, trump));
         }
 
         // Partner/anderer Spieler: Trumpf ziehen wenn Team-Übergewicht
@@ -1040,15 +1147,15 @@ class MonteCarloAI {
             trumpSuitCards.sort((a, b) =>
                 GameLogic.cardPoints(b, state.effectiveMode, trump)
                     .compareTo(GameLogic.cardPoints(a, state.effectiveMode, trump)));
-            return trumpSuitCards.first;
+            return _pick('auto_L1095', trumpSuitCards.first);
           }
           final nonTrump = playable
               .where((c) => !_isSchafkopfTrump(c, trump))
               .toList();
           if (nonTrump.isNotEmpty) {
-            return _weakest(nonTrump, state.effectiveMode, trump);
+            return _pick('auto_L1101', _weakest(nonTrump, state.effectiveMode, trump));
           }
-          return _weakest(mySchafkopfTrumps, state.effectiveMode, trump);
+          return _pick('auto_L1103', _weakest(mySchafkopfTrumps, state.effectiveMode, trump));
         }
       }
     }
@@ -1071,7 +1178,7 @@ class MonteCarloAI {
           final countB = aiPlayer.hand.where((c) => c.suit == b.suit && c != b).length;
           return countB.compareTo(countA);
         });
-        return jacks.first;
+        return _pick('auto_L1126', jacks.first);
       }
       // 2. Nell ausspielen wenn Bauer der Farbe schon weg (= sicherer Gewinner)
       final safeNells = playable
@@ -1083,7 +1190,7 @@ class MonteCarloAI {
           final countB = aiPlayer.hand.where((c) => c.suit == b.suit && c != b).length;
           return countB.compareTo(countA);
         });
-        return safeNells.first;
+        return _pick('auto_L1138', safeNells.first);
       }
       // 3. Andere sichere Gewinner (König, Ass, etc.)
       final safeLeads = playable
@@ -1098,7 +1205,7 @@ class MonteCarloAI {
           final countB = aiPlayer.hand.where((c) => c.suit == b.suit && c != b).length;
           return countB.compareTo(countA);
         });
-        return safeLeads.first;
+        return _pick('auto_L1153', safeLeads.first);
       }
     }
 
@@ -1172,7 +1279,8 @@ class MonteCarloAI {
           wishSuitCards.sort((a, b) =>
               GameLogic.cardPlayStrength(a, dirModeS, null)
                   .compareTo(GameLogic.cardPlayStrength(b, dirModeS, null)));
-          return wishSuitCards.first;
+          return _pick('Slalom_Ansager_Wunschfarbe_Uebergabe',
+              wishSuitCards.first);
         }
       }
     }
@@ -1244,7 +1352,7 @@ class MonteCarloAI {
                   GameLogic.cardPlayStrength(b, GameMode.unten, null));
               return aMax.compareTo(bMax);
             });
-            return handoffCards.first;
+            return _pick('auto_L1300', handoffCards.first);
           }
         }
       }
@@ -1254,7 +1362,7 @@ class MonteCarloAI {
         safeLeads.sort((a, b) =>
             GameLogic.cardPoints(b, effectMode, null)
                 .compareTo(GameLogic.cardPoints(a, effectMode, null)));
-        return safeLeads.first;
+        return _pick('auto_L1310', safeLeads.first);
       }
       // Friseur Solo Ansager: keine sicheren Gewinner → Wunschfarbe anspielen
       if (state.gameType == GameType.friseur &&
@@ -1276,7 +1384,7 @@ class MonteCarloAI {
             );
             return aMax.compareTo(bMax);
           });
-          return wishSuitCards.first;
+          return _pick('auto_L1332', wishSuitCards.first);
         }
       }
       // Slalom-Übergabe: Farbe anspielen wo Partner in der AKTUELLEN Richtung gewinnt.
@@ -1340,7 +1448,7 @@ class MonteCarloAI {
                 );
                 return aMax.compareTo(bMax);
               });
-              return handoffCards.first;
+              return _pick('auto_L1396', handoffCards.first);
             }
           }
         }
@@ -1363,7 +1471,7 @@ class MonteCarloAI {
         final bPts = GameLogic.cardPoints(b, effectMode, null);
         return aPts.compareTo(bPts);
       });
-      return sorted.first;
+      return _pick('auto_L1419', sorted.first);
     }
 
     // ── Obenabe / Undenufe: sichere Gewinner sofort ausspielen ──────────────
@@ -1380,7 +1488,7 @@ class MonteCarloAI {
         safeLeads.sort((a, b) =>
             GameLogic.cardPoints(b, state.gameMode, null)
                 .compareTo(GameLogic.cardPoints(a, state.gameMode, null)));
-        return safeLeads.first;
+        return _pick('auto_L1436', safeLeads.first);
       }
     }
 
@@ -1412,7 +1520,7 @@ class MonteCarloAI {
               GameLogic.cardPlayStrength(b, state.gameMode, null)
                   .compareTo(GameLogic.cardPlayStrength(a, state.gameMode, null)));
           print('🔧 Partner-Wunschfarbe-Anspiel: ${notSafe.first}');
-          return notSafe.first;
+          return _pick('auto_L1468', notSafe.first);
         }
       }
     }
@@ -1441,7 +1549,7 @@ class MonteCarloAI {
             wishSuitCards.sort((a, b) =>
                 GameLogic.cardPoints(b, state.effectiveMode, state.trumpSuit)
                     .compareTo(GameLogic.cardPoints(a, state.effectiveMode, state.trumpSuit)));
-            return wishSuitCards.first;
+            return _pick('auto_L1497', wishSuitCards.first);
           }
         }
       }
@@ -1483,7 +1591,7 @@ class MonteCarloAI {
             return GameLogic.cardPoints(a, effectMode, trump)
                 .compareTo(GameLogic.cardPoints(b, effectMode, trump));
           });
-          return losing.first;
+          return _pick('auto_L1539', losing.first);
         }
         // Muss gewinnen → wenigste Punkte
         playable.sort((a, b) =>
@@ -1493,7 +1601,7 @@ class MonteCarloAI {
       } else {
         // Fehlfarbe: GEFÄHRLICHSTE Karte loswerden! (hohe Stärke = gewinnt Stiche)
         // Tiefe Karten (6, 7, 8) behalten = sichere Verlierer für später
-        return _misereDiscard(playable, aiPlayer);
+        return _pick('auto_L1549', _misereDiscard(playable, aiPlayer));
       }
     }
 
@@ -1506,7 +1614,7 @@ class MonteCarloAI {
       final ledSuit = state.currentTrickCards.first.suit;
       final isDiscarding = !playable.any((c) => c.suit == ledSuit);
       if (isDiscarding) {
-        return _misereDiscard(playable, aiPlayer);
+        return _pick('auto_L1562', _misereDiscard(playable, aiPlayer));
       }
       final losing = playable
           .where((c) => !_wouldWin(c, state, trump))
@@ -1526,7 +1634,7 @@ class MonteCarloAI {
       final oppWins = !_sameTeamFor(aiPlayer, curWinner, state);
       // Gegner gewinnt → höchsten Punktwert spielen (10er, 8er an Gegner "schenken")
       // Partner gewinnt → niedrigsten Punktwert spielen (0-Punkte Karten behalten)
-      return _pointAwareFollow(losing, effectMode, trump, oppWins);
+      return _pick('auto_L1582', _pointAwareFollow(losing, effectMode, trump, oppWins));
     }
 
     // ── Friseur Solo: Wunschkarte spielen wenn Farbe angespielt wird ────
@@ -1574,7 +1682,7 @@ class MonteCarloAI {
                   ansagerCard, aiPlayer, state);
               final shouldReveal = !ansagerSicher;
               if (shouldReveal) {
-                return state.wishCard!;
+                return _pick('auto_L1630', state.wishCard!);
               }
             } else {
               // Nicht-Trumpf (Oben/Unten/Slalom): Partner übernimmt wenn
@@ -1586,7 +1694,7 @@ class MonteCarloAI {
               // wenn eine Nicht-Trumpf-Farbe angespielt wird).
               if (!_isHighestRemainingVsOpponents(
                       ansagerCard, aiPlayer, state)) {
-                return state.wishCard!;
+                return _pick('auto_L1642', state.wishCard!);
               }
             }
           }
@@ -1595,7 +1703,7 @@ class MonteCarloAI {
           // Als letzter darf man mit tieferer Karte (8er) gewinnen.
           final isLastInTrick = state.currentTrickCards.length == 3;
           if (!isLastInTrick) {
-            return state.wishCard!;
+            return _pick('auto_L1651', state.wishCard!);
           }
 
           // Letzter Spieler: Wunschkarte nur spielen wenn nötig (Stich unsicher)
@@ -1614,7 +1722,7 @@ class MonteCarloAI {
 
           if (!announcerWinning) {
             // Ansager hat Stich nicht → Wunschkarte spielen um zu gewinnen
-            return state.wishCard!;
+            return _pick('auto_L1670', state.wishCard!);
           }
 
           // Elefant Unten-Phase (Stich 4-5): Partner ÜBERNIMMT den Stich
@@ -1626,7 +1734,7 @@ class MonteCarloAI {
               state.currentTrickNumber >= 4 &&
               state.currentTrickNumber <= 5 &&
               _wouldWin(state.wishCard!, state, state.trumpSuit)) {
-            return state.wishCard!;
+            return _pick('auto_L1682', state.wishCard!);
           }
 
           // ── Ansager gewinnt schon ──
@@ -1643,7 +1751,7 @@ class MonteCarloAI {
               // Nell + wenig Karten weg → Buur kommt wsl noch, Stich lassen
             } else {
               // Sonst: Wunschkarte spielen (Alles Trumpf = hohe Stichkraft)
-              return state.wishCard!;
+              return _pick('auto_L1699', state.wishCard!);
             }
           }
 
@@ -1654,7 +1762,7 @@ class MonteCarloAI {
               state.wishCard!, effectMode, state.trumpSuit);
             if (wishPts == 0) {
               // Wertlose Karte (6, 7, 9) → revealen ohne Punktekosten
-              return state.wishCard!;
+              return _pick('auto_L1710', state.wishCard!);
             }
             // Punktekarte (Ass, 10, 8, K, O, U) → nicht verschwenden
           }
@@ -1672,7 +1780,7 @@ class MonteCarloAI {
                 ansagerCardFlat, aiPlayer, state);
             if (!ansagerIsSecure) {
               // Ansager nicht sicher → Partner übernimmt mit Wunschkarte
-              return state.wishCard!;
+              return _pick('auto_L1728', state.wishCard!);
             }
             // Ansager bereits sicher → Partner spart Wunschkarte
           }
@@ -1798,17 +1906,17 @@ class MonteCarloAI {
                 return GameLogic.cardPoints(a, effectMode, trump)
                     .compareTo(GameLogic.cardPoints(b, effectMode, trump));
               });
-              return nonTrump.first;
+              return _pick('auto_L1854', nonTrump.first);
             }
             // Höchste Punkte zuerst (10er=10, K=4, Q=3, J=2)
             schmierPool.sort((a, b) =>
                 GameLogic.cardPoints(b, effectMode, trump)
                     .compareTo(GameLogic.cardPoints(a, effectMode, trump)));
-            return schmierPool.first;
+            return _pick('auto_L1860', schmierPool.first);
           }
           // Nur Trumpf auf Hand → schwächsten Trumpf (nicht übertrumpfen!)
           final notWinning0 = playable.where((c) => !_wouldWin(c, state, trump)).toList();
-          return _weakest(notWinning0.isNotEmpty ? notWinning0 : playable, effectMode, trump);
+          return _pick('auto_L1864', _weakest(notWinning0.isNotEmpty ? notWinning0 : playable, effectMode, trump));
         } else {
           // Prüfe ob Partner-Stich sicher ist GEGEN GEGNER:
           // Partner-Karten ignorieren! Nur Gegner-Karten zählen.
@@ -1835,7 +1943,7 @@ class MonteCarloAI {
                 if (eights.isNotEmpty) return eights.first;
               }
               // Andere Modi: schwächste gewinnende Karte (stärkere aufsparen)
-              return _weakest(winners, effectMode, trump);
+              return _pick('auto_L1891', _weakest(winners, effectMode, trump));
             }
             // Kann nicht absichern → schmieren wie üblich (fall through)
           }
@@ -1864,7 +1972,7 @@ class MonteCarloAI {
                   GameLogic.cardPlayStrength(c, effectMode, trump) > myMaxOppStrength).toList();
               if (topMine.length >= 2) {
                 // Überstich mit schwächster gewinnender Karte (höchste für späteren Stich aufsparen)
-                return _weakest(topMine, effectMode, trump);
+                return _pick('auto_L1920', _weakest(topMine, effectMode, trump));
               }
             }
           }
@@ -1890,14 +1998,14 @@ class MonteCarloAI {
               pool.sort((a, b) =>
                   GameLogic.cardPoints(b, effectMode, trump)
                       .compareTo(GameLogic.cardPoints(a, effectMode, trump)));
-              return pool.first;
+              return _pick('auto_L1946', pool.first);
             }
             // Nur Trumpf-Karten → nicht übertrumpfen! Schwächste spielen.
             final notWinning2 = playable.where((c) => !_wouldWin(c, state, trump)).toList();
             if (notWinning2.isNotEmpty) {
-              return _weakest(notWinning2, effectMode, trump);
+              return _pick('auto_L1951', _weakest(notWinning2, effectMode, trump));
             }
-            return _weakest(playable, effectMode, trump);
+            return _pick('auto_L1953', _weakest(playable, effectMode, trump));
           }
 
           // Gleiche Farbe oder Trumpf: nicht überstechen, aber schmieren
@@ -1913,38 +2021,45 @@ class MonteCarloAI {
               schmierbar.sort((a, b) =>
                   GameLogic.cardPoints(b, effectMode, trump)
                       .compareTo(GameLogic.cardPoints(a, effectMode, trump)));
-              return schmierbar.first;
+              return _pick('auto_L1969', schmierbar.first);
             }
-            return _weakest(notWinning, effectMode, trump);
+            return _pick('auto_L1971', _weakest(notWinning, effectMode, trump));
           }
-          return _weakest(playable, effectMode, trump);
+          return _pick('auto_L1973', _weakest(playable, effectMode, trump));
         }
       }
 
-      // ── Trumpf/TrumpfUnten: Mit Trumpf bedienen-statt-Trumpfen wenn lohnenswert
-      // Im Schweizer Jass: bei Nicht-Trumpf-Anspiel ist Trumpfen erlaubt auch
-      // wenn man bedienen könnte. Wenn Gegner gewinnt und Stich Punkte hat,
-      // → mit schwächstem stechenden Trumpf übertrumpfen.
-      // Schwelle: ≥ 10 Pkt im Stich ODER Team alle bisherigen Stiche gewonnen.
+      // ── Trumpf/TrumpfUnten: Mit Trumpf stechen wenn lohnenswert
+      // (1) Bedien-Möglichkeit + Trumpfen freie Wahl
+      // (2) Fehlfarbe-Abwurf: AI würde sonst Punkte-Karte (z.B. ♦A) verschenken
+      //     → mit schwächstem stechenden Trumpf retten
+      // Schwelle: Stich-Wert + eigene Schmier-Karte-Punkte ≥ 10
+      //          ODER Team alle bisherigen Stiche gewonnen.
       if (!partnerWins &&
           (state.gameMode == GameMode.trump ||
               state.gameMode == GameMode.trumpUnten) &&
           trump != null) {
         final ledSuitT = state.currentTrickCards.first.suit;
         final hasLedSuit = playable.any((c) => c.suit == ledSuitT);
-        if (hasLedSuit && ledSuitT != trump) {
-          // Bedien-Möglichkeit vorhanden — Trumpfen ist freie Wahl
+        if (ledSuitT != trump) {
           final trumpCardsT = playable.where((c) => c.suit == trump).toList();
           final winningTrumps = trumpCardsT
               .where((c) => _wouldWin(c, state, trump))
               .toList();
           if (winningTrumps.isNotEmpty) {
-            // Stich-Punkte ohne meine eigene Karte
             int trickPoints = 0;
             for (final c in state.currentTrickCards) {
               trickPoints += GameLogic.cardPoints(c, effectMode, trump);
             }
-            // Team alle vorherigen Stiche gewonnen (Match-Strategie)?
+            // Bei Fehlfarbe-Abwurf: höchste Punkte-Karte würde verschenkt
+            // → diesen "Schmier-Verlust" zur Schwelle addieren.
+            int schmierVerlust = 0;
+            if (!hasLedSuit) {
+              for (final c in playable.where((c) => c.suit != trump)) {
+                final pts = GameLogic.cardPoints(c, effectMode, trump);
+                if (pts > schmierVerlust) schmierVerlust = pts;
+              }
+            }
             final teamWonAll = state.completedTricks.isNotEmpty &&
                 state.completedTricks.every((t) {
                   if (t.winnerId == null) return false;
@@ -1952,8 +2067,12 @@ class MonteCarloAI {
                       .firstWhere((p) => p.id == t.winnerId);
                   return _sameTeamFor(aiPlayer, w, state);
                 });
-            if (trickPoints >= 10 || teamWonAll) {
-              return _weakest(winningTrumps, effectMode, trump);
+            if (trickPoints + schmierVerlust >= 10 || teamWonAll) {
+              return _pick(
+                  hasLedSuit
+                      ? 'Trump_Bedien_Uebertrumpfen'
+                      : 'Trump_Fehlfarbe_StattSchmier_Stechen',
+                  _weakest(winningTrumps, effectMode, trump));
             }
           }
         }
@@ -1966,9 +2085,17 @@ class MonteCarloAI {
       if (!partnerWins &&
           state.gameMode == GameMode.schafkopf &&
           trump != null) {
-        final ledSuit = state.currentTrickCards.first.suit;
-        final hasLedSuit = playable.any((c) => c.suit == ledSuit);
-        if (!hasLedSuit) {
+        final ledCard = state.currentTrickCards.first;
+        final ledSuit = ledCard.suit;
+        final ledIsTrump = _isSchafkopfTrump(ledCard, trump);
+        // Bedien-Pflicht im Schafkopf:
+        // - Trumpf angespielt → Trumpf bedienen (Damen+8er+Trumpfarbe)
+        // - Nicht-Trumpf angespielt → Farbe bedienen (Nicht-Trumpf der Farbe)
+        final hasFollow = ledIsTrump
+            ? playable.any((c) => _isSchafkopfTrump(c, trump))
+            : playable.any((c) =>
+                c.suit == ledSuit && !_isSchafkopfTrump(c, trump));
+        if (!hasFollow) {
           final winners = playable
               .where((c) =>
                   _isSchafkopfTrump(c, trump) && _wouldWin(c, state, trump))
@@ -1995,13 +2122,13 @@ class MonteCarloAI {
                 .where((c) => c.value == CardValue.queen)
                 .toList();
             if (suitCards.isNotEmpty) {
-              return _weakest(suitCards, effectMode, trump);
+              return _pick('auto_L2070', _weakest(suitCards, effectMode, trump));
             }
             if (eights.isNotEmpty) {
-              return _weakest(eights, effectMode, trump);
+              return _pick('auto_L2073', _weakest(eights, effectMode, trump));
             }
             if (queens.isNotEmpty && trickPoints >= 10) {
-              return _weakest(queens, effectMode, trump);
+              return _pick('auto_L2076', _weakest(queens, effectMode, trump));
             }
             // Stich-Wert zu klein für Dame-Opfer → Fall-through zu Schmier-Logik
           }
@@ -2044,7 +2171,7 @@ class MonteCarloAI {
         if (!hasLedSuit && trickLen < 3) {
           final nonTrump = playable.where((c) => c.suit != trump).toList();
           if (nonTrump.isNotEmpty) {
-            return _smartDiscard(nonTrump, state, effectMode, trump);
+            return _pick('auto_L2119', _smartDiscard(nonTrump, state, effectMode, trump));
           }
         }
       }
@@ -2083,7 +2210,7 @@ class MonteCarloAI {
           // Abwerfen: hohe Karten von kurzen Farben loswerden
           final ledSuit = state.currentTrickCards.first.suit;
           if (!playable.any((c) => c.suit == ledSuit)) {
-            return _misereDiscard(playable, aiPlayer);
+            return _pick('auto_L2158', _misereDiscard(playable, aiPlayer));
           }
           // Sonst: nicht gewinnen, aber Punktwert-bewusst spielen
           final losing = playable
@@ -2101,7 +2228,7 @@ class MonteCarloAI {
           );
           final curWinner4 = state.players.firstWhere((p) => p.id == curWinnerId4);
           final oppWins4 = !_sameTeamFor(aiPlayer, curWinner4, state);
-          return _pointAwareFollow(losing, effectMode, trump, oppWins4);
+          return _pick('auto_L2176', _pointAwareFollow(losing, effectMode, trump, oppWins4));
         } else {
           // Misere-Gegner als 4. Spieler
           final announcerWinning = _isAnnouncerWinning(state);
@@ -2149,17 +2276,17 @@ class MonteCarloAI {
             // Fehlfarbe: nicht mit Trumpf stechen wenn Partner gewinnt
             final nonTrump = playable.where((c) => c.suit != trump).toList();
             if (nonTrump.isNotEmpty) {
-              return _weakest(nonTrump, effectMode, trump);
+              return _pick('auto_L2224', _weakest(nonTrump, effectMode, trump));
             }
-            return _weakest(playable, effectMode, trump);
+            return _pick('auto_L2226', _weakest(playable, effectMode, trump));
           }
           // Trumpf angespielt oder Alles Trumpf: nicht mit höherem überstechen
           if (ledSuit == trump || effectMode == GameMode.allesTrumpf) {
             final notWinning = playable.where((c) => !_wouldWin(c, state, trump)).toList();
             if (notWinning.isNotEmpty) {
-              return _weakest(notWinning, effectMode, trump);
+              return _pick('auto_L2232', _weakest(notWinning, effectMode, trump));
             }
-            return _weakest(playable, effectMode, trump);
+            return _pick('auto_L2234', _weakest(playable, effectMode, trump));
           }
         }
 
@@ -2204,9 +2331,9 @@ class MonteCarloAI {
           return true;
         }).toList();
         if (schmierbar.isNotEmpty) {
-          return _strongest(schmierbar, effectMode, trump);
+          return _pick('auto_L2279', _strongest(schmierbar, effectMode, trump));
         }
-        return _smartDiscard(playable, state, effectMode, trump);
+        return _pick('auto_L2281', _smartDiscard(playable, state, effectMode, trump));
       }
 
       // Gegner gewinnt → versuche billigst möglich zu übernehmen
@@ -2222,7 +2349,7 @@ class MonteCarloAI {
           if (isDiscarding) {
             final nonTrump = playable.where((c) => c.suit != trump).toList();
             if (nonTrump.isNotEmpty) {
-              return _smartDiscard(nonTrump, state, effectMode, trump);
+              return _pick('auto_L2297', _smartDiscard(nonTrump, state, effectMode, trump));
             }
           }
         }
@@ -2233,17 +2360,17 @@ class MonteCarloAI {
       if (winning.isNotEmpty) {
         // Molotow: müssen wir den Stich nehmen, spielen wir die HÖCHSTE Karte
         if (state.gameMode == GameMode.molotof) {
-          return _strongest(winning, effectMode, trump);
+          return _pick('auto_L2308', _strongest(winning, effectMode, trump));
         }
         // Letzte Trümpfe: wenn nur noch eigenes Team Trumpf hat →
         // STÄRKSTE spielen (alle gewinnen sowieso, stärkste jetzt nutzen)
         if (trump != null && _onlyTeamHasTrump(aiPlayer, state, trump)) {
           final winningTrumps = winning.where((c) => c.suit == trump).toList();
           if (winningTrumps.length >= 2) {
-            return _strongest(winningTrumps, effectMode, trump);
+            return _pick('auto_L2315', _strongest(winningTrumps, effectMode, trump));
           }
         }
-        return _weakest(winning, effectMode, trump);
+        return _pick('auto_L2318', _weakest(winning, effectMode, trump));
       }
       // Kann nicht gewinnen → Gegner kriegt den Stich
       // Bei Farbzwang: wenigste Punkte geben (nicht nach Spielstärke!)
@@ -2281,9 +2408,9 @@ class MonteCarloAI {
           final bKeep = bStr + bPts + depthBonus(b);
           return aKeep.compareTo(bKeep); // niedrigster keepValue zuerst abwerfen
         });
-        return suitCards.first;
+        return _pick('auto_L2356', suitCards.first);
       }
-      return _smartDiscard(playable, state, effectMode, trump);
+      return _pick('auto_L2358', _smartDiscard(playable, state, effectMode, trump));
     }
 
     // ── Obenabe/Undenufe Anführen: Greedy statt MC ─────────────────────────
@@ -2311,7 +2438,7 @@ class MonteCarloAI {
             playable.any((c) => c.suit == trump);
         // Kein Trumpf → schnell abwerfen (wertvolle Karten behalten)
         if (!hasTrump) {
-          return _smartDiscard(playable, state, effectMode, trump);
+          return _pick('auto_L2386', _smartDiscard(playable, state, effectMode, trump));
         }
       }
     }

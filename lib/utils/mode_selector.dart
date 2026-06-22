@@ -982,14 +982,27 @@ class ModeSelectorAI {
       return available.first;
     }
 
-    // Alles Trumpf: Buur (Jack) → Näll (9)
+    // Alles Trumpf (Tutti): Buur (Jack) → Nell (9).
+    // WICHTIG: nur in Farben wo der Ansager selbst Karten hat (zum Anspielen)
+    // und der Buur/Nell NICHT bei ihm selbst (kein Selbstwunsch).
     if (mode == GameMode.allesTrumpf) {
+      final handSuitsT = hand.map((c) => c.suit).toSet();
       for (final val in [CardValue.jack, CardValue.nine]) {
-        final card = available.firstWhere(
-          (c) => c.value == val,
-          orElse: () => available[0],
-        );
-        if (card.value == val) return card;
+        // Priorität 1: Buur/Nell-Karten in Farben wo Ansager Karten hat
+        final preferred = available.where((c) =>
+            c.value == val && handSuitsT.contains(c.suit)).toList();
+        if (preferred.isNotEmpty) {
+          // Tiebreak: Farbe mit den meisten eigenen Karten (mehr Anspielchancen)
+          preferred.sort((a, b) {
+            final aCount = hand.where((h) => h.suit == a.suit).length;
+            final bCount = hand.where((h) => h.suit == b.suit).length;
+            return bCount.compareTo(aCount);
+          });
+          return preferred.first;
+        }
+        // Fallback: irgendein Buur/Nell (sollte selten passieren)
+        final any = available.where((c) => c.value == val).toList();
+        if (any.isNotEmpty) return any.first;
       }
       return available.first;
     }
