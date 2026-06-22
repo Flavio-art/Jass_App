@@ -4,6 +4,14 @@
 <dict>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Jass benötigt Zugriff auf die Fotos um Replay-Dateien zu teilen.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Jass speichert Replay-Dateien um sie mit Freunden zu teilen.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Jass nutzt die Kamera nicht aktiv, dieser Hinweis ist nur wegen Bibliotheks-Abhängigkeiten erforderlich.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Jass nutzt das Mikrofon nicht aktiv, dieser Hinweis ist nur wegen Bibliotheks-Abhängigkeiten erforderlich.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
