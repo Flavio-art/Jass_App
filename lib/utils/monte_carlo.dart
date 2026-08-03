@@ -193,6 +193,102 @@ class MonteCarloAI {
       }
     }
 
+    // ── HARD-OVERRIDE: Misère — bei Zwang-Stich clever wählen
+    // Bedingungen:
+    //   1. gameMode = misere
+    //   2. AI bedient (hat Anspielfarbe)
+    //   3. AI = 4. Spieler ODER alle nach AI sind void in Anspielfarbe
+    //   4. Alle AI's bedienenden Karten stichen aktuellen Winner
+    // Aktion:
+    //   - Wenn verbliebene Karte von Gegner gestochen werden kann → mit
+    //     HÖCHSTER stechen (niedrige bleibt als "Gegner-Karte")
+    //   - Sonst → mit WENIGSTEN PUNKTEN stechen (minimiere Punkte-Verlust)
+    if (state.gameMode == GameMode.misere &&
+        state.currentTrickCards.isNotEmpty) {
+      final ledSuitMis = state.currentTrickCards.first.suit;
+      final followCardsMis = playable
+          .where((c) => c.suit == ledSuitMis)
+          .toList();
+      if (followCardsMis.length >= 2) {
+        // Fall 1: AI ist letzter Spieler
+        final isLastMis = state.currentTrickCards.length == 3;
+        // Fall 2: alle Spieler nach AI sind void in Anspielfarbe
+        final numAfterMis = 3 - state.currentTrickCards.length;
+        final aiIdxMis =
+            state.players.indexWhere((p) => p.id == aiPlayer.id);
+        final playersAfterMis = <Player>[];
+        for (int i = 1; i <= numAfterMis; i++) {
+          playersAfterMis.add(state.players[(aiIdxMis + i) % 4]);
+        }
+        final allAfterVoidMis = playersAfterMis.isNotEmpty &&
+            playersAfterMis.every((p) =>
+                !p.hand.any((c) => c.suit == ledSuitMis));
+
+        if (isLastMis || allAfterVoidMis) {
+          // Aktueller Winner
+          final winnerIdMis = GameLogic.determineTrickWinner(
+            cards: state.currentTrickCards,
+            playerIds: state.currentTrickPlayerIds,
+            gameMode: state.gameMode, trumpSuit: state.trumpSuit,
+            trickNumber: state.currentTrickNumber,
+            molotofSubMode: state.molotofSubMode,
+            slalomStartsOben: state.slalomStartsOben,
+          );
+          final winnerIdxMis =
+              state.currentTrickPlayerIds.indexOf(winnerIdMis);
+          final winnerCardMis = state.currentTrickCards[winnerIdxMis];
+          final winnerStrMis = GameLogic.cardPlayStrength(
+              winnerCardMis, state.effectiveMode, null);
+
+          final winningFollowMis = followCardsMis.where((c) =>
+              GameLogic.cardPlayStrength(c, state.effectiveMode, null) >
+              winnerStrMis).toList();
+
+          // Nur greifen wenn AI sicher sticht (ALLE bedienenden Karten sind
+          // stechend). Sonst kann AI mit niedriger Karte "ducken".
+          if (winningFollowMis.length >= 2 &&
+              winningFollowMis.length == followCardsMis.length) {
+            // Sortiere absteigend nach Stärke — höchste zuerst
+            winningFollowMis.sort((a, b) =>
+                GameLogic.cardPlayStrength(b, state.effectiveMode, null)
+                    .compareTo(
+                        GameLogic.cardPlayStrength(a, state.effectiveMode, null)));
+            final highestMis = winningFollowMis.first;
+
+            // Verbliebene Karten wenn AI die höchste spielt
+            final remainingMis = followCardsMis
+                .where((c) => c != highestMis).toList();
+            remainingMis.sort((a, b) =>
+                GameLogic.cardPlayStrength(b, state.effectiveMode, null)
+                    .compareTo(
+                        GameLogic.cardPlayStrength(a, state.effectiveMode, null)));
+            final maxRemainStrMis = GameLogic.cardPlayStrength(
+                remainingMis.first, state.effectiveMode, null);
+
+            // Gibt es bei anderen Spielern eine höhere Karte in dieser Farbe?
+            final canBeOverstochenMis = state.players
+                .where((p) => p.id != aiPlayer.id)
+                .expand((p) => p.hand)
+                .where((c) => c.suit == ledSuitMis)
+                .any((c) =>
+                    GameLogic.cardPlayStrength(c, state.effectiveMode, null) >
+                    maxRemainStrMis);
+
+            if (canBeOverstochenMis) {
+              return _pick('Misere_ZwangStich_HoechsteWaehlen', highestMis);
+            } else {
+              // Keine Rettung → niedrigste Punkte wählen
+              winningFollowMis.sort((a, b) =>
+                  GameLogic.cardPoints(a, state.effectiveMode, null)
+                      .compareTo(GameLogic.cardPoints(b, state.effectiveMode, null)));
+              return _pick('Misere_ZwangStich_WenigstePunkte',
+                  winningFollowMis.first);
+            }
+          }
+        }
+      }
+    }
+
     // ── HARD-OVERRIDE: Schafkopf 4. Spieler — Partner-Stich nicht übertrumpfen
     // Wenn AI als 4. Spieler dran ist, Partner aktuell den Stich gewinnt und
     // AI nur ≤3 hohe Trümpfe (Damen oder 8er) hat → nicht übertrumpfen,
@@ -229,6 +325,94 @@ class MonteCarloAI {
       }
     }
 
+    // ── HARD-OVERRIDE: Schafkopf — mit sicherem Trumpf stechen wenn Gegner
+    // gewinnt und AI viele Trümpfe (≥3) oder hohe Trümpfe (Damen/8er) hat.
+    // Damit gehen große Punkt-Stiche (mehrere 8er/Damen = 8-11 Pkt) nicht
+    // an das Gegnerteam verloren.
+    if (state.gameMode == GameMode.schafkopf &&
+        state.trumpSuit != null &&
+        state.currentTrickCards.isNotEmpty) {
+      final trumpSch = state.trumpSuit!;
+      final winnerIdSch = GameLogic.determineTrickWinner(
+        cards: state.currentTrickCards,
+        playerIds: state.currentTrickPlayerIds,
+        gameMode: state.gameMode, trumpSuit: trumpSch,
+        trickNumber: state.currentTrickNumber,
+        molotofSubMode: state.molotofSubMode,
+        slalomStartsOben: state.slalomStartsOben,
+      );
+      final winnerSch = state.players.firstWhere((p) => p.id == winnerIdSch);
+      final gegnerGewinnt = !_sameTeamFor(aiPlayer, winnerSch, state);
+      if (gegnerGewinnt) {
+        final myTrumpsSch = aiPlayer.hand
+            .where((c) => _isSchafkopfTrump(c, trumpSch))
+            .toList();
+        final highTrumpsSch = myTrumpsSch.where((c) =>
+            c.value == CardValue.queen || c.value == CardValue.eight).length;
+        if (myTrumpsSch.length >= 3 || highTrumpsSch >= 1) {
+          final winningCardsSch = playable
+              .where((c) =>
+                  _isSchafkopfTrump(c, trumpSch) &&
+                  _wouldWin(c, state, trumpSch))
+              .toList();
+          if (winningCardsSch.isNotEmpty) {
+            winningCardsSch.sort((a, b) =>
+                GameLogic.cardPlayStrength(a, state.gameMode, trumpSch)
+                    .compareTo(
+                        GameLogic.cardPlayStrength(b, state.gameMode, trumpSch)));
+            return _pick('Schafkopf_MitSicherTrumpf_Stechen',
+                winningCardsSch.first);
+          }
+        }
+      }
+    }
+
+    // ── HARD-OVERRIDE: Schafkopf-Anspiel-Strategie mit Damen/Trümpfen
+    // Zwei Fälle:
+    // 1. Gegner haben noch Trümpfe: sichere eigene Dame (höchste verbleibende)
+    //    anspielen, um Gegner-Trümpfe zu ziehen.
+    // 2. Team-Trumpf-Monopol: schwache Nicht-Trumpf-Karte anspielen, Damen für
+    //    späteres Stechen aufheben. Verhindert dass hohe Nicht-Trumpf-Karten
+    //    (z.B. ♣A vs ♣10) verschenkt werden.
+    if (state.currentTrickCards.isEmpty &&
+        state.gameMode == GameMode.schafkopf &&
+        state.trumpSuit != null) {
+      final trumpSchA = state.trumpSuit!;
+      final mySchTrumpsA = playable
+          .where((c) => _isSchafkopfTrump(c, trumpSchA))
+          .toList();
+      if (mySchTrumpsA.isNotEmpty) {
+        final gegnerTrumpsCountA = state.players
+            .where((p) => p.id != aiPlayer.id &&
+                !_sameTeamFor(aiPlayer, p, state))
+            .expand((p) => p.hand)
+            .where((c) => _isSchafkopfTrump(c, trumpSchA))
+            .length;
+        if (gegnerTrumpsCountA > 0) {
+          // Case 1: sichere eigene Damen (höchste verbleibende) anspielen
+          final sureTrumpsA = mySchTrumpsA
+              .where((c) => _isHighestRemaining(c, state))
+              .toList();
+          if (sureTrumpsA.isNotEmpty) {
+            sureTrumpsA.sort((a, b) =>
+                GameLogic.cardPlayStrength(a, state.gameMode, trumpSchA)
+                    .compareTo(
+                        GameLogic.cardPlayStrength(b, state.gameMode, trumpSchA)));
+            return _pick('Schafkopf_SichereTrumpf_Anspiel', sureTrumpsA.first);
+          }
+        } else {
+          // Case 2: Team-Trumpf-Monopol → niedrige Nicht-Trumpf-Karte anspielen
+          final nonTrumpA = playable
+              .where((c) => !_isSchafkopfTrump(c, trumpSchA))
+              .toList();
+          if (nonTrumpA.isNotEmpty) {
+            return _pick('Schafkopf_TrumpfMonopol_SchwachNichtTrumpf',
+                _weakest(nonTrumpA, state.effectiveMode, trumpSchA));
+          }
+        }
+      }
+    }
+
     // ── HARD-OVERRIDE: Friseur-Solo Ansager spielt Wunschfarbe an wenn
     // Wunschkarte beim Partner ein sicherer Trumpf-Stich ist (Buur).
     // Zieht Gegner-Trümpfe, Partner sticht garantiert, eigene Trümpfe bleiben.
@@ -240,8 +424,14 @@ class MonteCarloAI {
             state.gameMode == GameMode.trumpUnten) &&
         aiPlayer.id == state.players[state.ansagerIndex].id) {
       final wishW = state.wishCard!;
-      // Wunschkarte = Trumpf-Buur (= immer höchster Trumpf in beiden Modi)
-      if (wishW.value == CardValue.jack && wishW.suit == state.trumpSuit) {
+      // Wunschkarte = Trumpf-Buur (= immer höchster Trumpf in beiden Modi).
+      // Nur greift wenn Buur noch in Partner-Hand (nicht schon gespielt).
+      final wishStillInPlay = !state.completedTricks
+          .expand((t) => t.cards.values)
+          .any((c) => c.suit == wishW.suit && c.value == wishW.value);
+      if (wishW.value == CardValue.jack &&
+          wishW.suit == state.trumpSuit &&
+          wishStillInPlay) {
         final trumpW = state.trumpSuit!;
         // AI hat Trumpfarbe-Karten (≠ Buur, der bei Partner ist)
         final trumpSuitCards = playable
@@ -1666,43 +1856,33 @@ class MonteCarloAI {
           // NICHT revealen bei: tiefer Trumpf (6,7,8), Buur/Nell, Nicht-Trumpf.
           final announcerId = state.players[state.ansagerIndex].id;
           final ansagerOpened = state.currentTrickPlayerIds.first == announcerId;
+          bool ansagerSicherOpened = false;
           if (ansagerOpened) {
             final ansagerCard = state.currentTrickCards.first;
             final isTrumpCard = state.trumpSuit != null &&
                 ansagerCard.suit == state.trumpSuit;
+            final ansagerSicher = _isHighestRemainingVsOpponents(
+                ansagerCard, aiPlayer, state);
+            ansagerSicherOpened = ansagerSicher;
             if (isTrumpCard) {
               // Trumpf-Stärke: Buur=108, Nell=107, dann 100-106
-              // Revealen bei mittelstarken Trümpfen (Stärke 100-106)
-              // = Ass/6, König/7, Dame/8, 10 etc. je nach Richtung
-              // NICHT bei Buur(108)/Nell(107) → aufsparen
-              // NICHT bei tiefsten 2 (100-101) → zu riskant
               // Revealen wenn Ansager den Stich NICHT sicher gewinnt
-              // UND Wunschkarte den Stich gewinnen würde (Buur/Nell)
-              final ansagerSicher = _isHighestRemainingVsOpponents(
-                  ansagerCard, aiPlayer, state);
-              final shouldReveal = !ansagerSicher;
-              if (shouldReveal) {
+              if (!ansagerSicher) {
                 return _pick('auto_L1630', state.wishCard!);
               }
             } else {
               // Nicht-Trumpf (Oben/Unten/Slalom): Partner übernimmt wenn
               // Ansager NICHT sicher gewinnt vs. Gegner.
-              // z.B. Ansager spielt ♥10 (Oben), Gegner haben ♥Ass → nicht sicher
-              // → Partner spielt Wunschkarte ♥6 um Stich für Team zu sichern.
-              // Nicht-Trumpf-Farbe angespielt: immer revealen wenn Ansager
-              // nicht sicher gewinnt. Gilt für ALLE Modi (auch trump/trumpUnten
-              // wenn eine Nicht-Trumpf-Farbe angespielt wird).
-              if (!_isHighestRemainingVsOpponents(
-                      ansagerCard, aiPlayer, state)) {
+              if (!ansagerSicher) {
                 return _pick('auto_L1642', state.wishCard!);
               }
             }
           }
 
-          // Nicht letzter Spieler → IMMER Wunschkarte spielen um zu revealen!
-          // Als letzter darf man mit tieferer Karte (8er) gewinnen.
+          // Nicht letzter Spieler → Wunschkarte spielen um zu revealen!
+          // ABER: nicht wenn Ansager schon sicher gewinnt (Wunsch-Buur sparen).
           final isLastInTrick = state.currentTrickCards.length == 3;
-          if (!isLastInTrick) {
+          if (!isLastInTrick && !ansagerSicherOpened) {
             return _pick('auto_L1651', state.wishCard!);
           }
 

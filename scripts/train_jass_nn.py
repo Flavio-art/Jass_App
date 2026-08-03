@@ -87,10 +87,9 @@ def card_pts(c, mode, el_trump=None):
     elif mode == 13 and el_trump is not None:
         return PTS_TRUMP_OBN[v] if s == el_trump else PTS_NORMAL[v]
     elif mode >= 15:  # Schafkopf (trump = mode - 15)
-        t = mode - 15
-        if s == t or v == VQ or v == V8:
-            return PTS_TRUMP_OBN[v]  # Trump-Karte (inkl. alle Q und 8)
-        return PTS_NORMAL[v]
+        # Obenabe-Werte für ALLE Karten (A=11, 10=10, 8=8, K=4, D=3, U=2)
+        # — Trumpf-Status ändert die Punkte NICHT.
+        return PTS_FLAT[v]
     else:
         return PTS_FLAT[v]
 
@@ -100,21 +99,22 @@ def card_pts(c, mode, el_trump=None):
 
 STR_OBN  = [0, 1, 2, 3, 4, 5, 6, 7, 8]  # A(8) gewinnt
 STR_UNT  = [8, 7, 6, 5, 4, 3, 2, 1, 0]  # 6(0) hat Rang 8 → gewinnt
-STR_TOBN = [0, 1, 2, 7, 5, 8, 3, 4, 6]  # J>9>A>10>K>Q>8>7>6
-STR_TUNT = [6, 1, 2, 7, 5, 8, 3, 4, 0]  # J>9>6>10>K>Q>8>7>A
-# Schafkopf Trump-Stärke: J > Q_suit0 > Q_suit1 > Q_suit2 > Q_suit3
-#                          > 8_suit0 > 8_suit1 > 8_suit2 > 8_suit3
-#                          > trump suit (wie STR_TOBN ohne J)
-# Implementiert als (Priorität 2, Rang):
-# J=20, Q0=16, Q1=15, Q2=14, Q3=13, 8_0=12, 8_1=11, 8_2=10, 8_3=9, dann Trumpffarbe
+# Trumpf: B=8 > 9=7 > A=6 > K=5 > D=4 > 10=3 > 8=2 > 7=1 > 6=0 (wie Dart)
+STR_TOBN = [0, 1, 2, 7, 3, 8, 4, 5, 6]
+# TrumpfUnten: B=8 > 9=7 > 6=6 > 7=5 > 8=4 > 10=3 > D=2 > K=1 > A=0 (wie Dart)
+STR_TUNT = [6, 5, 4, 7, 3, 8, 2, 1, 0]
+
+# Schafkopf: Trumpfarbe/Nicht-Trumpf-Rang 10>K>U>A>9>7>6 (10 höchste!)
+# Index: 6, 7, 8*, 9, 10, U, D*, K, A  (*=8er/Damen sind immer Trumpf)
+STR_SCHAF = [0, 1, 0, 2, 6, 4, 0, 5, 3]
+# Damen/8er-Priorität: ♣(3) > ♠(2) > ♥(1) > ♦(0) — Python-Suit-Idx 0=♠,1=♥,2=♦,3=♣
+SCHAF_PRIO = [2, 1, 0, 3]
 
 def _schafkopf_trump_rank(v, s, trump):
     """Stärke einer Trumpfkarte in Schafkopf (höher = besser)."""
-    if v == VJ and s == trump: return 20   # Buur
-    if v == VQ:                return 16 - s  # Q: suit0 stärkste
-    if v == V8:                return 12 - s  # 8: suit0 stärkste
-    # Restliche Trumpf-Farbe: wie normale Trump-Stärke ohne J-Bonus
-    return STR_OBN[v]  # A>K>Q_schon behandelt>..., aber Q/8/J schon oben
+    if v == VQ: return 20 + SCHAF_PRIO[s]   # Damen = höchste Trümpfe
+    if v == V8: return 16 + SCHAF_PRIO[s]   # 8er darunter
+    return STR_SCHAF[v]                      # Trumpfarbe: 10>K>U>A>9>7>6
 
 def _is_schafkopf_trump(c, trump):
     v, s = val_of(c), suit_of(c)
@@ -144,7 +144,7 @@ def card_strength(c, led_suit, eff_mode, trump=None):
     elif eff_mode >= 15:   # Schafkopf
         t = eff_mode - 15
         if _is_schafkopf_trump(c, t): return (2, _schafkopf_trump_rank(v, s, t))
-        if s == led_suit:             return (1, STR_OBN[v])
+        if s == led_suit:             return (1, STR_SCHAF[v])
         return (0, 0)
     else:  # Oben, Misere, Slalom-Oben, Elefant-Vorpha
         return (1, STR_OBN[v]) if s == led_suit else (0, 0)
@@ -157,7 +157,7 @@ def winner_of(played, led_suit, eff_mode, trump=None):
 #  FARBENPFLICHT
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def legal_cards(hand, led_suit, mode, trump=None):
+def legal_cards(hand, led_suit, mode, trump=None, led_card=None):
     if led_suit is None:
         return hand[:]
     # Molotow: strenge Farbpflicht für ALLE Spieler
@@ -165,27 +165,39 @@ def legal_cards(hand, led_suit, mode, trump=None):
     if mode == 14:
         same = [c for c in hand if suit_of(c) == led_suit]
         return same if same else hand[:]
-    # Schafkopf: Trump = Q aller Farben + 8 aller Farben + Trumpf-Farbe
+    # Schafkopf: Trumpf angespielt → Trumpf bedienen (kein Zurückhalten).
+    # Nicht-Trumpf angespielt → Farbe bedienen ODER beliebiger Trumpf
+    # (Ab-/Untertrumpfen immer erlaubt).
     if mode >= 15:
         t = mode - 15
         trump_cards = [c for c in hand if _is_schafkopf_trump(c, t)]
         led_same    = [c for c in hand if suit_of(c) == led_suit and not _is_schafkopf_trump(c, t)]
-        # Anspielfarbe ist Trumpf → Trumpfpflicht
-        if any(_is_schafkopf_trump(card(led_suit, v), t) for v in range(N_VALS)):
-            # led_suit IST Trumpf → alle Trumpf müssen bedient werden
+        led_is_trump = led_card is not None and _is_schafkopf_trump(led_card, t)
+        if led_is_trump:
             return trump_cards if trump_cards else hand[:]
-        # Anspielfarbe ist keine Trumpf-Farbe → gleiche Farbe (ohne Trump)
-        return led_same if led_same else hand[:]
+        if led_same:
+            return led_same + trump_cards
+        return hand[:]
+    if mode == 12:
+        # Tutti: Farbenpflicht; nur der Bauer der Farbe darf zurückgehalten werden
+        same = [c for c in hand if suit_of(c) == led_suit]
+        non_buur = [c for c in same if val_of(c) != VJ]
+        if non_buur:
+            return same
+        return hand[:]
     t = mode if mode < 4 else (mode - 4 if mode < 8 else trump)
     same = [c for c in hand if suit_of(c) == led_suit]
+    if t is not None and led_suit == t:
+        # Trumpf angespielt: Trumpf bedienen; einziger Trumpf = Buur → frei
+        if same == [card(t, VJ)]:
+            return hand[:]
+        return same if same else hand[:]
     if not same:
         return hand[:]
-    # Bauer-Ausnahme: Bauer kann zurückgehalten werden
-    if t is not None and t != led_suit:
-        buur = card(t, VJ)
-        non_buur = [c for c in same if c != buur]
-        if not non_buur:
-            return hand[:]
+    if t is not None:
+        # Abstechen erlaubt: Farbe bedienen ODER Trumpf spielen
+        trumps = [c for c in hand if suit_of(c) == t]
+        return same + trumps
     return same
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -384,7 +396,7 @@ def _smart_discard(allowed, hand, mode, eff_mode, trump, el_trump, hands, p_idx,
 
 
 def pick_card(p_idx, hand, led_suit, mode, eff_mode, trump, el_trump,
-              best_card, best_player_abs, hands):
+              best_card, best_player_abs, hands, led_card=None):
     """Kartenwahl mit allen Heuristiken aus monte_carlo.dart:
     • Trumpf-Timing: 3 Phasen (dominant, oppTrump>1, oppTrump==1, oppTrump==0)
     • Alles Trumpf: Bauern zuerst, dann Nell, dann andere
@@ -395,7 +407,7 @@ def pick_card(p_idx, hand, led_suit, mode, eff_mode, trump, el_trump,
     • Farbzwang: keepValue (Spielstärke + Punkte + Farbtiefe)
     • Abwurf: Farbtiefe-bewusst, 6er/Asse schützen
     """
-    allowed = legal_cards(hand, led_suit, mode, trump)
+    allowed = legal_cards(hand, led_suit, mode, trump, led_card=led_card)
     if len(allowed) == 1:
         return allowed[0]
 
@@ -809,7 +821,8 @@ def simulate(hands_in, mode):
                 trump       = el_trump
                 trick_trump = el_trump
             c = pick_card(p, hands[p], led_suit, eff, eff,
-                          trick_trump, el_trump, best_card, best_player_abs, hands)
+                          trick_trump, el_trump, best_card, best_player_abs,
+                          hands, led_card=played[0] if played else None)
             if i == 0:
                 led_suit = suit_of(c)
             # Molotow-Trigger: erster Spieler der nicht Farbe angeben kann
@@ -921,7 +934,7 @@ def train(X, Y):
         X, Y_norm, test_size=0.2, random_state=42
     )
 
-    print(f"Trainiere auf {len(X_tr)} Samples (Val: {len(X_val)})  (Architektur: 36→256→128→64→14) ...")
+    print(f"Trainiere auf {len(X_tr)} Samples (Val: {len(X_val)})  (Architektur: 36→256→128→64→19) ...")
     t0 = time.time()
     model = MLPRegressor(
         hidden_layer_sizes=(256, 128, 64),
