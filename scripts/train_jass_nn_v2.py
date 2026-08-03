@@ -19,14 +19,19 @@ Beispiele:
 Output: assets/jass_nn_weights.json  (wird direkt in Flutter geladen)
 """
 
-import numpy as np
 import random
 import json
 import time
 import sys
+import pickle
 import argparse
 from pathlib import Path
 from multiprocessing import Pool, cpu_count
+
+try:
+    import numpy as np          # fehlt unter PyPy → nur Generierung möglich
+except ImportError:
+    np = None
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  KARTEN-KONSTANTEN
@@ -682,7 +687,7 @@ def generate_dataset(n, n_mc, n_rollouts):
             eta = (n - done) / (done / elapsed) if done > 0 else 0
             print(f"  {done}/{n}  (noch ~{eta:.0f}s)", flush=True)
     print(f"Fertig in {time.time() - t0:.0f}s")
-    return np.array(X, dtype=np.float32), np.array(Y, dtype=np.float32)
+    return X, Y   # plain lists — numpy-Konvertierung erst im Training (CPython)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  TRAINING
@@ -692,6 +697,8 @@ def train(X, Y):
     from sklearn.neural_network import MLPRegressor
     from sklearn.model_selection import train_test_split
 
+    X = np.asarray(X, dtype=np.float32)
+    Y = np.asarray(Y, dtype=np.float32)
     Y_norm = Y / 162.0
 
     X_tr, X_val, Y_tr, Y_val = train_test_split(
@@ -750,21 +757,30 @@ if __name__ == '__main__':
                         help='MC-Simulationen pro Modus (default: 40)')
     parser.add_argument('--rollouts', type=int, default=5,
                         help='Rollouts pro Kartenwahl in MC-Light (default: 5)')
+    parser.add_argument('--gen-only', action='store_true',
+                        help='Nur Daten generieren (PyPy-tauglich, schreibt .pkl)')
+    parser.add_argument('--train-only', action='store_true',
+                        help='Nur trainieren (lädt .pkl, braucht CPython + sklearn)')
     args = parser.parse_args()
 
     root      = Path(__file__).parent.parent
-    data_path = root / 'scripts' / 'jass_nn_data_v2.npz'
+    pkl_path  = root / 'scripts' / 'jass_nn_data_v2.pkl'
     out_path  = root / 'assets' / 'jass_nn_weights.json'
 
-    if data_path.exists():
-        print(f"Lade gespeicherte Daten aus {data_path} ...")
-        d    = np.load(data_path)
-        X, Y = d['X'], d['Y']
+    if args.train_only:
+        print(f"Lade gespeicherte Daten aus {pkl_path} ...")
+        with open(pkl_path, 'rb') as f:
+            X, Y = pickle.load(f)
         print(f"  → {len(X)} Samples geladen")
     else:
         X, Y = generate_dataset(args.n_samples, args.n_mc, args.rollouts)
-        np.savez(data_path, X=X, Y=Y)
-        print(f"Daten gespeichert unter {data_path}")
+        with open(pkl_path, 'wb') as f:
+            pickle.dump((X, Y), f)
+        print(f"Daten gespeichert unter {pkl_path}")
+        if args.gen_only:
+            print("\n--gen-only: fertig. Training mit:")
+            print(f"  python3 {sys.argv[0]} --train-only")
+            sys.exit(0)
 
     model = train(X, Y)
     export_json(model, out_path)

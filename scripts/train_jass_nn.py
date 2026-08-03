@@ -22,13 +22,18 @@ Modi (19 Outputs):
   15-18: Schafkopf (Trumpf Farbe 0-3)
 """
 
-import numpy as np
 import random
 import json
 import time
 import sys
+import pickle
 from pathlib import Path
 from multiprocessing import Pool, cpu_count
+
+try:
+    import numpy as np          # fehlt unter PyPy → nur Generierung möglich
+except ImportError:
+    np = None
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  KARTEN-KONSTANTEN
@@ -917,7 +922,7 @@ def generate_dataset(n, n_mc):
             eta = (n - done) / (done / elapsed) if done > 0 else 0
             print(f"  {done}/{n}  (noch ~{eta:.0f}s)", flush=True)
     print(f"Fertig in {time.time() - t0:.0f}s")
-    return np.array(X, dtype=np.float32), np.array(Y, dtype=np.float32)
+    return X, Y   # plain lists — numpy-Konvertierung erst im Training (CPython)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  TRAINING
@@ -927,6 +932,8 @@ def train(X, Y):
     from sklearn.neural_network import MLPRegressor
     from sklearn.model_selection import train_test_split
 
+    X = np.asarray(X, dtype=np.float32)
+    Y = np.asarray(Y, dtype=np.float32)
     Y_norm = Y / 162.0   # normalisieren auf ~[0, 1]
 
     # 80/20 Train/Val-Split für ehrliche Qualitätsmessung
@@ -980,25 +987,30 @@ def export_json(model, path):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 if __name__ == '__main__':
-    n_samples = int(sys.argv[1]) if len(sys.argv) > 1 else 20000
-    n_mc      = int(sys.argv[2]) if len(sys.argv) > 2 else 40
+    gen_only   = '--gen-only' in sys.argv
+    train_only = '--train-only' in sys.argv
+    argv = [a for a in sys.argv[1:] if not a.startswith('--')]
+    n_samples = int(argv[0]) if len(argv) > 0 else 20000
+    n_mc      = int(argv[1]) if len(argv) > 1 else 40
 
     root      = Path(__file__).parent.parent
-    data_path = root / 'scripts' / 'jass_nn_data.npz'
+    pkl_path  = root / 'scripts' / 'jass_nn_data.pkl'
     out_path  = root / 'assets' / 'jass_nn_weights.json'
 
-    # Daten laden oder neu generieren
-    # HINWEIS: Alte Datei löschen um mit verbesserter Simulation neu zu generieren:
-    #   rm scripts/jass_nn_data.npz
-    if data_path.exists():
-        print(f"Lade gespeicherte Daten aus {data_path} ...")
-        d    = np.load(data_path)
-        X, Y = d['X'], d['Y']
+    if train_only:
+        print(f"Lade gespeicherte Daten aus {pkl_path} ...")
+        with open(pkl_path, 'rb') as f:
+            X, Y = pickle.load(f)
         print(f"  → {len(X)} Samples geladen")
     else:
         X, Y = generate_dataset(n_samples, n_mc)
-        np.savez(data_path, X=X, Y=Y)
-        print(f"Daten gespeichert unter {data_path}")
+        with open(pkl_path, 'wb') as f:
+            pickle.dump((X, Y), f)
+        print(f"Daten gespeichert unter {pkl_path}")
+        if gen_only:
+            print("\n--gen-only: fertig. Training mit:")
+            print(f"  python3 {sys.argv[0]} --train-only")
+            sys.exit(0)
 
     model = train(X, Y)
     export_json(model, out_path)
