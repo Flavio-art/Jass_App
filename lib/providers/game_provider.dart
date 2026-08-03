@@ -2447,8 +2447,10 @@ class GameProvider extends ChangeNotifier {
           finalTeam1 = team1Match ? 170 : (157 - rawTeam1);
           finalTeam2 = team2Match ? 170 : (157 - rawTeam2);
         } else {
-          finalTeam1 = rawTeam1 == 157 ? 170 : rawTeam1;
-          finalTeam2 = rawTeam2 == 157 ? 170 : rawTeam2;
+          finalTeam1 = (rawTeam1 == 157 && _allTricksWonByTeam('team1'))
+              ? 170 : rawTeam1;
+          finalTeam2 = (rawTeam2 == 157 && _allTricksWonByTeam('team2'))
+              ? 170 : rawTeam2;
         }
         // Weisen-Punkte nach Berechnung addieren (FriseurTeam, FriseurSolo)
         if (_state.playerWyss.isNotEmpty && _state.wyssWinnerTeam != null) {
@@ -3030,13 +3032,25 @@ class GameProvider extends ChangeNotifier {
         if (_state.phase != GamePhase.playing) break;
         if (_state.currentPlayerIndex != playerIdx) break;
 
+        // Defensive: prüfen ob Karte in aktueller Hand des AI-Spielers ist
+        final currentHand = _state.players[playerIdx].hand;
+        if (!currentHand.contains(card)) {
+          debugPrint('❌ AI-BUG: ${aiPlayer.name} soll ${card.suit.symbol}${card.displayValue} spielen, hat aber nur: ${currentHand.map((c) => '${c.suit.symbol}${c.displayValue}').join(' ')}');
+          break;
+        }
+
         // Log: KI-Entscheidung pro Stich speichern
         final trickN = _state.currentTrickNumber;
         final cardStr = '${card.suit.symbol}${card.displayValue}';
         final logEntry = '${aiPlayer.name}: $path → $cardStr';
         _aiDecisionLogs.putIfAbsent(trickN, () => []).add(logEntry);
 
+        final handSizeBefore = currentHand.length;
         _doPlayCard(aiPlayer.id, card, playerIdx);
+        final handSizeAfter = _state.players[playerIdx].hand.length;
+        if (handSizeAfter != handSizeBefore - 1) {
+          debugPrint('❌ HAND-BUG: ${aiPlayer.name} Hand-Größe: $handSizeBefore → $handSizeAfter (erwartet ${handSizeBefore - 1})');
+        }
       }
     } catch (e, st) {
       debugPrint('AI loop error: $e\n$st');

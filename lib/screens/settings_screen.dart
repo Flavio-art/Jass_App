@@ -510,7 +510,6 @@ class _SettingsScreenState extends State<SettingsScreen>
 
   static const _coiffeurKeys  = ['trump_ss', 'trump_re', 'oben', 'unten', 'slalom', 'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof'];
   static const _coiffeurNames = ['Trumpf Schwarz', 'Trumpf Rot', 'Obenabe', 'Undenufe', 'Slalom', 'Elefant', 'Misere', 'Tutti', 'Schafkopf', 'Molotow'];
-  static const _coiffeurEmojis = ['♠♣', '♥♦', '⬇️', '⬆️', '↕️', '🐘', '😶', '👑', '🐑', '💣'];
 
   void _editCoiffeurMultiplier(String key, String label) async {
     final result = await showDialog<int>(

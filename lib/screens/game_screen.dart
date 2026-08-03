@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../constants/app_colors.dart';
@@ -602,7 +603,7 @@ class _GameScreenState extends State<GameScreen> {
                                   isActive:
                                       state.currentPlayer.id == north.id &&
                                           state.phase == GamePhase.playing,
-                                  showCards: false, // DEBUG: offene Karten
+                                  showCards: !kReleaseMode, // Debug=offen, Release=verdeckt
                                   teamColor: teamColors[north.id],
                                 ),
                                 if ((wonByPlayer[PlayerPosition.north] ?? 0) > 0)
@@ -668,7 +669,7 @@ class _GameScreenState extends State<GameScreen> {
                                     isActive:
                                         state.currentPlayer.id == west.id &&
                                             state.phase == GamePhase.playing,
-                                    showCards: false, // DEBUG: offene Karten
+                                    showCards: !kReleaseMode, // Debug=offen, Release=verdeckt
                                     teamColor: teamColors[west.id],
                                   ),
                                   if (ansagerId == west.id && lochId == west.id)
@@ -760,7 +761,7 @@ class _GameScreenState extends State<GameScreen> {
                                     isActive:
                                         state.currentPlayer.id == east.id &&
                                             state.phase == GamePhase.playing,
-                                    showCards: false, // DEBUG: offene Karten
+                                    showCards: !kReleaseMode, // Debug=offen, Release=verdeckt
                                     teamColor: teamColors[east.id],
                                   ),
                                   if (ansagerId == east.id && lochId == east.id)
@@ -866,7 +867,7 @@ class _GameScreenState extends State<GameScreen> {
                         isActive:
                             state.currentPlayer.id == human.id &&
                                 state.phase == GamePhase.playing,
-                        showCards: false,
+                        showCards: !kReleaseMode,
                         playableCards: provider.humanPlayableCards,
                         onCardTap: (card) {
                           if (state.currentPlayer.id == human.id) {

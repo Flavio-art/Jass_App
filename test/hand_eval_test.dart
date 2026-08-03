@@ -24,7 +24,6 @@ void main() {
     // Seeds die verschiedene Modi ergeben (repräsentative Mischung)
     final seeds = [3, 7, 0, 9, 11]; // Oben, Trumpf↑, Unten, Schafkopf, Slalom
     for (int i = 0; i < 5; i++) {
-      final rng = Random(seeds[i]);
       final allCards = Deck.allCards(CardType.french)..shuffle(Random(seeds[i]));
       final hand = allCards.sublist(0, 9);
       final players = [
