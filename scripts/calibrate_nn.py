@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
 """
+⚠️ VERALTET (2026-08-03): Dieser Kalibrator hat ein EIGENES Python-Modell
+der Schieber-Auswahl, das von mode_selector.dart abgedriftet ist (fehlende
+Slalom-/Obenabe-/Undenufe-Strafen) → falsche Mults (Trumpf 46% statt 28%).
+Stattdessen scripts/calibrate_schieber.py verwenden, das die ECHTEN
+Dart-Roh-Scores (ModeSelectorAI.schieberRawScores) nutzt.
+
 Kalibriert die NN-Tuning-Multiplikatoren nach einem Retraining.
 
 Simuliert 2000 Hände, misst die Modusverteilung und passt die Multiplikatoren

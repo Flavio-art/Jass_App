@@ -209,50 +209,8 @@ class ModeSelectorAI {
     Suit? bestTrump;
     bool bestSlalomStartsOben = true;
 
-    // ── Score-Korrekturen ─────────────────────────────────────────────────
-    // Das NN hat systematische Biases die wir korrigieren:
-    final cs = List<double>.from(scores);
-    // 1) Unten-Bias: NN gibt systematisch tiefere Scores für alle Unten-Modi.
-    //    Undenufe (9) und Trump Unten (4-7) korrigieren.
-    if (cs.length > 9) cs[9] += NNTuning.untenBias;
-    for (int i = 4; i < 8 && i < cs.length; i++) cs[i] += NNTuning.trumpUntenBias;
-    // 2) Slalom (10): NN gibt ~0.78, viel zu hoch. Ersetzen durch Durchschnitt
-    //    von korrigiertem Oben (8) + Unten (9). Slalom braucht beides.
-    if (NNTuning.slalomFromObenUnten && cs.length > 10) cs[10] = (cs[8] + cs[9]) / 2;
-    // Slalom-Korrektur: ohne sichere Stiche in beiden Richtungen ist Slalom wertlos.
-    // Mindestens 2 sichere Stiche total nötig, sonst stark bestrafen.
-    if (cs.length > 10) {
-      final allSuits = state.cardType == CardType.french
-          ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
-          : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
-      int safeOben = 0, safeUnten = 0;
-      for (final s in allSuits) {
-        safeOben += _safeTricksOben(hand, s);
-        safeUnten += _safeTricksUnten(hand, s);
-      }
-      // Mindestens 3 sichere Stiche total (mit Partner evtl. mehr),
-      // mind. 1 in jeder Richtung
-      if (safeOben + safeUnten < 3) {
-        cs[10] *= 0.3; // Zu wenig sichere Stiche → Slalom stark bestrafen
-      } else if (safeOben == 0 || safeUnten == 0) {
-        cs[10] *= 0.5; // Nur eine Richtung hat sichere Stiche
-      }
-    }
-    // Obenabe ohne Ass → stark bestrafen (kein sicherer Stich!)
-    if (cs.length > 8) {
-      final aces = hand.where((c) => c.value == CardValue.ace).length;
-      if (aces == 0) cs[8] *= 0.3; // Kein Ass → Obenabe fast nie wählen
-      else if (aces == 1) cs[8] *= 0.7; // Nur 1 Ass → riskant
-    }
-    // Undenufe ohne 6er → stark bestrafen
-    if (cs.length > 9) {
-      final sixes = hand.where((c) => c.value == CardValue.six).length;
-      if (sixes == 0) cs[9] *= 0.3; // Keine 6 → Undenufe fast nie
-      else if (sixes == 1) cs[9] *= 0.7; // Nur 1 Sechser → riskant
-    }
-    // 3) Misère (11) / Molotof (14): nur als Notlösung (im Loch).
-    if (cs.length > 11) cs[11] *= NNTuning.misereDampening;
-    if (cs.length > 14) cs[14] *= NNTuning.molotofDampening;
+    // ── Score-Korrekturen (extrahiert für Kalibrator-Wiederverwendung) ──
+    final cs = _correctNNScores(scores, hand, state.cardType);
 
     // Mittelwert der korrigierten Scores als Baseline für Delta-Verstärkung.
     // Direkte Multiplikation: adjusted = raw × mult
@@ -394,6 +352,69 @@ class ModeSelectorAI {
     }
 
     return (mode: bestMode, trumpSuit: bestTrump, slalomStartsOben: bestSlalomStartsOben, wishCard: null);
+  }
+
+  /// NN-Bias-/Heuristik-Korrekturen auf die Roh-Scores. Extrahiert aus
+  /// _selectWithNN, damit der Schieber-Kalibrator exakt dieselben
+  /// korrigierten Scores nutzt wie die echte Auswahl.
+  static List<double> _correctNNScores(
+      List<double> scores, List<JassCard> hand, CardType cardType) {
+    final cs = List<double>.from(scores);
+    if (cs.length > 9) cs[9] += NNTuning.untenBias;
+    for (int i = 4; i < 8 && i < cs.length; i++) cs[i] += NNTuning.trumpUntenBias;
+    if (NNTuning.slalomFromObenUnten && cs.length > 10) cs[10] = (cs[8] + cs[9]) / 2;
+    if (cs.length > 10) {
+      final allSuits = cardType == CardType.french
+          ? [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
+          : [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
+      int safeOben = 0, safeUnten = 0;
+      for (final s in allSuits) {
+        safeOben += _safeTricksOben(hand, s);
+        safeUnten += _safeTricksUnten(hand, s);
+      }
+      if (safeOben + safeUnten < 3) {
+        cs[10] *= 0.3;
+      } else if (safeOben == 0 || safeUnten == 0) {
+        cs[10] *= 0.5;
+      }
+    }
+    if (cs.length > 8) {
+      final aces = hand.where((c) => c.value == CardValue.ace).length;
+      if (aces == 0) cs[8] *= 0.3;
+      else if (aces == 1) cs[8] *= 0.7;
+    }
+    if (cs.length > 9) {
+      final sixes = hand.where((c) => c.value == CardValue.six).length;
+      if (sixes == 0) cs[9] *= 0.3;
+      else if (sixes == 1) cs[9] *= 0.7;
+    }
+    if (cs.length > 11) cs[11] *= NNTuning.misereDampening;
+    if (cs.length > 14) cs[14] *= NNTuning.molotofDampening;
+    return cs;
+  }
+
+  /// Analyse-Hook: korrigierte Roh-Scores (vor Mult) pro Schieber-Familie
+  /// (trump/oben/unten/slalom). Für scripts/calibrate_schieber.py.
+  /// slalom = null wenn ungültig (kein Ass oder keine 6 → nie Kandidat).
+  static Map<String, double> schieberRawScores(Player player, GameState state) {
+    final nn = JassNNModel.instance;
+    final scores = nn.predict(player.hand, state.cardType);
+    if (scores.isEmpty) return const {};
+    final cs = _correctNNScores(scores, player.hand, state.cardType);
+    final hand = player.hand;
+    // Trumpf: beste Trumpffarbe (nur Oben im Schieber), Indizes 0-3
+    double bestTrump = double.negativeInfinity;
+    for (int si = 0; si < 4 && si < cs.length; si++) {
+      if (cs[si] > bestTrump) bestTrump = cs[si];
+    }
+    final aces = hand.where((c) => c.value == CardValue.ace).length;
+    final sixes = hand.where((c) => c.value == CardValue.six).length;
+    return {
+      'trump': bestTrump,
+      'oben': cs.length > 8 ? cs[8] : 0,
+      'unten': cs.length > 9 ? cs[9] : 0,
+      if (aces > 0 && sixes > 0 && cs.length > 10) 'slalom': cs[10],
+    };
   }
 
   static int _variantToNNIdx(String variant) => switch (variant) {
