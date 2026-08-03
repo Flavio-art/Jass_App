@@ -26,41 +26,43 @@
 ///   Alles Tr.  ~2%  |  Elefant    ~1%
 class NNTuning {
   // ── NN Score-Korrekturen (Bias-Fixes) ──────────────────
-  static const double untenBias = 0.0; // Index 9: Undenufe
-  static const double trumpUntenBias = 0.00; // Index 4-7: Trump Unten
+  static const double untenBias = 0.060; // Index 9: Undenufe
+  static const double trumpUntenBias = 0.050; // Index 4-7: Trump Unten
   static const double misereDampening = 0.6; // Index 11
   static const double molotofDampening = 0.6; // Index 14
   static const bool slalomFromObenUnten = true; // Index 10 = (8+9)/2
 
   // ── Schieber Moduswahl-Multiplikatoren ─────────────────
-  // Angepasst nach NN-Retraining (2026-04-11, 100k Samples, R²=0.86)
-  static const double schieberMultTrump = 0.75;    // 32%→~28%
-  static const double schieberMultOben = 1.20;     // 20% ✅
-  static const double schieberMultUnten = 1.18;    // 18%→~19%
-  static const double schieberMultSlalom = 1.40;   // 30%→~34%
+  // Kalibriert nach v2-Retraining (2026-08-03, MC-Light 5k, calibrate_nn.py)
+  static const double schieberMultTrump = 1.88;    // ~27%
+  static const double schieberMultOben = 2.59;     // ~24%
+  static const double schieberMultUnten = 2.33;    // ~21%
+  static const double schieberMultSlalom = 2.82;   // ~28%
   static const double schiebenSlalomPenalty = 0.85;
   static const double schieberMultMisere = 0.7;    // Misere im Schieber ~10%
   static const double schieberMultMolotof = 0.7;   // Molotof im Schieber ~10%
 
   // ── Friseur Solo Moduswahl-Multiplikatoren ─────────────
-  // Angepasst nach NN-Retraining (2026-04-11, 100k Samples, R²=0.86)
+  // Kalibriert nach v2-Retraining (2026-08-03, MC-Light, calibrate_friseur.py)
   // Formel: adjusted = raw × mult (direkte Multiplikation)
-  static const double friseurMultTrumpOben = 0.91;   // 17% ✅
-  static const double friseurMultTrumpUnten = 0.90;  // 16% ✅
-  static const double friseurMultAllesTrumpf = 0.98; // 5% ✅
-  static const double friseurMultOben = 1.07;        // 15%→~12%
-  static const double friseurMultUnten = 0.95;       // 6% ✅
-  static const double friseurMultSlalom = 1.25;      // 12% ✅
-  static const double friseurMultSchafkopf = 1.06;   // 26% ✅
-  static const double friseurMultMisere = 1.02;      // 1%→~4%
-  static const double friseurMultMolotof = 0.85;     // OK
-  static const double friseurMultElefant = 2.80;     // 2%→~4%
+  static const double friseurMultTrumpOben = 0.85;   // ~14%
+  static const double friseurMultTrumpUnten = 0.76;  // ~19%
+  static const double friseurMultAllesTrumpf = 0.84; // ~5%
+  static const double friseurMultOben = 0.97;        // ~12%
+  static const double friseurMultUnten = 0.86;       // ~5%
+  static const double friseurMultSlalom = 1.13;      // ~12%
+  static const double friseurMultSchafkopf = 0.91;   // ~25%
+  static const double friseurMultMisere = 0.98;      // ~3%
+  static const double friseurMultMolotof = 1.06;     // ~1%
+  static const double friseurMultElefant = 2.39;     // ~4%
 
   // ── Friseur Solo Im-Loch-Boost (2× geschoben) ───────────
   // Im Loch wird Misère/Molotof als Fallback attraktiver.
   // Formel: adjusted = raw × mult × lochBoost
-  static const double friseurLochBoostMisere = 1.10;
-  static const double friseurLochBoostMolotof = 1.40;
+  // Angepasst an v2-Basis-Mults (2026-08-03): effektive Im-Loch-Mults
+  // wie vor der Neukalibrierung gehalten (misere≈1.12, molotof≈1.19).
+  static const double friseurLochBoostMisere = 1.06;
+  static const double friseurLochBoostMolotof = 1.06;
 
   // ── Friseur Solo Schiebe-Schwellenwerte ────────────────
   // 2. Schiebe-Runde: Schwelle leicht senken, damit ~5% trotzdem ansagen.

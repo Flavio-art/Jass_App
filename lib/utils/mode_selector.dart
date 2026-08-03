@@ -469,7 +469,6 @@ class ModeSelectorAI {
     List<String> available,
     bool isTeam1,
   ) {
-    final nn = JassNNModel.instance;
     final cardType = state.cardType;
 
     double bestScore = double.negativeInfinity;
@@ -477,6 +476,59 @@ class ModeSelectorAI {
     Suit? bestTrump;
     bool bestSlalomStartsOben = true;
     JassCard? bestWishCard;
+
+    // ── Pass 1: Roh-Scores + Multiplikatoren aller Kandidaten ──────────
+    final rawEntries = _friseurRawEntries(hand, state, available, isTeam1, cardType);
+
+    if (rawEntries.isEmpty) {
+      return (mode: GameMode.oben, trumpSuit: null, slalomStartsOben: true, wishCard: null);
+    }
+
+    // ── Pass 2: Direkte Multiplikation und besten Kandidaten wählen ───
+    // adjusted = raw × mult
+    for (final e in rawEntries) {
+      final adjusted = e.raw * e.mult;
+      if (adjusted > bestScore) {
+        bestScore = adjusted;
+        bestMode = e.mode;
+        bestTrump = e.trump;
+        bestSlalomStartsOben = e.slalomOben;
+        bestWishCard = e.wish;
+      }
+    }
+
+    return (mode: bestMode, trumpSuit: bestTrump, slalomStartsOben: bestSlalomStartsOben, wishCard: bestWishCard);
+  }
+
+  /// Analyse-Hook: Roh-Score (vor Mult) pro Modus-Familie, gemaxt über
+  /// Trumpffarben. Für den Friseur-Kalibrator (scripts/calibrate_friseur.py).
+  /// Nutzt exakt denselben Pass-1-Pfad wie die echte Auswahl.
+  static Map<GameMode, double> friseurRawScores(Player player, GameState state) {
+    final isTeam1 = player.position == PlayerPosition.south ||
+        player.position == PlayerPosition.north;
+    final available = state.availableVariants(isTeam1);
+    final entries =
+        _friseurRawEntries(player.hand, state, available, isTeam1, state.cardType);
+    final byFamily = <GameMode, double>{};
+    for (final e in entries) {
+      final cur = byFamily[e.mode];
+      if (cur == null || e.raw > cur) byFamily[e.mode] = e.raw;
+    }
+    return byFamily;
+  }
+
+  /// Pass 1 der Friseur-Solo-Auswahl: baut alle Kandidaten und berechnet
+  /// für jeden den Roh-Score (inkl. Schafkopf-/Slalom-Strafen) und den
+  /// Friseur-Multiplikator. Kein Argmax, keine Mult-Anwendung.
+  static List<({double raw, double mult, GameMode mode, Suit? trump,
+      bool slalomOben, JassCard wish})> _friseurRawEntries(
+    List<JassCard> hand,
+    GameState state,
+    List<String> available,
+    bool isTeam1,
+    CardType cardType,
+  ) {
+    final nn = JassNNModel.instance;
 
     // Alle Kandidaten sammeln (Modus + evtl. Trumpffarbe)
     final candidates = <({GameMode mode, Suit? trump, String variant})>[];
@@ -508,7 +560,6 @@ class ModeSelectorAI {
       }
     }
 
-    // ── Pass 1: Raw-Scores für jeden Kandidaten sammeln ────────────────
     final rawEntries = <({double raw, double mult, GameMode mode, Suit? trump,
         bool slalomOben, JassCard wish})>[];
 
@@ -580,29 +631,7 @@ class ModeSelectorAI {
           slalomOben: slalomOben, wish: wish));
     }
 
-    if (rawEntries.isEmpty) {
-      return (mode: GameMode.oben, trumpSuit: null, slalomStartsOben: true, wishCard: null);
-    }
-
-    // ── Pass 2: Direkte Multiplikation und besten Kandidaten wählen ───
-    // adjusted = raw × mult
-    // Einfacher als Delta-Amplifikation: Trumpf (mult<1) wird gedämpft,
-    // Nicht-Trump (mult>1) wird proportional geboosted.
-    // Funktioniert auch für Modi die typischerweise unter dem Schnitt liegen
-    // (Misère, Molotof), da kein Mean-Effekt die Richtung umkehrt.
-
-    for (final e in rawEntries) {
-      final adjusted = e.raw * e.mult;
-      if (adjusted > bestScore) {
-        bestScore = adjusted;
-        bestMode = e.mode;
-        bestTrump = e.trump;
-        bestSlalomStartsOben = e.slalomOben;
-        bestWishCard = e.wish;
-      }
-    }
-
-    return (mode: bestMode, trumpSuit: bestTrump, slalomStartsOben: bestSlalomStartsOben, wishCard: bestWishCard);
+    return rawEntries;
   }
 
   /// Extrahiert den NN-Score für einen bestimmten Modus aus den korrigierten Scores.
