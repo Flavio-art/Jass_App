@@ -33,11 +33,12 @@ class NNTuning {
   static const bool slalomFromObenUnten = true; // Index 10 = (8+9)/2
 
   // ── Schieber Moduswahl-Multiplikatoren ─────────────────
-  // Kalibriert nach v2-Retraining (2026-08-03, MC-Light 5k, calibrate_nn.py)
-  static const double schieberMultTrump = 1.88;    // ~27%
-  static const double schieberMultOben = 2.59;     // ~24%
-  static const double schieberMultUnten = 2.33;    // ~21%
-  static const double schieberMultSlalom = 2.82;   // ~28%
+  // Kalibriert nach v2-Retraining (2026-08-03) mit calibrate_schieber.py
+  // gegen die ECHTEN Dart-Roh-Scores (schieberRawScores).
+  static const double schieberMultTrump = 0.75;    // ~29%
+  static const double schieberMultOben = 1.30;     // ~18%
+  static const double schieberMultUnten = 1.15;    // ~19%
+  static const double schieberMultSlalom = 1.54;   // ~35%
   static const double schiebenSlalomPenalty = 0.85;
   static const double schieberMultMisere = 0.7;    // Misere im Schieber ~10%
   static const double schieberMultMolotof = 0.7;   // Molotof im Schieber ~10%
