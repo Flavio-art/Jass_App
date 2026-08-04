@@ -15,7 +15,13 @@ class MonteCarloAI {
   static const int simulations = 60;
 
   /// Anzahl innerer Rollouts pro Option im Rollout-Schritt.
-  static const int innerSimulations = 4;
+  /// Nicht const, damit die Trainings-Datengenerierung sie runterdrehen kann
+  /// (schnellere Rollouts; die Hard-Overrides feuern unabhängig davon).
+  static int innerSimulations = 4;
+
+  /// Optionaler Override für budgetBase (äussere Sim-Anzahl). null = normale
+  /// App-Logik (200-500). Für schnelle Trainings-Generierung setzbar.
+  static int? mcBudgetOverride;
 
   static final math.Random _rng = math.Random();
 
@@ -2650,14 +2656,18 @@ class MonteCarloAI {
     // Stich 0-2: 400/500, Stich 3-4: 300/400, Stich 5: 200/300
     final tricksPlayed = state.completedTricks.length;
     final int budgetBase;
-    if (tricksPlayed <= 2) {
+    if (mcBudgetOverride != null) {
+      budgetBase = mcBudgetOverride!;
+    } else if (tricksPlayed <= 2) {
       budgetBase = myTeamHasAllTricks ? 500 : 400;
     } else if (tricksPlayed <= 4) {
       budgetBase = myTeamHasAllTricks ? 400 : 300;
     } else {
       budgetBase = myTeamHasAllTricks ? 300 : 200;
     }
-    final simsPerCard = math.max(10, budgetBase ~/ playable.length);
+    final simsPerCard = mcBudgetOverride != null
+        ? math.max(1, mcBudgetOverride! ~/ playable.length)
+        : math.max(10, budgetBase ~/ playable.length);
 
     // Geweiste Gegner-Farben: beim Anspielen leicht bestrafen (nur Schieber)
     final mcWyssOppSuits = _wyssOpponentSuits(state, aiPlayer);
