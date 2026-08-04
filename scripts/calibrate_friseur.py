@@ -20,18 +20,19 @@ Output: Neue Werte für nn_tuning.dart (Konsole)
 import json
 from pathlib import Path
 
-# ── Zielverteilung (dokumentiert in nn_tuning.dart, normal/vor Schieben) ──
+# ── Zielverteilung: Schafkopf auf 15% gesenkt (2026-08-04), die freien
+#    ~11% gleichmässig auf die 9 anderen Modi verteilt (+~1.2% je).
 TARGET = {
-    'schafkopf':   0.26,
-    'trump':       0.17,   # Trumpf Oben
-    'trumpUnten':  0.16,
-    'oben':        0.12,
-    'slalom':      0.12,
-    'unten':       0.06,
-    'allesTrumpf': 0.05,
-    'misere':      0.04,
-    'elefant':     0.04,
-    'molotof':     0.01,
+    'schafkopf':   0.15,
+    'trump':       0.182,  # Trumpf Oben
+    'trumpUnten':  0.172,
+    'oben':        0.132,
+    'slalom':      0.132,
+    'unten':       0.072,
+    'allesTrumpf': 0.062,
+    'misere':      0.052,
+    'elefant':     0.052,
+    'molotof':     0.022,
 }
 _s = sum(TARGET.values())
 TARGET = {k: v / _s for k, v in TARGET.items()}

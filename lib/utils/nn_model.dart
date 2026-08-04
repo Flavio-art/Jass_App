@@ -48,8 +48,8 @@ class JassNNModel {
   }
 
   /// Lädt Gewichte direkt aus einer JSON-Map (für Tests ohne rootBundle).
-  void loadFromJson(Map<String, dynamic> data) {
-    if (_loaded) return;
+  void loadFromJson(Map<String, dynamic> data, {bool force = false}) {
+    if (_loaded && !force) return;
     _W.clear();
     _b.clear();
     for (final layer in data['layers'] as List) {
