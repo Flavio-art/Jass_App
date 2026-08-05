@@ -20,19 +20,21 @@ Output: Neue Werte für nn_tuning.dart (Konsole)
 import json
 from pathlib import Path
 
-# ── Zielverteilung: Schafkopf auf 15% gesenkt (2026-08-04), die freien
-#    ~11% gleichmässig auf die 9 anderen Modi verteilt (+~1.2% je).
+# ── FLAVIO-Zielverteilung (2026-08-05): aus 46 freiwilligen Experten-Ansagen,
+#    Laplace-geglättet (+1 je Modus → kein Modus auf 0).
+#    Roh: Tutti 10, Trumpf↑ 8, Schafkopf 7, Elefant 6, Slalom 6, Undenufe 5,
+#         Trumpf↓ 3, Obenabe 1, Misère 0, Molotow 0
 TARGET = {
-    'schafkopf':   0.15,
-    'trump':       0.182,  # Trumpf Oben
-    'trumpUnten':  0.172,
-    'oben':        0.132,
-    'slalom':      0.132,
-    'unten':       0.072,
-    'allesTrumpf': 0.062,
-    'misere':      0.052,
-    'elefant':     0.052,
-    'molotof':     0.022,
+    'allesTrumpf': 11/56,  # Tutti — dein Lieblingsspiel
+    'trump':        9/56,  # Trumpf Oben
+    'schafkopf':    8/56,
+    'elefant':      7/56,
+    'slalom':       7/56,
+    'unten':        6/56,  # Undenufe
+    'trumpUnten':   4/56,
+    'oben':         2/56,  # Obenabe (selten, aber nicht 0)
+    'misere':       1/56,
+    'molotof':      1/56,
 }
 _s = sum(TARGET.values())
 TARGET = {k: v / _s for k, v in TARGET.items()}

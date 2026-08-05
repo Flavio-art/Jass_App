@@ -8,6 +8,7 @@ import 'package:jass_app/models/game_state.dart';
 import 'package:jass_app/models/player.dart';
 import 'package:jass_app/utils/mode_selector.dart';
 import 'package:jass_app/utils/nn_model.dart';
+import 'package:jass_app/utils/nn_tuning.dart';
 
 /// Echte selectMode-Ansage für die Experten-Hände. WEIGHTS-Env = Weight-Datei,
 /// TAG = Versions-Name. Nutzt die EINKOMPILIERTEN Mults → pro Version separat
@@ -37,11 +38,16 @@ void main() {
         Player(id: 'p2', name: 'N', position: PlayerPosition.north, hand: all.sublist(18, 27)),
         Player(id: 'p3', name: 'O', position: PlayerPosition.east, hand: all.sublist(27, 36)),
       ];
-      final st = GameState(players: pl, gameType: GameType.friseur, cardType: CardType.french, phase: GamePhase.trumpSelection, ansagerIndex: 0, currentPlayerIndex: 0);
-      final r = ModeSelectorAI.selectMode(player: pl[0], state: st);
-      final s = r.trumpSuit != null ? ' ${suitName[r.trumpSuit]}' : '';
-      final w = r.wishCard != null ? ' Wunsch ${suitName[r.wishCard!.suit]}-${r.wishCard!.value.name}' : '';
-      out['$i'] = '${modeName[r.mode]}$s$w';
+      String ansage(bool loch) {
+        final st = GameState(players: pl, gameType: GameType.friseur, cardType: CardType.french, phase: GamePhase.trumpSelection, ansagerIndex: 0, currentPlayerIndex: 0, roundWasImLoch: loch);
+        final r = ModeSelectorAI.selectMode(player: pl[0], state: st);
+        final s = r.trumpSuit != null ? ' ${suitName[r.trumpSuit]}' : '';
+        return '${modeName[r.mode]}$s';
+      }
+      final scores = JassNNModel.instance.predict(hand, CardType.french);
+      final mx = scores.reduce((a, b) => a > b ? a : b);
+      final play = mx >= NNTuning.friseurSchiebenNNMax;
+      out['$i'] = '${ansage(false)}||${ansage(true)}||$play';
     }
     File('scripts/true_$tag.json').writeAsStringSync(jsonEncode(out));
     print('[$tag] geschrieben: ${out.length} Hände');
