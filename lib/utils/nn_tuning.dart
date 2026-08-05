@@ -33,12 +33,12 @@ class NNTuning {
   static const bool slalomFromObenUnten = true; // Index 10 = (8+9)/2
 
   // ── Schieber Moduswahl-Multiplikatoren ─────────────────
-  // Kalibriert für v3-Weights (2026-08-04, echte-MC-Training) mit
-  // calibrate_schieber.py gegen die echten Dart-Roh-Scores.
-  static const double schieberMultTrump = 0.75;    // ~28%
-  static const double schieberMultOben = 1.43;     // ~20%
-  static const double schieberMultUnten = 1.23;    // ~19%
-  static const double schieberMultSlalom = 1.64;   // ~34%
+  // Zurück auf v1-Weights (2026-08-04): im blinden Experten-A/B-Test bevorzugt
+  // (v3 nicht bestätigt). Kalibriert für v1 mit calibrate_schieber.py.
+  static const double schieberMultTrump = 0.75;
+  static const double schieberMultOben = 1.35;
+  static const double schieberMultUnten = 1.18;
+  static const double schieberMultSlalom = 1.53;
   static const double schiebenSlalomPenalty = 0.85;
   static const double schieberMultMisere = 0.7;    // Misere im Schieber ~10%
   static const double schieberMultMolotof = 0.7;   // Molotof im Schieber ~10%
@@ -46,16 +46,16 @@ class NNTuning {
   // ── Friseur Solo Moduswahl-Multiplikatoren ─────────────
   // Kalibriert für v3-Weights (2026-08-04, echte-MC-Training, calibrate_friseur.py)
   // Formel: adjusted = raw × mult (direkte Multiplikation)
-  static const double friseurMultTrumpOben = 1.38;
-  static const double friseurMultTrumpUnten = 1.29;
-  static const double friseurMultAllesTrumpf = 1.59;
-  static const double friseurMultOben = 1.74;
-  static const double friseurMultUnten = 1.53;
-  static const double friseurMultSlalom = 2.01;
-  static const double friseurMultSchafkopf = 1.47;
-  static const double friseurMultMisere = 1.74;
-  static const double friseurMultMolotof = 1.94;
-  static const double friseurMultElefant = 1.35;
+  static const double friseurMultTrumpOben = 0.81;
+  static const double friseurMultTrumpUnten = 0.77;
+  static const double friseurMultAllesTrumpf = 0.94;
+  static const double friseurMultOben = 1.0;
+  static const double friseurMultUnten = 0.85;
+  static const double friseurMultSlalom = 1.15;
+  static const double friseurMultSchafkopf = 0.95;
+  static const double friseurMultMisere = 1.01;
+  static const double friseurMultMolotof = 1.13;
+  static const double friseurMultElefant = 2.65;
 
   // ── Friseur Solo Im-Loch-Boost (2× geschoben) ───────────
   // Im Loch wird Misère/Molotof als Fallback attraktiver.
