@@ -337,6 +337,19 @@ class GameProvider extends ChangeNotifier {
   /// Schieber: Punktemultiplikator für den gewählten Spielmodus (aus state.schieberMultipliers).
   /// Prüft ob ein Team alle 9 Stiche gewonnen hat (für Match-Bonus).
   bool _allTricksWonByTeam(String team) {
+    // Friseur Solo: Team = Ansager + Wunschkarten-Partner (beliebige
+    // Positionen) → nicht positionsbasiert prüfen, sondern via
+    // _isAnnouncingTeam. team1 = Ansager-Team.
+    if (_state.gameType == GameType.friseur) {
+      final wantAnsager = team == 'team1';
+      for (final trick in _state.completedTricks) {
+        if (trick.winnerId == null) return false;
+        final w = _state.players.firstWhere((p) => p.id == trick.winnerId);
+        if (_isAnnouncingTeam(w) != wantAnsager) return false;
+      }
+      return _state.completedTricks.length == 9;
+    }
+    // Schieber/Coiffeur: feste Positionen (Süd+Nord = Team 1).
     final teamPositions = team == 'team1'
         ? {PlayerPosition.south, PlayerPosition.north}
         : {PlayerPosition.east, PlayerPosition.west};
