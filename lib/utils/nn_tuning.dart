@@ -71,8 +71,8 @@ class NNTuning {
   // NN-Score auf Original-Hand (ohne Wunschkarte).
   // Dynamisch: Schwelle = min + (max − min) × (offeneVarianten / 10)
   // Mehr Varianten offen → wählerischer (aufsparen lohnt sich)
-  static const double friseurSchiebenNNMin = 0.738;   // letzte Variante
-  static const double friseurSchiebenNNMax = 0.738;   // alle Varianten offen (~85% schieben)
+  static const double friseurSchiebenNNMin = 0.72;   // letzter Modus übrig → ~47% Ansage
+  static const double friseurSchiebenNNMax = 0.84;   // alle Modi offen → ~17% Ansage (sehr restriktiv)
   static const double friseurSchiebenHeuMin = 95.0;   // letzte Variante
   static const double friseurSchiebenHeuMax = 130.0;  // alle Varianten offen
 }
