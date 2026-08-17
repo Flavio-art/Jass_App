@@ -3724,6 +3724,20 @@ class MonteCarloAI {
         GameLogic.cardPlayStrength(c, effectMode, trump) > myStrength);
     if (beatenBySameSuit) return false;
 
+    // Schafkopf: Trümpfe sind FARBÜBERGREIFEND (Damen + Achter aller Farben +
+    // Trumpffarbe). Ein Trumpf-Farb-Buur wie ♦U ist NICHT "höchster verbleibender",
+    // solange noch ein höherer Schafkopf-Trumpf (Dame/Achter beliebiger Farbe)
+    // aussteht — die gleichfarbige Prüfung oben übersieht das.
+    if (effectMode == GameMode.schafkopf &&
+        trump != null &&
+        _isSchafkopfTrump(card, trump)) {
+      final beatenByAnyTrump = state.players.expand((p) => p.hand).any((c) =>
+          c != card &&
+          _isSchafkopfTrump(c, trump) &&
+          GameLogic.cardPlayStrength(c, effectMode, trump) > myStrength);
+      return !beatenByAnyTrump;
+    }
+
     // Wenn Trumpfmodus aktiv und Karte ist kein Trumpf:
     // Nur unsicher wenn ein GEGNER VOID in dieser Farbe ist UND Trumpf hat
     // (Partner würde nie das eigene Ass abstechen)
