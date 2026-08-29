@@ -50,3 +50,4 @@ Bilder/
 /android/app/profile
 /android/app/release
 android/app/keystore.jks
+android/key.properties
