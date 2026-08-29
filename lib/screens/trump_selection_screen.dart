@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../l10n/tr.dart';
 import '../constants/app_colors.dart';
 import '../models/card_model.dart';
 import '../models/game_state.dart';
@@ -83,15 +84,15 @@ class TrumpSelectionScreen extends StatelessWidget {
                               ? _soloHeaderText(state, ansager, selector, hasSchieben, forcedTrump)
                               : (hasSchieben
                                   ? (selector.isHuman
-                                      ? 'Partner hat geschoben – Du wählst'
+                                      ? tr('Partner hat geschoben – Du wählst')
                                       : '${ansager.name} schob zu ${selector.name}')
                                   : (ansager.isHuman ? 'Du spielst' : '${ansager.name} spielt')),
                           style: const TextStyle(color: Colors.white54, fontSize: 12),
                           textAlign: TextAlign.center,
                         ),
-                        const Text(
-                          'Spielmodus wählen',
-                          style: TextStyle(
+                        Text(
+                          tr('Spielmodus wählen'),
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -103,7 +104,7 @@ class TrumpSelectionScreen extends StatelessWidget {
                   ),
                   IconButton(
                     icon: const Icon(Icons.help_outline, color: Colors.white54),
-                    tooltip: 'Regeln',
+                    tooltip: tr('Regeln'),
                     onPressed: () {
                       final gt = context.read<GameProvider>().state.gameType;
                       Navigator.push(context,
@@ -154,7 +155,7 @@ class TrumpSelectionScreen extends StatelessWidget {
                       Expanded(child: Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Expanded(child: _ModeButton(label: 'Obenabe', subtitle: 'Ass gewinnt', emoji: '⬇️',
+                          Expanded(child: _ModeButton(label: 'Obenabe', subtitle: tr('Ass gewinnt'), emoji: '⬇️',
                             color: Colors.blue.shade700, isAvailable: available.contains('oben'),
                             onTap: () => _selectMode(context, GameMode.oben))),
                           const SizedBox(width: 8),
@@ -167,11 +168,11 @@ class TrumpSelectionScreen extends StatelessWidget {
                       Expanded(child: Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Expanded(child: _ModeButton(label: 'Slalom', subtitle: 'Oben · Unten · …', emoji: '↕️',
+                          Expanded(child: _ModeButton(label: 'Slalom', subtitle: tr('Oben · Unten · …'), emoji: '↕️',
                             color: Colors.purple.shade700, isAvailable: available.contains('slalom'),
                             onTap: () => _pickSlalomDirection(context))),
                           const SizedBox(width: 8),
-                          Expanded(child: _ModeButton(label: 'Elefant', subtitle: '3× Oben·Unten·Trumpf', emoji: '🐘',
+                          Expanded(child: _ModeButton(label: 'Elefant', subtitle: tr('3× Oben·Unten·Trumpf'), emoji: '🐘',
                             color: Colors.teal.shade700, isAvailable: available.contains('elefant'),
                             onTap: () => _selectMode(context, GameMode.elefant))),
                         ],
@@ -180,11 +181,11 @@ class TrumpSelectionScreen extends StatelessWidget {
                       Expanded(child: Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Expanded(child: _ModeButton(label: 'Misere', subtitle: 'Wenigste Punkte', emoji: '😶',
+                          Expanded(child: _ModeButton(label: 'Misere', subtitle: tr('Wenigste Punkte'), emoji: '😶',
                             color: Colors.red.shade900, isAvailable: available.contains('misere'),
                             onTap: () => _selectMode(context, GameMode.misere))),
                           const SizedBox(width: 8),
-                          Expanded(child: _ModeButton(label: 'Tutti', subtitle: 'Nur K·9·B zählen', emoji: '👑',
+                          Expanded(child: _ModeButton(label: 'Tutti', subtitle: tr('Nur K·9·B zählen'), emoji: '👑',
                             color: Colors.yellow.shade800, isAvailable: available.contains('allesTrumpf'),
                             onTap: () => _selectMode(context, GameMode.allesTrumpf))),
                         ],
@@ -193,11 +194,11 @@ class TrumpSelectionScreen extends StatelessWidget {
                       Expanded(child: Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Expanded(child: _ModeButton(label: 'Schafkopf', subtitle: 'D + 8 immer Trumpf', emoji: '🐑',
+                          Expanded(child: _ModeButton(label: 'Schafkopf', subtitle: tr('D + 8 immer Trumpf'), emoji: '🐑',
                             color: Colors.green.shade800, isAvailable: available.contains('schafkopf'),
                             onTap: () => _pickSchafkopfTrump(context, suits, cardType))),
                           const SizedBox(width: 8),
-                          Expanded(child: _ModeButton(label: 'Molotow', subtitle: '6=↓ · A=↑ · Farbe=Trumpf', emoji: '💣',
+                          Expanded(child: _ModeButton(label: 'Molotow', subtitle: tr('6=↓ · A=↑ · Farbe=Trumpf'), emoji: '💣',
                             color: Colors.deepOrange.shade900, isAvailable: available.contains('molotof'),
                             onTap: () => _selectMode(context, GameMode.molotof))),
                         ],
@@ -233,8 +234,8 @@ class TrumpSelectionScreen extends StatelessWidget {
                         const SizedBox(width: 8),
                         Text(
                           canSchiebenTeam
-                              ? 'Schieben – Partner wählt'
-                              : 'Schieben – Nächster entscheidet',
+                              ? tr('Schieben – Partner wählt')
+                              : tr('Schieben – Nächster entscheidet'),
                           style: const TextStyle(
                             color: Colors.white70,
                             fontSize: 14,
@@ -299,8 +300,8 @@ class TrumpSelectionScreen extends StatelessWidget {
       bool hasSchieben, bool forcedTrump) {
     if (forcedTrump) {
       return selector.isHuman
-          ? '🕳️ Im Loch – Du musst spielen!'
-          : '${selector.name} ist im Loch';
+          ? tr('🕳️ Im Loch – Du musst spielen!')
+          : trp('{0} ist im Loch', [selector.name]);
     }
     if (hasSchieben) {
       // Intermediate player (not original announcer)
@@ -311,11 +312,11 @@ class TrumpSelectionScreen extends StatelessWidget {
     // Original announcer
     if (state.soloSchiebungRounds == 1) {
       return selector.isHuman
-          ? '2. Runde – Gegner sind genervt! Du kannst nochmals passen.'
-          : '${ansager.name} sagt an (Runde 2)';
+          ? tr('2. Runde – Gegner sind genervt! Du kannst nochmals passen.')
+          : trp('{0} sagt an (Runde 2)', [ansager.name]);
     }
     return selector.isHuman
-        ? 'Du sagst an – wähle Modus & Wunschkarte'
+        ? tr('Du sagst an – wähle Modus & Wunschkarte')
         : '${ansager.name} sagt an';
   }
 
@@ -379,7 +380,7 @@ class TrumpSelectionScreen extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(child: _ModeButton(label: 'Obenabe', subtitle: 'Ass gewinnt', emoji: '⬇️',
+            Expanded(child: _ModeButton(label: 'Obenabe', subtitle: tr('Ass gewinnt'), emoji: '⬇️',
               color: Colors.blue.shade700, isAvailable: available.contains('oben'),
               multiplier: mults['oben'],
               onTap: () => _selectMode(context, GameMode.oben))),
@@ -398,7 +399,7 @@ class TrumpSelectionScreen extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(child: _ModeButton(label: 'Slalom', subtitle: 'Ansager wählt Richtung', emoji: '↕️',
+              Expanded(child: _ModeButton(label: 'Slalom', subtitle: tr('Ansager wählt Richtung'), emoji: '↕️',
                 color: Colors.purple.shade700, isAvailable: available.contains('slalom'),
                 multiplier: mults['slalom'],
                 onTap: () => _selectMode(context, GameMode.slalom))),
@@ -410,12 +411,12 @@ class TrumpSelectionScreen extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(child: _ModeButton(label: 'Slalom', subtitle: 'Start: Oben ⬇️', emoji: '↕️',
+              Expanded(child: _ModeButton(label: 'Slalom', subtitle: tr('Start: Oben ⬇️'), emoji: '↕️',
                 color: Colors.purple.shade700, isAvailable: available.contains('slalom'),
                 multiplier: mults['slalom'],
                 onTap: () => _selectMode(context, GameMode.slalom, slalomStartsOben: true))),
               const SizedBox(width: 8),
-              Expanded(child: _ModeButton(label: 'Slalom', subtitle: 'Start: Unten ⬆️', emoji: '↕️',
+              Expanded(child: _ModeButton(label: 'Slalom', subtitle: tr('Start: Unten ⬆️'), emoji: '↕️',
                 color: Colors.purple.shade800, isAvailable: available.contains('slalom'),
                 multiplier: mults['slalom'],
                 onTap: () => _selectMode(context, GameMode.slalom, slalomStartsOben: false))),
@@ -456,7 +457,7 @@ class TrumpSelectionScreen extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Trumpffarbe wählen',
+              Text(tr('Trumpffarbe wählen'),
                   style: TextStyle(
                       color: Colors.white,
                       fontSize: 18,
@@ -464,7 +465,7 @@ class TrumpSelectionScreen extends StatelessWidget {
               if (forced != null) ...[
                 const SizedBox(height: 6),
                 Text(
-                  forced ? '⬇️ Muss Trumpf Oben sein' : '⬆️ Muss Trumpf Unten sein',
+                  forced ? tr('⬇️ Muss Trumpf Oben sein') : tr('⬆️ Muss Trumpf Unten sein'),
                   style: const TextStyle(color: Colors.white54, fontSize: 12),
                 ),
               ],
@@ -551,7 +552,7 @@ class TrumpSelectionScreen extends StatelessWidget {
               // Richtungs-Buttons (erscheinen nach Suit-Auswahl)
               if (selectedSuit != null) ...[
                 const SizedBox(height: 16),
-                const Text('Richtung wählen',
+                Text(tr('Richtung wählen'),
                     style: TextStyle(color: Colors.white54, fontSize: 12)),
                 const SizedBox(height: 10),
                 Row(
@@ -559,7 +560,7 @@ class TrumpSelectionScreen extends StatelessWidget {
                     // Oben-Button (deaktiviert wenn forced=false)
                     Expanded(
                       child: _DirectionButton(
-                        label: 'Trumpf Oben',
+                        label: tr('Trumpf Oben'),
                         subtitle: 'B > 9 > A > K > …',
                         emoji: '⬇️',
                         color: Colors.blue.shade700,
@@ -574,7 +575,7 @@ class TrumpSelectionScreen extends StatelessWidget {
                     // Unten-Button (deaktiviert wenn forced=true)
                     Expanded(
                       child: _DirectionButton(
-                        label: 'Trumpf Unten',
+                        label: tr('Trumpf Unten'),
                         subtitle: 'B > 9 > 6 > 7 > …',
                         emoji: '⬆️',
                         color: Colors.orange.shade800,
@@ -620,8 +621,8 @@ class TrumpSelectionScreen extends StatelessWidget {
               style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 6),
-            const Text(
-              'Womit beginnt der erste Stich?',
+            Text(
+              tr('Womit beginnt der erste Stich?'),
               style: TextStyle(color: Colors.white54, fontSize: 13),
             ),
             // ── Kartenvorschau ──────────────────────────────────────
@@ -659,7 +660,7 @@ class TrumpSelectionScreen extends StatelessWidget {
                 Expanded(
                   child: _DirectionButton(
                     label: 'Obenabe',
-                    subtitle: '1. Stich: Ass gewinnt',
+                    subtitle: tr('1. Stich: Ass gewinnt'),
                     emoji: '⬇️',
                     color: Colors.blue.shade700,
                     isEnabled: true,
@@ -673,7 +674,7 @@ class TrumpSelectionScreen extends StatelessWidget {
                 Expanded(
                   child: _DirectionButton(
                     label: 'Undenufe',
-                    subtitle: '1. Stich: 6 gewinnt',
+                    subtitle: tr('1. Stich: 6 gewinnt'),
                     emoji: '⬆️',
                     color: Colors.orange.shade800,
                     isEnabled: true,
@@ -715,8 +716,8 @@ class TrumpSelectionScreen extends StatelessWidget {
                   fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 6),
-            const Text(
-              'Welche Farbe soll Trumpf sein?',
+            Text(
+              tr('Welche Farbe soll Trumpf sein?'),
               style: TextStyle(color: Colors.white54, fontSize: 13),
             ),
             // ── Kartenvorschau ────────────────────────────────────────
@@ -868,9 +869,9 @@ class _TrumpGroupButton extends StatelessWidget {
 
   String get _groupLabel {
     if (cardType == CardType.german) {
-      return variantKey == 'trump_ss' ? 'Metall' : 'Gemüse';
+      return variantKey == 'trump_ss' ? tr('Metall') : tr('Gemüse');
     }
-    return variantKey == 'trump_ss' ? 'Schwarz' : 'Rot';
+    return variantKey == 'trump_ss' ? tr('Schwarz') : tr('Rot');
   }
 
   @override

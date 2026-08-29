@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../l10n/tr.dart';
 import '../constants/app_colors.dart';
 import '../models/game_record.dart';
 import '../models/game_state.dart';
@@ -61,7 +62,7 @@ class _StatsScreenState extends State<StatsScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.background,
         foregroundColor: Colors.white,
-        title: const Text('Statistik', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(tr('Statistik'), style: TextStyle(fontWeight: FontWeight.bold)),
         elevation: 0,
       ),
       body: _loading
@@ -79,7 +80,7 @@ class _StatsScreenState extends State<StatsScreen> {
         children: [
           const Icon(Icons.bar_chart, color: Colors.white24, size: 64),
           const SizedBox(height: 16),
-          const Text('Noch keine Spiele abgeschlossen',
+          Text(tr('Noch keine Spiele abgeschlossen'),
               style: TextStyle(color: Colors.white38, fontSize: 16)),
           const SizedBox(height: 24),
           OutlinedButton(
@@ -92,7 +93,7 @@ class _StatsScreenState extends State<StatsScreen> {
               side: const BorderSide(color: AppColors.gold),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             ),
-            child: const Text('Demo laden (1000 Spiele)',
+            child: Text(tr('Demo laden (1000 Spiele)'),
                 style: TextStyle(color: AppColors.gold, fontSize: 13)),
           ),
         ],
@@ -176,7 +177,7 @@ class _StatsScreenState extends State<StatsScreen> {
         const SizedBox(height: 16),
 
         // Overview
-        _buildSectionTitle('Übersicht'),
+        _buildSectionTitle(tr('Übersicht')),
         const SizedBox(height: 8),
         _buildOverviewCard(records.length, wins, losses, winRate, longestStreak),
         const SizedBox(height: 20),
@@ -184,8 +185,8 @@ class _StatsScreenState extends State<StatsScreen> {
         // Differenzler / Wunschkarte: Platzierungen
         if (showPlacements) ...[
           _buildSectionTitle(_filter == GameType.differenzler
-              ? 'Differenz & Platzierungen'
-              : 'Platzierungen'),
+              ? tr('Differenz & Platzierungen')
+              : tr('Platzierungen')),
           const SizedBox(height: 8),
           _buildPlacementsCard(placements, records.length,
               avgDifferenzPerRound: _filter == GameType.differenzler && totalRounds > 0
@@ -196,14 +197,14 @@ class _StatsScreenState extends State<StatsScreen> {
 
         // Eigene Ansage
         if (variantOwn.isNotEmpty) ...[
-          _buildSectionTitle('Punkte pro Modus (eigene Ansage)'),
+          _buildSectionTitle(tr('Punkte pro Modus (eigene Ansage)')),
           const SizedBox(height: 8),
           _buildVariantStats(variantOwn),
           const SizedBox(height: 20),
         ],
         // Gegner-Ansage
         if (variantOpp.isNotEmpty) ...[
-          _buildSectionTitle('Punkte pro Modus (Gegner-Ansage)'),
+          _buildSectionTitle(tr('Punkte pro Modus (Gegner-Ansage)')),
           const SizedBox(height: 8),
           _buildVariantStats(variantOpp),
           const SizedBox(height: 20),
@@ -211,14 +212,14 @@ class _StatsScreenState extends State<StatsScreen> {
 
         // Persönliche Rekorde (nur Friseur / Wunschkarte)
         if (_filter == GameType.friseurTeam || _filter == GameType.friseur) ...[
-          _buildSectionTitle('Persönliche Rekorde'),
+          _buildSectionTitle(tr('Persönliche Rekorde')),
           const SizedBox(height: 8),
           _buildRecordsCard(records),
           const SizedBox(height: 20),
         ],
 
         // Game history
-        _buildSectionTitle('Spielverlauf'),
+        _buildSectionTitle(tr('Spielverlauf')),
         const SizedBox(height: 8),
         ...records.reversed.take(50).map(_buildGameHistoryTile),
         const SizedBox(height: 20),
@@ -227,8 +228,8 @@ class _StatsScreenState extends State<StatsScreen> {
         Center(
           child: TextButton(
             onPressed: _confirmReset,
-            child: const Text(
-              'Statistik zurücksetzen',
+            child: Text(
+              tr('Statistik zurücksetzen'),
               style: TextStyle(
                 color: Colors.white38,
                 fontSize: 14,
@@ -245,7 +246,7 @@ class _StatsScreenState extends State<StatsScreen> {
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          _buildChip('Alle', null),
+          _buildChip(tr('Alle'), null),
           _buildChip('Schieber', GameType.schieber),
           _buildChip('Differenzler', GameType.differenzler),
           _buildChip('Coiffeur', GameType.friseurTeam),
@@ -296,17 +297,17 @@ class _StatsScreenState extends State<StatsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _statColumn('Spiele', '$total'),
-              _statColumn('Siege', '$wins', color: Colors.greenAccent),
-              _statColumn('Niederlagen', '$losses', color: Colors.redAccent),
+              _statColumn(tr('Spiele'), '$total'),
+              _statColumn(tr('Siege'), '$wins', color: Colors.greenAccent),
+              _statColumn(tr('Niederlagen'), '$losses', color: Colors.redAccent),
             ],
           ),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _statColumn('Gewinnrate', '${winRate.toStringAsFixed(1)}%', color: AppColors.gold),
-              _statColumn('Siegesserie', '$streak', color: AppColors.gold),
+              _statColumn(tr('Gewinnrate'), '${winRate.toStringAsFixed(1)}%', color: AppColors.gold),
+              _statColumn(tr('Siegesserie'), '$streak', color: AppColors.gold),
             ],
           ),
         ],
@@ -341,7 +342,7 @@ class _StatsScreenState extends State<StatsScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Ø Differenz pro Runde',
+                Text(tr('Ø Differenz pro Runde'),
                     style: TextStyle(color: Colors.white70, fontSize: 14)),
                 Text(avgDifferenzPerRound.toStringAsFixed(1),
                     style: const TextStyle(
@@ -411,7 +412,7 @@ class _StatsScreenState extends State<StatsScreen> {
               style: const TextStyle(color: Colors.white, fontSize: 13)),
         ),
         Expanded(
-          child: Text('${avg.toStringAsFixed(0)} Pkt.',
+          child: Text(trp('{0} Pkt.', [avg.toStringAsFixed(0)]),
               style: const TextStyle(color: AppColors.gold, fontSize: 13, fontWeight: FontWeight.bold)),
         ),
         Text('${scores.length}x',
@@ -459,7 +460,7 @@ class _StatsScreenState extends State<StatsScreen> {
             ),
           ),
           if (record.gameType == GameType.differenzler)
-            Text('${record.playerScore} Pkt.',
+            Text(trp('{0} Pkt.', [record.playerScore]),
                 style: TextStyle(
                     color: record.playerWon ? Colors.greenAccent : Colors.redAccent,
                     fontWeight: FontWeight.bold,
@@ -471,7 +472,7 @@ class _StatsScreenState extends State<StatsScreen> {
                     fontWeight: FontWeight.bold,
                     fontSize: 15))
           else
-            Text('${record.playerScore} Pkt.',
+            Text(trp('{0} Pkt.', [record.playerScore]),
                 style: TextStyle(
                     color: record.playerWon ? Colors.greenAccent : Colors.redAccent,
                     fontWeight: FontWeight.bold,
@@ -517,7 +518,7 @@ class _StatsScreenState extends State<StatsScreen> {
 
   static String _roundLabel(GameType type) {
     if (type == GameType.friseurTeam || type == GameType.friseur) {
-      return 'Varianten';
+      return tr('Varianten');
     }
     return 'Runden';
   }
@@ -529,22 +530,22 @@ class _StatsScreenState extends State<StatsScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1B4D2E),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Statistik zurücksetzen?',
+        title: Text(tr('Statistik zurücksetzen?'),
             style: TextStyle(color: Colors.white)),
         content: Text(
             isDemo
-                ? 'Demo-Daten werden gelöscht.'
-                : 'Alle gespeicherten Spielergebnisse werden gelöscht.',
+                ? tr('Demo-Daten werden gelöscht.')
+                : tr('Alle gespeicherten Spielergebnisse werden gelöscht.'),
             style: const TextStyle(color: Colors.white70)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Abbrechen',
-                style: TextStyle(color: Colors.white54)),
+            child: Text(tr('Abbrechen'),
+                style: const TextStyle(color: Colors.white54)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Zurücksetzen',
+            child: Text(tr('Zurücksetzen'),
                 style: TextStyle(color: Colors.redAccent)),
           ),
         ],
@@ -568,7 +569,7 @@ class _StatsScreenState extends State<StatsScreen> {
       ),
       child: Column(
         children: [
-          _recordRow('Höchste Punktzahl', '$highestScore'),
+          _recordRow(tr('Höchste Punktzahl'), '$highestScore'),
         ],
       ),
     );
@@ -596,8 +597,8 @@ class _StatsScreenState extends State<StatsScreen> {
 
   String _variantDisplayName(String key) {
     switch (key) {
-      case 'trump_ss': return _isGerman ? 'Trumpf Metall' : 'Trumpf Schwarz';
-      case 'trump_re': return _isGerman ? 'Trumpf Gemüse' : 'Trumpf Rot';
+      case 'trump_ss': return _isGerman ? tr('Trumpf Metall') : tr('Trumpf Schwarz');
+      case 'trump_re': return _isGerman ? tr('Trumpf Gemüse') : tr('Trumpf Rot');
       case 'oben':       return 'Oben';
       case 'unten':      return 'Unten';
       case 'slalom':     return 'Slalom';
