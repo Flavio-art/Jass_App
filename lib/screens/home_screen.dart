@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_colors.dart';
+import '../l10n/app_localizations.dart';
 import '../models/card_model.dart';
 import '../models/game_state.dart';
 import '../models/round_replay.dart';
@@ -194,6 +195,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -229,8 +231,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Text('Spielmodus wählen',
-                            style: TextStyle(color: Colors.white70, fontSize: 13)),
+                        Text(l.chooseGameMode,
+                            style: const TextStyle(color: Colors.white70, fontSize: 13)),
                         const SizedBox(height: 10),
                         IntrinsicHeight(
                           child: Row(
@@ -239,7 +241,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             children: [
                               _GameTypeButton(
                                 label: 'Schieber',
-                                subtitle: 'Der Klassiker',
+                                subtitle: l.theClassic,
                                 iconWidget: SizedBox(
                                   width: 46,
                                   height: 64,
@@ -261,8 +263,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               const SizedBox(width: 10),
                               _GameTypeButton(
                                 label: 'Differenzler',
-                                subtitle: '$_differenzlerRounds Runden',
-                                details: const ['Vorhersage', 'Differenz'],
+                                subtitle: l.roundsCount(_differenzlerRounds),
+                                details: [l.prediction, l.difference],
                                 emoji: '🎯',
                                 selected: _selectedGameType == GameType.differenzler,
                                 hasSavedGame: _savedGameTypes.contains(GameType.differenzler),
@@ -279,7 +281,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             children: [
                               _GameTypeButton(
                                 label: 'Coiffeur',
-                                details: const ['Feste Teams', 'Schieben'],
+                                details: [l.fixedTeams, l.passing],
                                 emoji: '✂️',
                                 selected: _selectedGameType == GameType.friseurTeam,
                                 hasSavedGame: _savedGameTypes.contains(GameType.friseurTeam),
@@ -289,7 +291,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               _GameTypeButton(
                                 label: 'Wunschkarte',
                                 subtitle: 'Champions League',
-                                details: const ['Wunschkarte', 'Jeder für sich'],
+                                details: ['Wunschkarte', l.everyoneForThemselves],
                                 emoji: '🎴',
                                 selected: _selectedGameType == GameType.friseur,
                                 hasSavedGame: _savedGameTypes.contains(GameType.friseur),
@@ -316,7 +318,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       textStyle: const TextStyle(
                           fontSize: 20, fontWeight: FontWeight.bold),
                     ),
-                    child: const Text('SPIELEN'),
+                    child: Text(l.play),
                   ),
 
                   const Spacer(flex: 1),
@@ -324,8 +326,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   // ── 4-6. Einstellungen / Statistik / Regeln ───────────
                   TextButton(
                     onPressed: _openSettings,
-                    child: const Text('Einstellungen',
-                        style: TextStyle(color: Colors.white38, fontSize: 15)),
+                    child: Text(l.settings,
+                        style: const TextStyle(color: Colors.white38, fontSize: 15)),
                   ),
                   TextButton.icon(
                     onPressed: () => Navigator.push(
@@ -333,20 +335,20 @@ class _HomeScreenState extends State<HomeScreen> {
                       MaterialPageRoute(builder: (_) => const StatsScreen()),
                     ),
                     icon: const Icon(Icons.bar_chart, color: Colors.white38, size: 18),
-                    label: const Text('Statistik',
-                        style: TextStyle(color: Colors.white38, fontSize: 15)),
+                    label: Text(l.statistics,
+                        style: const TextStyle(color: Colors.white38, fontSize: 15)),
                   ),
                   TextButton(
                     onPressed: () => _showRules(context),
-                    child: const Text('Regeln',
-                        style: TextStyle(color: Colors.white38, fontSize: 15)),
+                    child: Text(l.rules,
+                        style: const TextStyle(color: Colors.white38, fontSize: 15)),
                   ),
                   TextButton.icon(
                     onPressed: _openReplay,
                     icon: const Icon(Icons.play_circle_outline,
                         color: Colors.white38, size: 18),
-                    label: const Text('Replay öffnen',
-                        style: TextStyle(color: Colors.white38, fontSize: 15)),
+                    label: Text(l.openReplay,
+                        style: const TextStyle(color: Colors.white38, fontSize: 15)),
                   ),
                   SizedBox(height: constraints.maxHeight * 0.02),
                 ],
@@ -358,27 +360,28 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onPlayPressed() async {
+    final l = AppLocalizations.of(context)!;
     if (_hasCurrentSavedGame) {
       final choice = await showDialog<String>(
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: const Color(0xFF1B4D2E),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text('${_gameTypeName(_selectedGameType)} fortsetzen?',
+          title: Text(l.resumeGameTitle(_gameTypeName(_selectedGameType)),
               style: const TextStyle(color: Colors.white)),
-          content: const Text(
-              'Du hast ein offenes Spiel in diesem Modus.',
-              style: TextStyle(color: Colors.white70)),
+          content: Text(
+              l.openGameInThisMode,
+              style: const TextStyle(color: Colors.white70)),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, 'new'),
-              child: const Text('Neues Spiel',
-                  style: TextStyle(color: Colors.white54)),
+              child: Text(l.newGame,
+                  style: const TextStyle(color: Colors.white54)),
             ),
             TextButton(
               onPressed: () => Navigator.pop(ctx, 'resume'),
-              child: const Text('Fortsetzen',
-                  style: TextStyle(color: AppColors.gold)),
+              child: Text(l.resume,
+                  style: const TextStyle(color: AppColors.gold)),
             ),
           ],
         ),
@@ -446,6 +449,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Warndialog wenn Einstellungsänderungen gespeicherte Spiele betreffen.
   Future<bool> _confirmSettingsChange(Set<GameType> affectedTypes) async {
+    final l = AppLocalizations.of(context)!;
     final names = affectedTypes.map(_gameTypeName).join(', ');
     final single = affectedTypes.length == 1;
     final result = await showDialog<bool>(
@@ -453,24 +457,24 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1B4D2E),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Einstellungen ändern?',
-            style: TextStyle(color: Colors.white)),
+        title: Text(l.changeSettingsTitle,
+            style: const TextStyle(color: Colors.white)),
         content: Text(
           single
-              ? 'Dein offenes $names-Spiel wird dadurch beendet.'
-              : 'Deine offenen Spiele ($names) werden dadurch beendet.',
+              ? l.settingsEndOneGame(names)
+              : l.settingsEndMultipleGames(names),
           style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Abbrechen',
-                style: TextStyle(color: Colors.white54)),
+            child: Text(l.cancel,
+                style: const TextStyle(color: Colors.white54)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Ändern',
-                style: TextStyle(color: AppColors.gold)),
+            child: Text(l.change,
+                style: const TextStyle(color: AppColors.gold)),
           ),
         ],
       ),
@@ -542,7 +546,7 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Konnte Replay nicht öffnen: $e')),
+        SnackBar(content: Text(AppLocalizations.of(context)!.couldNotOpenReplay('$e'))),
       );
     }
   }
@@ -634,7 +638,7 @@ class _GameTypeButton extends StatelessWidget {
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  'Offenes Spiel',
+                  AppLocalizations.of(context)!.openGame,
                   style: TextStyle(
                     color: selected ? AppColors.gold : Colors.white38,
                     fontSize: 9,

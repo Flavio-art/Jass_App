@@ -1,0 +1,63 @@
+{
+  "@@locale": "de",
+
+  "cancel": "Abbrechen",
+  "change": "Ändern",
+  "newGame": "Neues Spiel",
+  "resume": "Fortsetzen",
+  "settings": "Einstellungen",
+  "statistics": "Statistik",
+  "rules": "Regeln",
+  "openReplay": "Replay öffnen",
+  "play": "SPIELEN",
+
+  "chooseGameMode": "Spielmodus wählen",
+  "theClassic": "Der Klassiker",
+  "roundsCount": "{count} Runden",
+  "@roundsCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "prediction": "Vorhersage",
+  "difference": "Differenz",
+  "fixedTeams": "Feste Teams",
+  "passing": "Schieben",
+  "championsLeague": "Champions League",
+  "everyoneForThemselves": "Jeder für sich",
+  "openGame": "Offenes Spiel",
+  "resumeGameTitle": "{name} fortsetzen?",
+  "@resumeGameTitle": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "openGameInThisMode": "Du hast ein offenes Spiel in diesem Modus.",
+  "changeSettingsTitle": "Einstellungen ändern?",
+  "settingsEndOneGame": "Dein offenes {name}-Spiel wird dadurch beendet.",
+  "@settingsEndOneGame": {
+    "placeholders": { "name": { "type": "String" } }
+  },
+  "settingsEndMultipleGames": "Deine offenen Spiele ({names}) werden dadurch beendet.",
+  "@settingsEndMultipleGames": {
+    "placeholders": { "names": { "type": "String" } }
+  },
+  "couldNotOpenReplay": "Konnte Replay nicht öffnen: {error}",
+  "@couldNotOpenReplay": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+
+  "cardSelection": "Kartenauswahl",
+  "language": "Sprache",
+  "languageSystem": "System",
+  "languageGerman": "Deutsch",
+  "languageEnglish": "English",
+
+  "builtByFlavio": "Built von Flavio",
+  "splashWith": "with ",
+  "splashFor": " für ",
+  "splashYou": "dich",
+  "welcome": "Willkommen!",
+  "whatsYourName": "Wie heisst du?",
+  "yourName": "Dein Name",
+  "yourFavoriteCards": "Deine Lieblingskarten",
+  "cardsFrench": "Französisch",
+  "cardsGerman": "Deutsch",
+  "letsGo": "Los geht's!"
+}

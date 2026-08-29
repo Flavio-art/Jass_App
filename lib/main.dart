@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
+import 'l10n/app_localizations.dart';
 import 'providers/game_provider.dart';
+import 'providers/locale_provider.dart';
 import 'screens/splash_screen.dart';
 import 'utils/nn_model.dart';
 
@@ -11,6 +14,9 @@ void main() async {
   await JassNNModel.instance.load();
   // Spielernamen vorab laden damit GameProvider ihn kennt
   await GameProvider.loadPlayerName();
+  // Sprachwahl laden bevor die App gebaut wird
+  final localeProvider = LocaleProvider();
+  await localeProvider.load();
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
@@ -26,38 +32,47 @@ void main() async {
       systemNavigationBarIconBrightness: Brightness.light,
     ),
   );
-  runApp(const JassApp());
+  runApp(JassApp(localeProvider: localeProvider));
 }
 
 class JassApp extends StatelessWidget {
-  const JassApp({super.key});
+  final LocaleProvider localeProvider;
+  const JassApp({super.key, required this.localeProvider});
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => GameProvider(),
-      child: MaterialApp(
-        title: 'Jass',
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF1B5E20),
-            brightness: Brightness.dark,
-          ),
-          useMaterial3: true,
-        ),
-        // Android edge-to-edge: padding.bottom = viewPadding.bottom erzwingen,
-        // damit SafeArea und useSafeArea in Sheets korrekt funktionieren.
-        builder: (context, child) {
-          final mq = MediaQuery.of(context);
-          return MediaQuery(
-            data: mq.copyWith(
-              padding: mq.padding.copyWith(bottom: mq.viewPadding.bottom),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => GameProvider()),
+        ChangeNotifierProvider.value(value: localeProvider),
+      ],
+      child: Consumer<LocaleProvider>(
+        builder: (context, lp, _) => MaterialApp(
+          title: 'Jass',
+          debugShowCheckedModeBanner: false,
+          locale: lp.locale,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFF1B5E20),
+              brightness: Brightness.dark,
             ),
-            child: child!,
-          );
-        },
-        home: const SplashScreen(),
+            useMaterial3: true,
+          ),
+          // Android edge-to-edge: padding.bottom = viewPadding.bottom erzwingen,
+          // damit SafeArea und useSafeArea in Sheets korrekt funktionieren.
+          builder: (context, child) {
+            final mq = MediaQuery.of(context);
+            return MediaQuery(
+              data: mq.copyWith(
+                padding: mq.padding.copyWith(bottom: mq.viewPadding.bottom),
+              ),
+              child: child!,
+            );
+          },
+          home: const SplashScreen(),
+        ),
       ),
     );
   }

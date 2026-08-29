@@ -1,9 +1,12 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_colors.dart';
+import '../l10n/app_localizations.dart';
 import '../models/card_model.dart';
 import '../models/game_state.dart';
+import '../providers/locale_provider.dart';
 import 'rules_screen.dart';
 
 class SettingsResult {
@@ -225,8 +228,8 @@ class _SettingsScreenState extends State<SettingsScreen>
         appBar: AppBar(
           backgroundColor: AppColors.background,
           foregroundColor: Colors.white,
-          title: const Text('Einstellungen',
-              style: TextStyle(fontWeight: FontWeight.bold)),
+          title: Text(AppLocalizations.of(context)!.settings,
+              style: const TextStyle(fontWeight: FontWeight.bold)),
           elevation: 0,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
@@ -248,10 +251,11 @@ class _SettingsScreenState extends State<SettingsScreen>
                     onTap: () => _openRules(gameType),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Text('Regeln', style: TextStyle(color: Colors.white54, fontSize: 13)),
-                        SizedBox(width: 4),
-                        Icon(Icons.menu_book, color: Colors.white54, size: 20),
+                      children: [
+                        Text(AppLocalizations.of(context)!.rules,
+                            style: const TextStyle(color: Colors.white54, fontSize: 13)),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.menu_book, color: Colors.white54, size: 20),
                       ],
                     ),
                   ),
@@ -307,10 +311,10 @@ class _SettingsScreenState extends State<SettingsScreen>
                   const SizedBox(height: 12),
 
                   // ── Kartenauswahl ──
-                  const Align(
+                  Align(
                     alignment: Alignment.centerLeft,
-                    child: Text('Kartenauswahl',
-                        style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600)),
+                    child: Text(AppLocalizations.of(context)!.cardSelection,
+                        style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600)),
                   ),
                   const SizedBox(height: 10),
                   IntrinsicHeight(
@@ -318,7 +322,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         _CardTypeButton(
-                          label: 'Französisch',
+                          label: AppLocalizations.of(context)!.cardsFrench,
                           suits: const [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs],
                           cardType: CardType.french,
                           selected: _cardType == CardType.french,
@@ -326,7 +330,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                         ),
                         const SizedBox(width: 10),
                         _CardTypeButton(
-                          label: 'Deutsch',
+                          label: AppLocalizations.of(context)!.cardsGerman,
                           suits: const [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten],
                           cardType: CardType.german,
                           selected: _cardType == CardType.german,
@@ -335,6 +339,16 @@ class _SettingsScreenState extends State<SettingsScreen>
                       ],
                     ),
                   ),
+                  const SizedBox(height: 16),
+
+                  // ── Sprache ──
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(AppLocalizations.of(context)!.language,
+                        style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600)),
+                  ),
+                  const SizedBox(height: 10),
+                  _buildLanguageSelector(),
                   const SizedBox(height: 12),
                 ],
               ),
@@ -403,6 +417,57 @@ class _SettingsScreenState extends State<SettingsScreen>
       const Text('⬆️', style: TextStyle(fontSize: 14)),
       const Text('↕️', style: TextStyle(fontSize: 14)),
     ];
+  }
+
+  // ── Sprachauswahl ──────────────────────────────────────────────────────────
+
+  Widget _buildLanguageSelector() {
+    final l = AppLocalizations.of(context)!;
+    final lp = context.watch<LocaleProvider>();
+    final current = lp.selection; // 'system' | 'de' | 'en'
+    final options = <(String, String)>[
+      ('system', l.languageSystem),
+      ('de', l.languageGerman),
+      ('en', l.languageEnglish),
+    ];
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (int i = 0; i < options.length; i++) ...[
+            if (i > 0) const SizedBox(width: 10),
+            Expanded(
+              child: GestureDetector(
+                onTap: () => context.read<LocaleProvider>().setLanguage(options[i].$1),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: current == options[i].$1
+                        ? AppColors.gold.withValues(alpha: 0.15)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: current == options[i].$1 ? AppColors.gold : Colors.white24,
+                      width: current == options[i].$1 ? 2 : 1,
+                    ),
+                  ),
+                  child: Text(
+                    options[i].$2,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: current == options[i].$1 ? AppColors.gold : Colors.white70,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   // ── Schieber Tab ───────────────────────────────────────────────────────────
