@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/tr.dart';
 import '../models/card_model.dart';
 import '../models/game_state.dart';
 import '../models/round_replay.dart';
@@ -37,7 +38,7 @@ class ReplayScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFF0E2D1B),
       appBar: AppBar(
-        title: const Text('Replay'),
+        title: Text(tr('Replay')),
         backgroundColor: const Color(0xFF1B4D2E),
         foregroundColor: Colors.white,
       ),
@@ -73,30 +74,30 @@ class ReplayScreen extends StatelessWidget {
                     fontSize: 20,
                     fontWeight: FontWeight.bold)),
             const SizedBox(height: 4),
-            Text('Ansager: $ansagerName',
+            Text(trp('Ansager: {0}', [ansagerName]),
                 style: const TextStyle(color: Colors.white70)),
             if (partnerName != null)
-              Text('Partner: $partnerName',
+              Text(trp('Partner: {0}', [partnerName]),
                   style: const TextStyle(color: Colors.white70)),
             if (replay.wishCard != null)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
                 child: Row(
                   children: [
-                    const Text('Wunsch: ',
+                    Text(tr('Wunsch: '),
                         style: TextStyle(color: Colors.white70)),
                     CardWidget(card: replay.wishCard!, width: 36),
                   ],
                 ),
               ),
             const SizedBox(height: 8),
-            Text('Endstand: ${replay.ansagerTeamScore}:${replay.opponentTeamScore}',
+            Text(trp('Endstand: {0}:{1}', [replay.ansagerTeamScore, replay.opponentTeamScore]),
                 style: const TextStyle(
                     color: Colors.white, fontWeight: FontWeight.bold)),
             if (replay.geschoben)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(top: 4),
-                child: Text('(Geschoben)',
+                child: Text(tr('(Geschoben)'),
                     style: TextStyle(
                         color: Colors.white54, fontStyle: FontStyle.italic)),
               ),
@@ -149,7 +150,7 @@ class ReplayScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text('Stich $trickNumber',
+              Text(trp('Stich {0}', [trickNumber]),
                   style: const TextStyle(
                       color: Colors.amber, fontWeight: FontWeight.bold)),
               const Spacer(),
