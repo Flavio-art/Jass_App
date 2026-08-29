@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../l10n/app_localizations.dart';
 import '../models/card_model.dart';
 import '../models/deck.dart';
 import '../widgets/card_widget.dart';
@@ -185,9 +186,9 @@ class _SplashScreenState extends State<SplashScreen>
         children: [
           _buildCardFan(_fanCards, cardWidth: splashCardWidth),
           const SizedBox(height: 28),
-          const Text(
-            'Built von Flavio',
-            style: TextStyle(
+          Text(
+            AppLocalizations.of(context)!.builtByFlavio,
+            style: const TextStyle(
               color: Colors.white54,
               fontSize: 18,
               letterSpacing: 1.5,
@@ -197,9 +198,9 @@ class _SplashScreenState extends State<SplashScreen>
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'with ',
-                style: TextStyle(
+              Text(
+                AppLocalizations.of(context)!.splashWith,
+                style: const TextStyle(
                   color: Colors.white54,
                   fontSize: 18,
                   letterSpacing: 1.5,
@@ -213,7 +214,7 @@ class _SplashScreenState extends State<SplashScreen>
                 ),
               ),
               Text(
-                _playerName == 'Du' ? ' für ' : ' für ',
+                AppLocalizations.of(context)!.splashFor,
                 style: const TextStyle(
                   color: Colors.white54,
                   fontSize: 18,
@@ -221,7 +222,7 @@ class _SplashScreenState extends State<SplashScreen>
                 ),
               ),
               Text(
-                (_playerName == null || _playerName == 'Du') ? 'dich' : _playerName!,
+                (_playerName == null || _playerName == 'Du') ? AppLocalizations.of(context)!.splashYou : _playerName!,
                 style: const TextStyle(
                   color: Color(0xFFFFD700),
                   fontSize: 20,
@@ -256,9 +257,9 @@ class _SplashScreenState extends State<SplashScreen>
               style: TextStyle(color: Color(0xFFDC143C), fontSize: 32),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Willkommen!',
-              style: TextStyle(
+            Text(
+              AppLocalizations.of(context)!.welcome,
+              style: const TextStyle(
                 color: Color(0xFFFFD700),
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
@@ -266,9 +267,9 @@ class _SplashScreenState extends State<SplashScreen>
               ),
             ),
             const SizedBox(height: 24),
-            const Text(
-              'Wie heisst du?',
-              style: TextStyle(color: Colors.white70, fontSize: 16),
+            Text(
+              AppLocalizations.of(context)!.whatsYourName,
+              style: const TextStyle(color: Colors.white70, fontSize: 16),
             ),
             const SizedBox(height: 12),
             SizedBox(
@@ -280,7 +281,7 @@ class _SplashScreenState extends State<SplashScreen>
                 style: const TextStyle(color: Colors.white, fontSize: 20),
                 textAlign: TextAlign.center,
                 decoration: InputDecoration(
-                  hintText: 'Dein Name',
+                  hintText: AppLocalizations.of(context)!.yourName,
                   hintStyle: const TextStyle(color: Colors.white38),
                   filled: true,
                   fillColor: Colors.white10,
@@ -304,9 +305,9 @@ class _SplashScreenState extends State<SplashScreen>
             const SizedBox(height: 36),
 
             // ── Deine Lieblingskarten ──
-            const Text(
-              'Deine Lieblingskarten',
-              style: TextStyle(
+            Text(
+              AppLocalizations.of(context)!.yourFavoriteCards,
+              style: const TextStyle(
                 color: Colors.white70,
                 fontSize: 16,
                 letterSpacing: 1,
@@ -337,7 +338,7 @@ class _SplashScreenState extends State<SplashScreen>
                     _buildCardFan(_frenchFan, cardWidth: 50),
                     const SizedBox(height: 6),
                     Text(
-                      'Französisch',
+                      AppLocalizations.of(context)!.cardsFrench,
                       style: TextStyle(
                         color: _selectedCardType == CardType.french
                             ? const Color(0xFFFFD700)
@@ -376,7 +377,7 @@ class _SplashScreenState extends State<SplashScreen>
                     _buildCardFan(_germanFan, cardWidth: 50),
                     const SizedBox(height: 6),
                     Text(
-                      'Deutsch',
+                      AppLocalizations.of(context)!.cardsGerman,
                       style: TextStyle(
                         color: _selectedCardType == CardType.german
                             ? const Color(0xFFFFD700)
@@ -405,9 +406,9 @@ class _SplashScreenState extends State<SplashScreen>
                     borderRadius: BorderRadius.circular(30),
                   ),
                 ),
-                child: const Text(
-                  'Los geht\'s!',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                child: Text(
+                  AppLocalizations.of(context)!.letsGo,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                 ),
               ),
             ),
