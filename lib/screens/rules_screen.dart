@@ -132,14 +132,14 @@ class _RulesScreenState extends State<RulesScreen>
               tr('Gleiche Regeln wie schwarz, aber doppelte Punkte.')),
         ],
         _MultCard('⬇️  Obenabe', '3×',
-            tr('Kein Trumpf. Ass gewinnt, Sechs verliert. Achter = 8 Pkt. ') +
-            tr('Dreifache Punkte.')),
+            tr('Kein Trumpf. Reihenfolge: Ass › König › Dame › Under › 10 › 9 › 8 › 7 › 6. ') +
+            tr('Ass = 11, Achter = 8 Pkt. Dreifache Punkte.')),
         _MultCard('⬆️  Undenufe', '3×',
-            tr('Kein Trumpf. Sechs gewinnt, Ass verliert. Achter = 8 Pkt. ') +
-            tr('Dreifache Punkte.')),
+            tr('Kein Trumpf, umgekehrt: 6 › 7 › 8 › 9 › 10 › Under › Dame › König › Ass. ') +
+            tr('Sechs = 11, Achter = 8 Pkt. Dreifache Punkte.')),
         _MultCard('↕️  Slalom', '4×',
-            tr('Abwechselnd Obenabe und Undenufe (1. Stich Obenabe). ') +
-            tr('Vierfache Punkte.')),
+            tr('Jeder Stich wechselt die Richtung: 1. Stich Obenabe, 2. Undenufe, 3. Obenabe … ') +
+            tr('Stichgewinner und Kartenwerte richten sich nach der Richtung des Stichs. Vierfache Punkte.')),
 
         _Section(tr('Wertung'), [
           _Rule(tr('Beide Teams erhalten ihre Spielpunkte (Stichpunkte) × Multiplikator – unabhängig davon, wer angesagt hat.')),
@@ -159,6 +159,22 @@ class _RulesScreenState extends State<RulesScreen>
         _ValueRow(tr('Dame'), tr('3 Pkt')),
         _ValueRow(tr('Bauer (kein Trumpf)'), tr('2 Pkt')),
         _ValueRow(tr('8, 7, 6 (Trumpf) / 9, 8, 7, 6 (andere)'), tr('0 Pkt')),
+
+        _Section(tr('Stich-Reihenfolge – Trumpfspiel'), [
+          _Rule(tr('Trumpffarbe (stärkste zuerst): Under › 9 (Näll) › Ass › König › Dame › 10 › 8 › 7 › 6.')),
+          _Rule(tr('Andere Farben: Ass › König › Dame › Under › 10 › 9 › 8 › 7 › 6.')),
+          _Rule(tr('Ein Trumpf sticht jede Nicht-Trumpf-Karte – egal wie hoch.')),
+          _Rule(tr('Untertrumpfen (tieferer Trumpf als bereits im Stich liegt) ist nur erlaubt, wenn man nur noch Trumpf auf der Hand hat.')),
+        ]),
+
+        _Section(tr('Weisen (Wys)'), [
+          _Rule(tr('Vor dem ersten Stich zeigt jeder seine Weis-Kombinationen; die Punkte werden nach dem 1. Stich gutgeschrieben.')),
+          _Rule(tr('Folgen (aufeinanderfolgende Karten gleicher Farbe): Dreiblatt = 20, Vierblatt = 50, Fünfblatt oder länger = 100.')),
+          _Rule(tr('Vierling (vier gleiche Karten): vier Under = 200, vier Näll (9) = 150, alle anderen = 100.')),
+          _Rule(tr('Stöck: König + Dame (Ober) der Trumpffarbe = 20 Punkte (nur in Trumpf-Spielen).')),
+          _Rule(tr('Nur das Team mit dem höchsten einzelnen Weis erhält alle seine Weis-Punkte – das andere Team erhält keine.')),
+          _Rule(tr('Bei gleichem Weis gewinnt die höhere oberste Karte, dann eine Folge in der Trumpffarbe; sonst der in Spielrichtung frühere Spieler.')),
+        ]),
 
         _Section(tr('Kartenwerte – Obenabe & Undenufe'), []),
         _ValueRow(tr('Ass (Obenabe) / Sechs (Undenufe)'), tr('11 Pkt'), isHighlight: true),
@@ -375,6 +391,7 @@ class _RulesScreenState extends State<RulesScreen>
           _Rule(tr('Wer den letzten (9.) Stich gewinnt, erhält 5 Bonuspunkte.')),
           _Rule(tr('Gesamtpunkte pro Runde: 157 (152 Kartenwerte + 5 Bonus).')),
           _Rule(tr('Match: Gewinnt ein Team alle 9 Stiche, erhält das ansagende Team 170 Punkte. Das andere Team erhält 0.')),
+          _Rule(tr('Weisen und Stöck gibt es nur im Schieber, nicht in Coiffeur oder Wunschkarte.')),
         ]),
 
         _Section(tr('Spielmodi'), []),
@@ -384,13 +401,14 @@ class _RulesScreenState extends State<RulesScreen>
             tr('Wie Trumpfspiel, aber die Reihenfolge im Trumpf ist umgekehrt. ') +
             tr('Nicht-Trumpf folgt der Undenufe-Reihenfolge (6 schlägt Ass).')),
         _ModeCard('⬇️  Obenabe',
-            tr('Kein Trumpf. Das Ass ist die höchste Karte, die Sechs die niedrigste. ') +
+            tr('Kein Trumpf. Reihenfolge: Ass › König › Dame › Under › 10 › 9 › 8 › 7 › 6 – die höchste Karte der angespielten Farbe gewinnt. ') +
             tr('Die vier Achter zählen je 8 Punkte.')),
         _ModeCard('⬆️  Undenufe',
-            tr('Kein Trumpf. Die Sechs ist die höchste Karte, das Ass die niedrigste. ') +
-            tr('Die vier Achter zählen je 8 Punkte.')),
+            tr('Kein Trumpf, umgekehrt: 6 › 7 › 8 › 9 › 10 › Under › Dame › König › Ass – die tiefste Karte gewinnt. ') +
+            tr('Sechs = 11, die vier Achter = je 8 Punkte.')),
         _ModeCard('↕️  Slalom',
-            tr('Abwechselnd Obenabe und Undenufe. Beim Slalom Oben gilt der 1. Stich nach Obenabe-Regeln usw.')),
+            tr('Jeder Stich wechselt zwischen Obenabe und Undenufe. Beim Start „Oben" folgt der 1. Stich Obenabe-Regeln, der 2. Undenufe usw. ') +
+            tr('Stichgewinner und Kartenwerte richten sich nach der Richtung des jeweiligen Stichs.')),
         _ModeCard('🐘  Elefant',
             tr('Stiche 1–3: Obenabe. Stiche 4–6: Undenufe. ') +
             tr('Ab Stich 7: erste gespielte Karte bestimmt die Trumpffarbe.')),
