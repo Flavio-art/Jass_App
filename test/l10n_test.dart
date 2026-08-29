@@ -74,5 +74,16 @@ void main() {
       expect(trp('Vierling {0}', ['A']), 'Four As');
       L10n.lang = 'de';
     });
+
+    test('Ausgebaute Regeln (Trumpf/Weisen/Slalom) übersetzt', () {
+      L10n.lang = 'en';
+      expect(tr('Stich-Reihenfolge – Trumpfspiel'), 'Trick order – trump game');
+      expect(tr('Weisen (Wys)'), 'Melds (Wys)');
+      expect(tr('Ein Trumpf sticht jede Nicht-Trumpf-Karte – egal wie hoch.'),
+          'A trump beats any non-trump card – no matter how high.');
+      // Deutsch bleibt Original
+      L10n.lang = 'de';
+      expect(tr('Weisen (Wys)'), 'Weisen (Wys)');
+    });
   });
 }
