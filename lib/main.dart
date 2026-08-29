@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'l10n/app_localizations.dart';
+import 'l10n/tr.dart';
 import 'providers/game_provider.dart';
 import 'providers/locale_provider.dart';
 import 'screens/splash_screen.dart';
@@ -47,7 +48,12 @@ class JassApp extends StatelessWidget {
         ChangeNotifierProvider.value(value: localeProvider),
       ],
       child: Consumer<LocaleProvider>(
-        builder: (context, lp, _) => MaterialApp(
+        builder: (context, lp, _) {
+          // Laufzeit-Übersetzer (tr/trp) an die effektive Sprache koppeln.
+          final code = lp.locale?.languageCode ??
+              WidgetsBinding.instance.platformDispatcher.locale.languageCode;
+          L10n.lang = code == 'en' ? 'en' : 'de';
+          return MaterialApp(
           title: 'Jass',
           debugShowCheckedModeBanner: false,
           locale: lp.locale,
@@ -72,7 +78,8 @@ class JassApp extends StatelessWidget {
             );
           },
           home: const SplashScreen(),
-        ),
+        );
+        },
       ),
     );
   }

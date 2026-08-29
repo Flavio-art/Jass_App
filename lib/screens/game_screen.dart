@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../l10n/tr.dart';
 import '../constants/app_colors.dart';
 import '../models/card_model.dart';
 import '../models/deck.dart';
@@ -38,15 +39,15 @@ class _GameScreenState extends State<GameScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1B4D2E),
-        title: const Text('Runde teilen',
+        title: Text(tr('Runde teilen'),
             style: TextStyle(color: Colors.white)),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Kommentar (optional):',
+              Text(
+                tr('Kommentar (optional):'),
                 style: TextStyle(color: Colors.white70, fontSize: 13),
               ),
               const SizedBox(height: 8),
@@ -56,7 +57,7 @@ class _GameScreenState extends State<GameScreen> {
                 maxLength: 280,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
-                  hintText: 'Z.B. "Stich 5 war komisch..."',
+                  hintText: tr('Z.B. "Stich 5 war komisch..."'),
                   hintStyle: const TextStyle(color: Colors.white38),
                   filled: true,
                   fillColor: Colors.black26,
@@ -72,13 +73,13 @@ class _GameScreenState extends State<GameScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Abbrechen',
+            child: Text(tr('Abbrechen'),
                 style: TextStyle(color: Colors.white70)),
           ),
           ElevatedButton.icon(
             onPressed: () => Navigator.pop(ctx, true),
             icon: const Icon(Icons.share, size: 18),
-            label: const Text('Teilen'),
+            label: Text(tr('Teilen')),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.gold,
               foregroundColor: Colors.black,
@@ -98,7 +99,7 @@ class _GameScreenState extends State<GameScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Fehler beim Teilen: $e')),
+        SnackBar(content: Text(trp('Fehler beim Teilen: {0}', [e]))),
       );
     }
   }
@@ -143,7 +144,7 @@ class _GameScreenState extends State<GameScreen> {
   void _showSchieberLimitDialog(BuildContext ctx, GameProvider provider, GameState state) {
     final winner = state.schieberLimitReachedBy;
     final isTeam1 = winner == 'team1';
-    final winnerLabel = isTeam1 ? 'Ihr habt' : 'Gegner haben';
+    final winnerLabel = isTeam1 ? tr('Ihr habt') : tr('Gegner haben');
     // Eingefrorene Scores verwenden (inkl. Weis/Stöcke)
     final live1 = state.schieberLimitScores?['team1'] ?? (state.totalTeamScores['team1'] ?? 0);
     final live2 = state.schieberLimitScores?['team2'] ?? (state.totalTeamScores['team2'] ?? 0);
@@ -155,7 +156,7 @@ class _GameScreenState extends State<GameScreen> {
         backgroundColor: const Color(0xFF1B4D2E),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
-          '$winnerLabel das Punktelimit erreicht!',
+          trp('{0} das Punktelimit erreicht!', [winnerLabel]),
           style: const TextStyle(color: AppColors.gold, fontSize: 18),
           textAlign: TextAlign.center,
         ),
@@ -163,7 +164,7 @@ class _GameScreenState extends State<GameScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Ihr: $live1  –  Gegner: $live2',
+              trp('Ihr: {0}  –  Gegner: {1}', [live1, live2]),
               style: const TextStyle(color: Colors.white, fontSize: 16),
             ),
             const SizedBox(height: 12),
@@ -181,7 +182,7 @@ class _GameScreenState extends State<GameScreen> {
               _limitDialogShowing = false;
               provider.endGameFromSchieberLimit();
             },
-            child: const Text('Beenden',
+            child: Text(tr('Beenden'),
                 style: TextStyle(color: Colors.white54)),
           ),
           TextButton(
@@ -190,7 +191,7 @@ class _GameScreenState extends State<GameScreen> {
               _limitDialogShowing = false;
               provider.continuePlayingAfterLimit();
             },
-            child: const Text('Weiterspielen',
+            child: Text(tr('Weiterspielen'),
                 style: TextStyle(color: AppColors.gold)),
           ),
         ],
@@ -253,7 +254,7 @@ class _GameScreenState extends State<GameScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Stiche anschauen (${state.completedTricks.length} gespielt)',
+              trp('Stiche anschauen ({0} gespielt)', [state.completedTricks.length]),
               style: const TextStyle(
                   color: AppColors.gold,
                   fontWeight: FontWeight.bold,
@@ -266,7 +267,7 @@ class _GameScreenState extends State<GameScreen> {
                 // Erster Stich
                 Column(
                   children: [
-                    const Text('Erster Stich',
+                    Text(tr('Erster Stich'),
                         style:
                             TextStyle(color: Colors.white54, fontSize: 11)),
                     const SizedBox(height: 8),
@@ -279,8 +280,8 @@ class _GameScreenState extends State<GameScreen> {
                 if (state.completedTricks.length >= 2)
                   Column(
                     children: [
-                      const Text(
-                        'Letzter Stich',
+                      Text(
+                        tr('Letzter Stich'),
                         style: TextStyle(
                             color: Colors.white54, fontSize: 11),
                       ),
@@ -523,7 +524,7 @@ class _GameScreenState extends State<GameScreen> {
                                 IconButton(
                                   icon: const Icon(Icons.history,
                                       color: Colors.white70),
-                                  tooltip: 'Stiche anschauen',
+                                  tooltip: tr('Stiche anschauen'),
                                   onPressed: () =>
                                       _showTrickHistory(context, state),
                                 ),
@@ -531,7 +532,7 @@ class _GameScreenState extends State<GameScreen> {
                               IconButton(
                                 icon: const Icon(Icons.bar_chart_rounded,
                                     color: Colors.white70),
-                                tooltip: 'Spielübersicht',
+                                tooltip: tr('Spielübersicht'),
                                 onPressed: () =>
                                     setState(() => _overviewShowing = true),
                               ),
@@ -624,7 +625,7 @@ class _GameScreenState extends State<GameScreen> {
                                     child: Column(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        const Text('Wunschkarte',
+                                        Text(tr('Wunschkarte'),
                                             style: TextStyle(
                                                 color: Colors.amber,
                                                 fontSize: 8,
@@ -992,13 +993,13 @@ class _GameScreenState extends State<GameScreen> {
                                     offset: Offset(0, 4)),
                               ],
                             ),
-                            child: const Row(
+                            child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(Icons.swap_horiz, color: Colors.white),
                                 SizedBox(width: 8),
                                 Text(
-                                  'Schieben',
+                                  tr('Schieben'),
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -1049,8 +1050,8 @@ class _GameScreenState extends State<GameScreen> {
                               Text(
                                 state.soloSchiebungRounds >= 2 &&
                                         state.gameType == GameType.friseur
-                                    ? 'Spielen (erzwungen)'
-                                    : 'Spielmodus wählen',
+                                    ? tr('Spielen (erzwungen)')
+                                    : tr('Spielmodus wählen'),
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
@@ -1089,7 +1090,7 @@ class _GameScreenState extends State<GameScreen> {
                               const Text('🕳️', style: TextStyle(fontSize: 18)),
                               const SizedBox(width: 8),
                               Text(
-                                '${state.players[state.lochPlayerIndex].name} ist im Loch',
+                                trp('{0} ist im Loch', [state.players[state.lochPlayerIndex].name]),
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
@@ -1119,7 +1120,7 @@ class _GameScreenState extends State<GameScreen> {
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
-                          '${state.currentTrumpSelector.name} überlegt...',
+                          trp('{0} überlegt...', [state.currentTrumpSelector.name]),
                           style: const TextStyle(
                             color: Colors.white70,
                             fontSize: 14,
@@ -1270,7 +1271,7 @@ class _GameScreenState extends State<GameScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.refresh, color: Colors.white),
-              title: const Text('Neues Spiel',
+              title: Text(tr('Neues Spiel'),
                   style: TextStyle(color: Colors.white)),
               onTap: () {
                 final s = provider.state;
@@ -1287,7 +1288,7 @@ class _GameScreenState extends State<GameScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.help_outline, color: Colors.white),
-              title: const Text('Regeln',
+              title: Text(tr('Regeln'),
                   style: TextStyle(color: Colors.white)),
               onTap: () {
                 Navigator.pop(context);
@@ -1300,7 +1301,7 @@ class _GameScreenState extends State<GameScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.home, color: Colors.white),
-              title: const Text('Hauptmenü',
+              title: Text(tr('Hauptmenü'),
                   style: TextStyle(color: Colors.white)),
               onTap: () {
                 GameProvider.clearSavedGame(provider.state.gameType);
@@ -1379,8 +1380,8 @@ class _AnsagerBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: AppColors.gold, width: 1),
       ),
-      child: const Text(
-        '★ Ansager',
+      child: Text(
+        tr('★ Ansager'),
         style: TextStyle(
           color: AppColors.gold,
           fontSize: 9,
@@ -1402,8 +1403,8 @@ class _GeschobenBubble extends StatelessWidget {
         color: Colors.blueGrey.shade800.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(10),
       ),
-      child: const Text(
-        'Geschoben!',
+      child: Text(
+        tr('Geschoben!'),
         style: TextStyle(
           color: Colors.white70,
           fontSize: 10,
@@ -1428,7 +1429,7 @@ class _LochBadge extends StatelessWidget {
         border: Border.all(color: Colors.red.shade300, width: 1),
       ),
       child: Text(
-        '🕳️ Im Loch',
+        tr('🕳️ Im Loch'),
         style: TextStyle(
           color: Colors.red.shade300,
           fontSize: 10,
@@ -1464,11 +1465,11 @@ class _AnsagerLochBadge extends StatelessWidget {
             style: TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.bold),
           ),
           TextSpan(
-            text: 'Ansager · ',
+            text: tr('Ansager · '),
             style: TextStyle(color: AppColors.gold, fontSize: 10, fontWeight: FontWeight.bold),
           ),
           TextSpan(
-            text: '🕳️ Im Loch',
+            text: tr('🕳️ Im Loch'),
             style: TextStyle(color: Colors.red.shade300, fontSize: 10, fontWeight: FontWeight.bold),
           ),
         ]),
@@ -1704,7 +1705,7 @@ class _RoundEndOverlay extends StatelessWidget {
                   child: Column(
                     children: [
                       Text(
-                        roundNum != null ? 'Runde $roundNum beendet' : 'Runde beendet',
+                        roundNum != null ? 'Runde $roundNum beendet' : tr('Runde beendet'),
                         style: const TextStyle(
                             color: AppColors.gold,
                             fontSize: 17,
@@ -1718,13 +1719,13 @@ class _RoundEndOverlay extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          _resultBadge('Ansager-Team', lastResult.team1Score),
+                          _resultBadge(tr('Ansager-Team'), lastResult.team1Score),
                           const SizedBox(width: 16),
-                          _resultBadge('Gegner', lastResult.team2Score),
+                          _resultBadge(tr('Gegner'), lastResult.team2Score),
                         ],
                       ),
                       const SizedBox(height: 6),
-                      Text('Partner: $partnerName',
+                      Text(trp('Partner: {0}', [partnerName]),
                           style: const TextStyle(color: Colors.white54, fontSize: 11)),
                       if (postRoundComment != null) ...[
                         const SizedBox(height: 8),
@@ -1771,7 +1772,7 @@ class _RoundEndOverlay extends StatelessWidget {
                         OutlinedButton.icon(
                           onPressed: onShare,
                           icon: const Icon(Icons.share, size: 18),
-                          label: const Text('Teilen'),
+                          label: Text(tr('Teilen')),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: Colors.white,
                             side: const BorderSide(color: Colors.white54),
@@ -1785,7 +1786,7 @@ class _RoundEndOverlay extends StatelessWidget {
                           backgroundColor: AppColors.gold,
                           foregroundColor: Colors.black,
                         ),
-                        child: const Text('Nächste Runde',
+                        child: Text(tr('Nächste Runde'),
                             style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
                     ],
@@ -1820,7 +1821,7 @@ class _RoundEndOverlay extends StatelessWidget {
                   child: Column(
                     children: [
                       Text(
-                        'Runde ${lastResult.roundNumber} beendet',
+                        trp('Runde {0} beendet', [lastResult.roundNumber]),
                         style: const TextStyle(
                             color: AppColors.gold,
                             fontSize: 18,
@@ -1835,21 +1836,21 @@ class _RoundEndOverlay extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          _schieberRoundDetail('Ihr', lastResult.team1Score, lastResult.wyssPoints1),
-                          _schieberRoundDetail('Gegner', lastResult.team2Score, lastResult.wyssPoints2),
+                          _schieberRoundDetail(tr('Ihr'), lastResult.team1Score, lastResult.wyssPoints1),
+                          _schieberRoundDetail(tr('Gegner'), lastResult.team2Score, lastResult.wyssPoints2),
                         ],
                       ),
                       const SizedBox(height: 12),
                       const Divider(color: Colors.white24),
                       const SizedBox(height: 8),
-                      Text('Gesamtstand (Ziel: $schieberWinTarget)',
+                      Text(trp('Gesamtstand (Ziel: {0})', [schieberWinTarget]),
                           style: const TextStyle(color: Colors.white54, fontSize: 11)),
                       const SizedBox(height: 6),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          _resultBadge('Ihr gesamt', total1),
-                          _resultBadge('Gegner gesamt', total2),
+                          _resultBadge(tr('Ihr gesamt'), total1),
+                          _resultBadge(tr('Gegner gesamt'), total2),
                         ],
                       ),
                     ],
@@ -1866,7 +1867,7 @@ class _RoundEndOverlay extends StatelessWidget {
                         OutlinedButton.icon(
                           onPressed: onShare,
                           icon: const Icon(Icons.share, size: 18),
-                          label: const Text('Teilen'),
+                          label: Text(tr('Teilen')),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: Colors.white,
                             side: const BorderSide(color: Colors.white54),
@@ -1880,7 +1881,7 @@ class _RoundEndOverlay extends StatelessWidget {
                           backgroundColor: AppColors.gold,
                           foregroundColor: Colors.black,
                         ),
-                        child: const Text('Nächste Runde',
+                        child: Text(tr('Nächste Runde'),
                             style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
                     ],
@@ -1915,7 +1916,7 @@ class _RoundEndOverlay extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Text(
-                  roundNum != null ? 'Runde $roundNum beendet' : 'Resultate',
+                  roundNum != null ? 'Runde $roundNum beendet' : tr('Resultate'),
                   style: const TextStyle(
                     color: AppColors.gold,
                     fontSize: 18,
@@ -1937,9 +1938,9 @@ class _RoundEndOverlay extends StatelessWidget {
                   TableRow(
                     decoration: const BoxDecoration(color: Colors.black26),
                     children: [
-                      _hCell('Spiel'),
-                      _hCell('Ihr', right: true),
-                      _hCell('Gegner', right: true),
+                      _hCell(tr('Spiel')),
+                      _hCell(tr('Ihr'), right: true),
+                      _hCell(tr('Gegner'), right: true),
                     ],
                   ),
                   for (final variant in _variants)
@@ -1962,7 +1963,7 @@ class _RoundEndOverlay extends StatelessWidget {
                   TableRow(
                     decoration: const BoxDecoration(color: Colors.black12),
                     children: [
-                      _totalCell('Gesamt'),
+                      _totalCell(tr('Gesamt')),
                       _totalCell('$tot1',
                           right: true,
                           color: tot1 >= tot2
@@ -1989,7 +1990,7 @@ class _RoundEndOverlay extends StatelessWidget {
                       OutlinedButton.icon(
                         onPressed: onShare,
                         icon: const Icon(Icons.share, size: 18),
-                        label: const Text('Teilen'),
+                        label: Text(tr('Teilen')),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: Colors.white,
                           side: const BorderSide(color: Colors.white54),
@@ -2005,7 +2006,7 @@ class _RoundEndOverlay extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 24, vertical: 10),
                       ),
-                      child: const Text('Nächste Runde',
+                      child: Text(tr('Nächste Runde'),
                           style: TextStyle(fontWeight: FontWeight.bold)),
                     ),
                   ],
@@ -2174,7 +2175,7 @@ class _RoundEndOverlay extends StatelessWidget {
     }
 
     return Text(
-      _labels[variant] ?? variant,
+      tr(_labels[variant] ?? variant),
       style: textStyle,
       overflow: TextOverflow.ellipsis,
     );
@@ -2183,13 +2184,13 @@ class _RoundEndOverlay extends StatelessWidget {
   /// Lesbare Varianten-Bezeichnung abhängig von Kartentyp + tatsächlicher Trumpffarbe.
   static String _variantLongName(String variantKey, Suit? trumpSuit, CardType cardType) {
     if (variantKey == 'trump_ss' || variantKey == 'trump_re') {
-      if (trumpSuit != null) return 'Trumpf ${trumpSuit.label(cardType)}';
+      if (trumpSuit != null) return trp('Trumpf {0}', [trumpSuit.label(cardType)]);
       if (cardType == CardType.french) {
-        return variantKey == 'trump_ss' ? 'Trumpf ♠/♣' : 'Trumpf ♥/♦';
+        return variantKey == 'trump_ss' ? tr('Trumpf ♠/♣') : tr('Trumpf ♥/♦');
       }
       return variantKey == 'trump_ss' ? 'Schellen/Schilten' : 'Rosen/Eicheln';
     }
-    return _labels[variantKey] ?? variantKey;
+    return tr(_labels[variantKey] ?? variantKey);
   }
 
   static Widget _hCell(String text, {bool right = false}) => Padding(
@@ -2227,8 +2228,8 @@ class _RoundEndOverlay extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           wyssPoints > 0
-              ? '$spielPunkte Spiel + $wyssPoints Wys'
-              : '$spielPunkte Spielpunkte',
+              ? trp('{0} Spiel + {1} Wys', [spielPunkte, wyssPoints])
+              : trp('{0} Spielpunkte', [spielPunkte]),
           style: const TextStyle(color: Colors.white38, fontSize: 10),
         ),
       ],
@@ -2264,7 +2265,7 @@ class _GameEndOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     final tot1 = totalTeamScores['team1'] ?? 0;
     final tot2 = totalTeamScores['team2'] ?? 0;
-    final winner = tot1 >= tot2 ? 'Ihr Team' : 'Gegner';
+    final winner = tot1 >= tot2 ? tr('Ihr Team') : tr('Gegner');
 
     return Container(
       color: Colors.black87,
@@ -2280,8 +2281,8 @@ class _GameEndOverlay extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                '🏆 Spiel beendet!',
+              Text(
+                tr('🏆 Spiel beendet!'),
                 style: TextStyle(color: Colors.white, fontSize: 18),
                 textAlign: TextAlign.center,
               ),
@@ -2297,12 +2298,12 @@ class _GameEndOverlay extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Text(
-                'Ihr Team: $tot1 Punkte',
+                trp('Ihr Team: {0} Punkte', [tot1]),
                 style: const TextStyle(color: Colors.white, fontSize: 18),
               ),
               const SizedBox(height: 4),
               Text(
-                'Gegner: $tot2 Punkte',
+                trp('Gegner: {0} Punkte', [tot2]),
                 style: const TextStyle(color: Colors.white, fontSize: 18),
               ),
               const SizedBox(height: 28),
@@ -2311,7 +2312,7 @@ class _GameEndOverlay extends StatelessWidget {
                 children: [
                   TextButton(
                     onPressed: onHome,
-                    child: const Text('Menü',
+                    child: Text(tr('Menü'),
                         style: TextStyle(color: Colors.white54)),
                   ),
                   ElevatedButton(
@@ -2320,7 +2321,7 @@ class _GameEndOverlay extends StatelessWidget {
                       backgroundColor: AppColors.gold,
                       foregroundColor: Colors.black,
                     ),
-                    child: const Text('Neues Spiel'),
+                    child: Text(tr('Neues Spiel')),
                   ),
                 ],
               ),
@@ -2374,7 +2375,7 @@ class _WishCardOverlayState extends State<_WishCardOverlay> {
         suit != null &&
         state.cardType == CardType.german) {
       final direction =
-          state.gameMode == GameMode.trump ? 'Trumpf Oben: ' : 'Trumpf Unten: ';
+          state.gameMode == GameMode.trump ? tr('Trumpf Oben: ') : tr('Trumpf Unten: ');
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -2386,8 +2387,8 @@ class _WishCardOverlayState extends State<_WishCardOverlay> {
     }
 
     final label = switch (state.gameMode) {
-      GameMode.trump => 'Trumpf Oben: ${suit?.symbol ?? '?'}',
-      GameMode.trumpUnten => 'Trumpf Unten: ${suit?.symbol ?? '?'}',
+      GameMode.trump => tr('Trumpf Oben: ') + (suit?.symbol ?? '?'),
+      GameMode.trumpUnten => tr('Trumpf Unten: ') + (suit?.symbol ?? '?'),
       GameMode.oben => 'Obenabe',
       GameMode.unten => 'Undenufe',
       GameMode.slalom => 'Slalom',
@@ -2427,11 +2428,11 @@ class _WishCardOverlayState extends State<_WishCardOverlay> {
                           icon: const Icon(Icons.arrow_back_ios_new_rounded,
                               color: Colors.white70, size: 20),
                           onPressed: widget.onBack,
-                          tooltip: 'Zurück zur Spielauswahl',
+                          tooltip: tr('Zurück zur Spielauswahl'),
                         ),
-                        const Expanded(
+                        Expanded(
                           child: Text(
-                            'Wunschkarte wählen',
+                            tr('Wunschkarte wählen'),
                             style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 22,
@@ -2443,8 +2444,8 @@ class _WishCardOverlayState extends State<_WishCardOverlay> {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    const Text(
-                      'Diese Karte enthüllt deinen Partner',
+                    Text(
+                      tr('Diese Karte enthüllt deinen Partner'),
                       style: TextStyle(color: Colors.white54, fontSize: 13),
                       textAlign: TextAlign.center,
                     ),
@@ -2517,8 +2518,8 @@ class _WishCardOverlayState extends State<_WishCardOverlay> {
                     ),
                     child: Text(
                       _selectedCard == null
-                          ? 'Karte antippen zum Wählen'
-                          : 'Wünschen: $_selectedCard',
+                          ? tr('Karte antippen zum Wählen')
+                          : trp('Wünschen: {0}', [_selectedCard]),
                       style: const TextStyle(
                           fontWeight: FontWeight.bold, fontSize: 16),
                     ),
@@ -2631,7 +2632,7 @@ class _FriseurSoloGameEndOverlay extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Column(
                   children: [
-                    const Text('🏆 Friseur Solo beendet!',
+                    Text(tr('🏆 Friseur Solo beendet!'),
                         style: TextStyle(color: Colors.white, fontSize: 16)),
                     const SizedBox(height: 4),
                     Text(
@@ -2665,7 +2666,7 @@ class _FriseurSoloGameEndOverlay extends StatelessWidget {
                         TableRow(
                           decoration: const BoxDecoration(color: Colors.black26),
                           children: [
-                            _hCell('Spiel'),
+                            _hCell(tr('Spiel')),
                             for (final p in players) _hCell(p.name, center: true),
                           ],
                         ),
@@ -2699,10 +2700,10 @@ class _FriseurSoloGameEndOverlay extends StatelessWidget {
                           decoration:
                               const BoxDecoration(color: Colors.black12),
                           children: [
-                            const Padding(
+                            Padding(
                               padding: EdgeInsets.symmetric(
                                   vertical: 6, horizontal: 6),
-                              child: Text('Ges.',
+                              child: Text(tr('Ges.'),
                                   style: TextStyle(
                                       color: AppColors.gold,
                                       fontSize: 12,
@@ -2743,7 +2744,7 @@ class _FriseurSoloGameEndOverlay extends StatelessWidget {
                   children: [
                     TextButton(
                       onPressed: onHome,
-                      child: const Text('Menü',
+                      child: Text(tr('Menü'),
                           style: TextStyle(color: Colors.white54)),
                     ),
                     ElevatedButton(
@@ -2752,7 +2753,7 @@ class _FriseurSoloGameEndOverlay extends StatelessWidget {
                         backgroundColor: AppColors.gold,
                         foregroundColor: Colors.black,
                       ),
-                      child: const Text('Neues Spiel'),
+                      child: Text(tr('Neues Spiel')),
                     ),
                   ],
                 ),
@@ -2927,9 +2928,9 @@ class _FriseurSoloScoreTable extends StatelessWidget {
         TableRow(
           decoration: const BoxDecoration(color: Colors.black12),
           children: [
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(vertical: 5, horizontal: 6),
-              child: Text('Ges.',
+              child: Text(tr('Ges.'),
                   style: TextStyle(
                       color: AppColors.gold,
                       fontSize: 11,
@@ -3024,8 +3025,8 @@ class _GameOverviewOverlay extends StatelessWidget {
                   child: Row(
                     children: [
                       const SizedBox(width: 8),
-                      const Text(
-                        'Spielübersicht',
+                      Text(
+                        tr('Spielübersicht'),
                         style: TextStyle(
                             color: AppColors.gold,
                             fontSize: 17,
@@ -3039,13 +3040,13 @@ class _GameOverviewOverlay extends StatelessWidget {
                     ],
                   ),
                 ),
-                const TabBar(
+                TabBar(
                   indicatorColor: AppColors.gold,
                   labelColor: AppColors.gold,
                   unselectedLabelColor: Colors.white54,
                   tabs: [
-                    Tab(text: 'Runden'),
-                    Tab(text: 'Punkte'),
+                    Tab(text: tr('Runden')),
+                    Tab(text: tr('Punkte')),
                   ],
                 ),
                 Expanded(
@@ -3066,8 +3067,8 @@ class _GameOverviewOverlay extends StatelessWidget {
 
   Widget _buildRoundsTab(BuildContext context) {
     if (state.roundHistory.isEmpty) {
-      return const Center(
-        child: Text('Noch keine Runden gespielt.',
+      return Center(
+        child: Text(tr('Noch keine Runden gespielt.'),
             style: TextStyle(color: Colors.white54)),
       );
     }
@@ -3122,8 +3123,8 @@ class _GameOverviewOverlay extends StatelessWidget {
   Widget _buildScoresTab(BuildContext context) {
     if (state.gameType == GameType.friseur) {
       if (state.friseurSoloScores.isEmpty) {
-        return const Center(
-          child: Text('Noch keine Punkte.',
+        return Center(
+          child: Text(tr('Noch keine Punkte.'),
               style: TextStyle(color: Colors.white54)),
         );
       }
@@ -3175,9 +3176,9 @@ class _GameOverviewOverlay extends StatelessWidget {
           TableRow(
             decoration: const BoxDecoration(color: Colors.black26),
             children: [
-              _hCell('Spiel'),
-              _hCell('Ihr', right: true),
-              _hCell('Gegner', right: true),
+              _hCell(tr('Spiel')),
+              _hCell(tr('Ihr'), right: true),
+              _hCell(tr('Gegner'), right: true),
             ],
           ),
           for (final v in _variants)
@@ -3203,9 +3204,9 @@ class _GameOverviewOverlay extends StatelessWidget {
           TableRow(
             decoration: const BoxDecoration(color: Colors.black12),
             children: [
-              const Padding(
+              Padding(
                 padding: EdgeInsets.symmetric(vertical: 5, horizontal: 6),
-                child: Text('Gesamt',
+                child: Text(tr('Gesamt'),
                     style: TextStyle(
                         color: AppColors.gold,
                         fontSize: 12,
@@ -3239,8 +3240,8 @@ class _GameOverviewOverlay extends StatelessWidget {
   Widget _buildSchieberScoresTab(BuildContext context) {
     final history = state.roundHistory;
     if (history.isEmpty) {
-      return const Center(
-        child: Text('Noch keine Punkte.', style: TextStyle(color: Colors.white54)),
+      return Center(
+        child: Text(tr('Noch keine Punkte.'), style: TextStyle(color: Colors.white54)),
       );
     }
 
@@ -3266,10 +3267,10 @@ class _GameOverviewOverlay extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _schieberTotalCol('Ihr', tot1, tot1 >= tot2),
+                    _schieberTotalCol(tr('Ihr'), tot1, tot1 >= tot2),
                     Column(
                       children: [
-                        Text('Ziel: $target',
+                        Text(trp('Ziel: {0}', [target]),
                             style: const TextStyle(color: Colors.white38, fontSize: 10)),
                         const SizedBox(height: 4),
                         SizedBox(
@@ -3293,7 +3294,7 @@ class _GameOverviewOverlay extends StatelessWidget {
                         ),
                       ],
                     ),
-                    _schieberTotalCol('Gegner', tot2, tot2 > tot1),
+                    _schieberTotalCol(tr('Gegner'), tot2, tot2 > tot1),
                   ],
                 ),
               ],
@@ -3305,9 +3306,9 @@ class _GameOverviewOverlay extends StatelessWidget {
             child: Row(
               children: [
                 const SizedBox(width: 36),
-                Expanded(child: _hCell('Spielpunkte')),
-                Expanded(child: _hCell('Wysspunkte')),
-                Expanded(child: _hCell('Gesamt', right: true)),
+                Expanded(child: _hCell(tr('Spielpunkte'))),
+                Expanded(child: _hCell(tr('Wysspunkte'))),
+                Expanded(child: _hCell(tr('Gesamt'), right: true)),
               ],
             ),
           ),
@@ -3488,14 +3489,14 @@ class _SchieberScoreBar extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _col('Ihr', live1, cur1, AppColors.gold),
+            _col(tr('Ihr'), live1, cur1, AppColors.gold),
             const SizedBox(width: 10),
             Text(
               'R$roundNumber / $winTarget',
               style: const TextStyle(color: Colors.white38, fontSize: 10),
             ),
             const SizedBox(width: 10),
-            _col('Geg.', live2, cur2, Colors.red.shade300),
+            _col(tr('Geg.'), live2, cur2, Colors.red.shade300),
           ],
         ),
       ),
@@ -3554,13 +3555,13 @@ class _DifferenzlerScoreBar extends StatelessWidget {
           Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Deine Punkte', style: TextStyle(color: Colors.white54, fontSize: 9)),
+              Text(tr('Deine Punkte'), style: TextStyle(color: Colors.white54, fontSize: 9)),
               Text(
                 '$score',
                 style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
               ),
               Text(
-                'Ziel: $pred',
+                trp('Ziel: {0}', [pred]),
                 style: const TextStyle(color: Colors.white38, fontSize: 9),
               ),
             ],
@@ -3616,7 +3617,7 @@ class _DifferenzlerPredictionOverlayState
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Differenzler – Runde ${widget.state.roundNumber}',
+                  trp('Differenzler – Runde {0}', [widget.state.roundNumber]),
                   style: const TextStyle(
                       color: AppColors.gold,
                       fontSize: 18,
@@ -3626,7 +3627,7 @@ class _DifferenzlerPredictionOverlayState
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('Trumpf: ',
+                    Text(tr('Trumpf: '),
                         style: TextStyle(color: Colors.white70, fontSize: 16)),
                     if (trump != null && widget.state.cardType == CardType.german)
                       Image.asset(
@@ -3656,8 +3657,8 @@ class _DifferenzlerPredictionOverlayState
                   ],
                 ),
                 const SizedBox(height: 20),
-                const Text(
-                  'Wieviele Punkte gewinnst du?',
+                Text(
+                  tr('Wieviele Punkte gewinnst du?'),
                   style: TextStyle(color: Colors.white70, fontSize: 14),
                 ),
                 const SizedBox(height: 8),
@@ -3698,7 +3699,7 @@ class _DifferenzlerPredictionOverlayState
                     padding: const EdgeInsets.symmetric(
                         horizontal: 32, vertical: 12),
                   ),
-                  child: const Text('Bestätigen',
+                  child: Text(tr('Bestätigen'),
                       style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ],
@@ -3753,7 +3754,7 @@ class _DifferenzlerRoundEndOverlay extends StatelessWidget {
                 child: Column(
                   children: [
                     Text(
-                      'Runde $roundNumber beendet',
+                      trp('Runde {0} beendet', [roundNumber]),
                       style: const TextStyle(
                           color: AppColors.gold,
                           fontSize: 18,
@@ -3766,10 +3767,10 @@ class _DifferenzlerRoundEndOverlay extends StatelessWidget {
                       child: Row(
                         children: [
                           const SizedBox(width: 70),
-                          const Expanded(child: Text('Ziel', style: TextStyle(color: Colors.white38, fontSize: 10), textAlign: TextAlign.center)),
-                          const Expanded(child: Text('Ist', style: TextStyle(color: Colors.white38, fontSize: 10), textAlign: TextAlign.center)),
-                          const Expanded(child: Text('Diff.', style: TextStyle(color: Colors.white38, fontSize: 10), textAlign: TextAlign.center)),
-                          const Expanded(child: Text('Gesamt', style: TextStyle(color: Colors.white38, fontSize: 10), textAlign: TextAlign.center)),
+                          Expanded(child: Text(tr('Ziel'), style: TextStyle(color: Colors.white38, fontSize: 10), textAlign: TextAlign.center)),
+                          Expanded(child: Text(tr('Ist'), style: TextStyle(color: Colors.white38, fontSize: 10), textAlign: TextAlign.center)),
+                          Expanded(child: Text(tr('Diff.'), style: TextStyle(color: Colors.white38, fontSize: 10), textAlign: TextAlign.center)),
+                          Expanded(child: Text(tr('Gesamt'), style: TextStyle(color: Colors.white38, fontSize: 10), textAlign: TextAlign.center)),
                         ],
                       ),
                     ),
@@ -3794,7 +3795,7 @@ class _DifferenzlerRoundEndOverlay extends StatelessWidget {
                       foregroundColor: Colors.black,
                     ),
                     child: Text(
-                      roundNumber >= maxRounds ? 'Ergebnis' : 'Nächste Runde',
+                      roundNumber >= maxRounds ? tr('Ergebnis') : tr('Nächste Runde'),
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
@@ -3892,14 +3893,14 @@ class _SchieberGameEndOverlay extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'Schieber beendet!',
+              Text(
+                tr('Schieber beendet!'),
                 style: TextStyle(color: Colors.white, fontSize: 18),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
               Text(
-                team1Wins ? 'Ihr gewinnt!' : 'Gegner gewinnen!',
+                team1Wins ? tr('Ihr gewinnt!') : tr('Gegner gewinnen!'),
                 style: const TextStyle(
                   color: AppColors.gold,
                   fontSize: 28,
@@ -3909,12 +3910,12 @@ class _SchieberGameEndOverlay extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Text(
-                'Ihr Team: $tot1 Punkte',
+                trp('Ihr Team: {0} Punkte', [tot1]),
                 style: const TextStyle(color: Colors.white, fontSize: 18),
               ),
               const SizedBox(height: 4),
               Text(
-                'Gegner: $tot2 Punkte',
+                trp('Gegner: {0} Punkte', [tot2]),
                 style: const TextStyle(color: Colors.white, fontSize: 18),
               ),
               const SizedBox(height: 28),
@@ -3923,7 +3924,7 @@ class _SchieberGameEndOverlay extends StatelessWidget {
                 children: [
                   TextButton(
                     onPressed: onHome,
-                    child: const Text('Menü',
+                    child: Text(tr('Menü'),
                         style: TextStyle(color: Colors.white54)),
                   ),
                   ElevatedButton(
@@ -3932,7 +3933,7 @@ class _SchieberGameEndOverlay extends StatelessWidget {
                       backgroundColor: AppColors.gold,
                       foregroundColor: Colors.black,
                     ),
-                    child: const Text('Neues Spiel'),
+                    child: Text(tr('Neues Spiel')),
                   ),
                 ],
               ),
@@ -3965,7 +3966,7 @@ class _DifferenzlerGameEndOverlay extends StatelessWidget {
       ..sort((a, b) =>
           (penalties[a.id] ?? 0).compareTo(penalties[b.id] ?? 0));
     final winner = sorted.first;
-    final medals = ['Gold', 'Silber', 'Bronze', '4.'];
+    final medals = [tr('Gold'), tr('Silber'), tr('Bronze'), '4.'];
     final medalColors = [
       Colors.amber,
       Colors.grey.shade300,
@@ -3987,8 +3988,8 @@ class _DifferenzlerGameEndOverlay extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'Differenzler beendet!',
+              Text(
+                tr('Differenzler beendet!'),
                 style: TextStyle(color: Colors.white, fontSize: 17),
                 textAlign: TextAlign.center,
               ),
@@ -4005,8 +4006,8 @@ class _DifferenzlerGameEndOverlay extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 6),
-              const Text(
-                '(niedrigste Strafsumme)',
+              Text(
+                tr('(niedrigste Strafsumme)'),
                 style: TextStyle(color: Colors.white38, fontSize: 11),
               ),
               const SizedBox(height: 16),
@@ -4032,7 +4033,7 @@ class _DifferenzlerGameEndOverlay extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        '${penalties[sorted[i].id] ?? 0} Str.',
+                        trp('{0} Str.', [penalties[sorted[i].id] ?? 0]),
                         style: TextStyle(
                           color: i == 0
                               ? Colors.greenAccent
@@ -4053,7 +4054,7 @@ class _DifferenzlerGameEndOverlay extends StatelessWidget {
                 children: [
                   TextButton(
                     onPressed: onHome,
-                    child: const Text('Menü',
+                    child: Text(tr('Menü'),
                         style: TextStyle(color: Colors.white54)),
                   ),
                   ElevatedButton(
@@ -4062,7 +4063,7 @@ class _DifferenzlerGameEndOverlay extends StatelessWidget {
                       backgroundColor: AppColors.gold,
                       foregroundColor: Colors.black,
                     ),
-                    child: const Text('Neues Spiel'),
+                    child: Text(tr('Neues Spiel')),
                   ),
                 ],
               ),
@@ -4126,8 +4127,8 @@ class _WishCardDetailOverlay extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
-                  '🎯 Wunschkarte',
+                Text(
+                  tr('🎯 Wunschkarte'),
                   style: TextStyle(
                       color: Colors.amber,
                       fontSize: 16,
@@ -4136,8 +4137,8 @@ class _WishCardDetailOverlay extends StatelessWidget {
                 const SizedBox(height: 12),
                 CardWidget(card: card, width: 120),
                 const SizedBox(height: 16),
-                const Text(
-                  'Tippen zum Schliessen',
+                Text(
+                  tr('Tippen zum Schliessen'),
                   style: TextStyle(color: Colors.white54, fontSize: 12),
                 ),
               ],
@@ -4189,7 +4190,7 @@ class _FriseurModeLabel extends StatelessWidget {
           const SizedBox(height: 2),
           _buildMode(),
           if (geschoben)
-            const Text('Geschoben',
+            Text(tr('Geschoben'),
                 style: TextStyle(color: Colors.white38, fontSize: 7, fontStyle: FontStyle.italic)),
         ],
       ),
@@ -4199,9 +4200,9 @@ class _FriseurModeLabel extends StatelessWidget {
   Widget _buildMode() {
     switch (gameMode) {
       case GameMode.trump:
-        return _trumpWidget('Trumpf ⬇️', Colors.amber);
+        return _trumpWidget(tr('Trumpf ⬇️'), Colors.amber);
       case GameMode.trumpUnten:
-        return _trumpWidget('Trumpf ⬆️', Colors.orange);
+        return _trumpWidget(tr('Trumpf ⬆️'), Colors.orange);
       case GameMode.oben:
         return _text('Oben ⬇️', Colors.blue.shade300);
       case GameMode.unten:
@@ -4241,7 +4242,7 @@ class _FriseurModeLabel extends StatelessWidget {
             else if (molotofSubMode == GameMode.unten)
               _text('Undenufe ⬆️', Colors.orange.shade300)
             else if (molotofSubMode == GameMode.trump)
-              _trumpWidget('Trumpf', Colors.amber),
+              _trumpWidget(tr('Trumpf'), Colors.amber),
           ],
         );
       case GameMode.schafkopf:
@@ -4317,7 +4318,7 @@ class _WyssDeclarationOverlay extends StatelessWidget {
     }
 
     final typeName = best.isFourOfAKind
-        ? 'Vierling ${best.topValueLabel(ct)}'
+        ? trp('Vierling {0}', [best.topValueLabel(ct)])
         : '${best.typeName} ${best.topValueLabel(ct)}';
 
     return Positioned.fill(
@@ -4336,8 +4337,8 @@ class _WyssDeclarationOverlay extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const SizedBox(height: 20),
-                  const Text(
-                    'Weisen?',
+                  Text(
+                    tr('Weisen?'),
                     style: TextStyle(
                         color: AppColors.gold,
                         fontSize: 22,
@@ -4385,10 +4386,10 @@ class _WyssDeclarationOverlay extends StatelessWidget {
                   ),
                   const SizedBox(height: 14),
                   // Warnung
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.symmetric(horizontal: 20),
                     child: Text(
-                      'Achtung: Gegner sehen deine Karten!',
+                      tr('Achtung: Gegner sehen deine Karten!'),
                       style: TextStyle(
                           color: Colors.orangeAccent,
                           fontSize: 12,
@@ -4412,7 +4413,7 @@ class _WyssDeclarationOverlay extends StatelessWidget {
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12)),
                             ),
-                            child: const Text('Verzichten',
+                            child: Text(tr('Verzichten'),
                                 style: TextStyle(
                                     fontWeight: FontWeight.bold, fontSize: 15)),
                           ),
@@ -4428,7 +4429,7 @@ class _WyssDeclarationOverlay extends StatelessWidget {
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12)),
                             ),
-                            child: const Text('Weisen',
+                            child: Text(tr('Weisen'),
                                 style: TextStyle(
                                     fontWeight: FontWeight.bold, fontSize: 15)),
                           ),
@@ -4546,8 +4547,8 @@ class _WyssOverlayState extends State<_WyssOverlay> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const SizedBox(height: 16),
-                    const Text(
-                      'Weisen',
+                    Text(
+                      tr('Weisen'),
                       style: TextStyle(
                           color: AppColors.gold,
                           fontSize: 22,
@@ -4560,8 +4561,8 @@ class _WyssOverlayState extends State<_WyssOverlay> {
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: Text(
                           isHumanTeam
-                              ? 'Dein Team gewinnt +$winnerPts Punkte durch Weisen'
-                              : 'Das Gegner-Team gewinnt +$winnerPts Punkte durch Weisen',
+                              ? trp('Dein Team gewinnt +{0} Punkte durch Weisen', [winnerPts])
+                              : trp('Das Gegner-Team gewinnt +{0} Punkte durch Weisen', [winnerPts]),
                           style: const TextStyle(
                               color: Colors.white70, fontSize: 13),
                           textAlign: TextAlign.center,
@@ -4613,8 +4614,8 @@ class _WyssOverlayState extends State<_WyssOverlay> {
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12)),
                           ),
-                          child: const Text('Weiter',
-                              style: TextStyle(
+                          child: Text(tr('Weiter'),
+                              style: const TextStyle(
                                   fontWeight: FontWeight.bold, fontSize: 16)),
                         ),
                       ),
@@ -4658,8 +4659,8 @@ class _WyssOverlayState extends State<_WyssOverlay> {
         ),
         const SizedBox(height: 6),
         if (entries == null || entries.isEmpty)
-          const Text('kein Weis',
-              style: TextStyle(color: Colors.white30, fontSize: 12))
+          Text(tr('kein Weis'),
+              style: const TextStyle(color: Colors.white30, fontSize: 12))
         else
           // One row of cards per WyssEntry (immer 1 Zeile)
           for (final entry in entries) ...[
