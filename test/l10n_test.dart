@@ -65,5 +65,14 @@ void main() {
       expect(tr('Elefant'), 'Elefant'); // Modus-Eigenname, bewusst nicht übersetzt
       L10n.lang = 'de';
     });
+
+    test('Regeln-Prosa (Phase C) übersetzt', () {
+      L10n.lang = 'en';
+      expect(tr('Jass Regeln'), 'Jass Rules');
+      expect(tr('Grundregeln'), 'Basic rules');
+      expect(tr('20 Pkt'), '20 pts');
+      expect(trp('Vierling {0}', ['A']), 'Four As');
+      L10n.lang = 'de';
+    });
   });
 }

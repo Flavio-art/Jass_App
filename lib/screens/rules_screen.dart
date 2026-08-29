@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
+import '../l10n/tr.dart';
 import '../models/card_model.dart';
 import '../models/game_state.dart';
 
@@ -51,7 +52,7 @@ class _RulesScreenState extends State<RulesScreen>
       appBar: AppBar(
         backgroundColor: AppColors.background,
         foregroundColor: Colors.white,
-        title: const Text('Jass Regeln',
+        title: Text(tr('Jass Regeln'),
             style: TextStyle(fontWeight: FontWeight.bold)),
         elevation: 0,
         bottom: TabBar(
@@ -98,83 +99,83 @@ class _RulesScreenState extends State<RulesScreen>
   List<Widget> _buildSchieberContent(CardType ct) {
     final isGerman = ct == CardType.german;
     return [
-        _Section('Spielstruktur – Schieber', [
-          _Rule('2 Teams: Süd & Nord gegen West & Ost.'),
-          _Rule('Jede Runde wählt der Ansager einen der 5 Spielmodi. '
-              'Es gibt keine Variantenbeschränkung – jeder Modus kann beliebig oft gespielt werden.'),
-          _Rule('Schieben: Der Ansager kann die Modusauswahl einmalig an den Partner weitergeben. '
-              'Der Partner muss dann wählen.'),
-          _Rule('Der Ansager wechselt jede Runde: Süd → Ost → Nord → West → Süd → …'),
-          _Rule('Gespielt wird bis das erste Team das vereinbarte Punktelimit '
+        _Section(tr('Spielstruktur – Schieber'), [
+          _Rule(tr('2 Teams: Süd & Nord gegen West & Ost.')),
+          _Rule(tr('Jede Runde wählt der Ansager einen der 5 Spielmodi. ') +
+              tr('Es gibt keine Variantenbeschränkung – jeder Modus kann beliebig oft gespielt werden.')),
+          _Rule(tr('Schieben: Der Ansager kann die Modusauswahl einmalig an den Partner weitergeben. ') +
+              tr('Der Partner muss dann wählen.')),
+          _Rule(tr('Der Ansager wechselt jede Runde: Süd → Ost → Nord → West → Süd → …')),
+          _Rule(tr('Gespielt wird bis das erste Team das vereinbarte Punktelimit ') +
               '(1000–5000, einstellbar) erreicht hat.'),
         ]),
 
-        _Section('Spielvarianten & Multiplikatoren', [
-          _Rule('Nur 5 Varianten sind verfügbar. Jede hat einen einstellbaren Multiplikator '
-              'der auf beide Team-Punkte angewendet wird (Standard-Werte):'),
+        _Section(tr('Spielvarianten & Multiplikatoren'), [
+          _Rule(tr('Nur 5 Varianten sind verfügbar. Jede hat einen einstellbaren Multiplikator ') +
+              tr('der auf beide Team-Punkte angewendet wird (Standard-Werte):')),
         ]),
         if (isGerman) ...[
           _MultCard('', '1×',
-              'Schellen oder Schilten wird Trumpf (Metall-Gruppe). '
-              'Buur (Under) und Näll (9) sind die stärksten Trumpfkarten.',
-              titleWidget: _germanSuitTitle([Suit.schellen, Suit.schilten], 'Metall – Schellen / Schilten')),
+              tr('Schellen oder Schilten wird Trumpf (Metall-Gruppe). ') +
+              tr('Buur (Under) und Näll (9) sind die stärksten Trumpfkarten.'),
+              titleWidget: _germanSuitTitle([Suit.schellen, Suit.schilten], tr('Metall – Schellen / Schilten'))),
           _MultCard('', '2×',
-              'Rosen oder Eicheln wird Trumpf (Gemüse-Gruppe). '
-              'Gleiche Regeln, aber doppelte Punkte.',
-              titleWidget: _germanSuitTitle([Suit.herzGerman, Suit.eichel], 'Gemüse – Rosen / Eicheln')),
+              tr('Rosen oder Eicheln wird Trumpf (Gemüse-Gruppe). ') +
+              tr('Gleiche Regeln, aber doppelte Punkte.'),
+              titleWidget: _germanSuitTitle([Suit.herzGerman, Suit.eichel], tr('Gemüse – Rosen / Eicheln'))),
         ] else ...[
-          _MultCard('♠♣  Schaufeln / Kreuz-Trumpf', '1×',
-              'Schwarze Trumpffarbe (Schaufeln oder Kreuz). '
-              'Buur und Näll sind die stärksten Trumpfkarten.'),
-          _MultCard('♥♦  Herz / Ecken-Trumpf', '2×',
-              'Rote Trumpffarbe (Herz oder Ecken). '
-              'Gleiche Regeln wie schwarz, aber doppelte Punkte.'),
+          _MultCard(tr('♠♣  Schaufeln / Kreuz-Trumpf'), '1×',
+              tr('Schwarze Trumpffarbe (Schaufeln oder Kreuz). ') +
+              tr('Buur und Näll sind die stärksten Trumpfkarten.')),
+          _MultCard(tr('♥♦  Herz / Ecken-Trumpf'), '2×',
+              tr('Rote Trumpffarbe (Herz oder Ecken). ') +
+              tr('Gleiche Regeln wie schwarz, aber doppelte Punkte.')),
         ],
         _MultCard('⬇️  Obenabe', '3×',
-            'Kein Trumpf. Ass gewinnt, Sechs verliert. Achter = 8 Pkt. '
-            'Dreifache Punkte.'),
+            tr('Kein Trumpf. Ass gewinnt, Sechs verliert. Achter = 8 Pkt. ') +
+            tr('Dreifache Punkte.')),
         _MultCard('⬆️  Undenufe', '3×',
-            'Kein Trumpf. Sechs gewinnt, Ass verliert. Achter = 8 Pkt. '
-            'Dreifache Punkte.'),
+            tr('Kein Trumpf. Sechs gewinnt, Ass verliert. Achter = 8 Pkt. ') +
+            tr('Dreifache Punkte.')),
         _MultCard('↕️  Slalom', '4×',
-            'Abwechselnd Obenabe und Undenufe (1. Stich Obenabe). '
-            'Vierfache Punkte.'),
+            tr('Abwechselnd Obenabe und Undenufe (1. Stich Obenabe). ') +
+            tr('Vierfache Punkte.')),
 
-        _Section('Wertung', [
-          _Rule('Beide Teams erhalten ihre Spielpunkte (Stichpunkte) × Multiplikator – unabhängig davon, wer angesagt hat.'),
-          _Rule('Gesamtpunkte pro Runde: 157 × Multiplikator (152 Kartenwerte + 5 Bonus für letzten Stich).'),
-          _Rule('In der Rundenübersicht werden Spielpunkte und Wys-Punkte getrennt angezeigt.'),
-          _Rule('Match: Gewinnt ein Team alle 9 Stiche, erhält es 257 × Multiplikator Punkte. '
-              'Das andere Team erhält 0.'),
-          _Rule('Punkte werden aufsummiert. Das erste Team das das Limit erreicht oder überschreitet gewinnt sofort.'),
+        _Section(tr('Wertung'), [
+          _Rule(tr('Beide Teams erhalten ihre Spielpunkte (Stichpunkte) × Multiplikator – unabhängig davon, wer angesagt hat.')),
+          _Rule(tr('Gesamtpunkte pro Runde: 157 × Multiplikator (152 Kartenwerte + 5 Bonus für letzten Stich).')),
+          _Rule(tr('In der Rundenübersicht werden Spielpunkte und Wys-Punkte getrennt angezeigt.')),
+          _Rule(tr('Match: Gewinnt ein Team alle 9 Stiche, erhält es 257 × Multiplikator Punkte. ') +
+              tr('Das andere Team erhält 0.')),
+          _Rule(tr('Punkte werden aufsummiert. Das erste Team das das Limit erreicht oder überschreitet gewinnt sofort.')),
         ]),
 
-        _Section('Kartenwerte – Trumpfspiel', []),
-        _ValueRow('Buur (Trumpf-Bauer)', '20 Pkt', isHighlight: true),
-        _ValueRow('Näll (Trumpf-Neun)', '14 Pkt', isHighlight: true),
-        _ValueRow('Ass', '11 Pkt'),
-        _ValueRow('Zehner', '10 Pkt'),
-        _ValueRow('König', '4 Pkt'),
-        _ValueRow('Dame', '3 Pkt'),
-        _ValueRow('Bauer (kein Trumpf)', '2 Pkt'),
-        _ValueRow('8, 7, 6 (Trumpf) / 9, 8, 7, 6 (andere)', '0 Pkt'),
+        _Section(tr('Kartenwerte – Trumpfspiel'), []),
+        _ValueRow(tr('Buur (Trumpf-Bauer)'), tr('20 Pkt'), isHighlight: true),
+        _ValueRow(tr('Näll (Trumpf-Neun)'), tr('14 Pkt'), isHighlight: true),
+        _ValueRow(tr('Ass'), tr('11 Pkt')),
+        _ValueRow(tr('Zehner'), tr('10 Pkt')),
+        _ValueRow(tr('König'), tr('4 Pkt')),
+        _ValueRow(tr('Dame'), tr('3 Pkt')),
+        _ValueRow(tr('Bauer (kein Trumpf)'), tr('2 Pkt')),
+        _ValueRow(tr('8, 7, 6 (Trumpf) / 9, 8, 7, 6 (andere)'), tr('0 Pkt')),
 
-        _Section('Kartenwerte – Obenabe & Undenufe', []),
-        _ValueRow('Ass (Obenabe) / Sechs (Undenufe)', '11 Pkt', isHighlight: true),
-        _ValueRow('Zehner', '10 Pkt'),
-        _ValueRow('Achter', '8 Pkt', isHighlight: true),
-        _ValueRow('König', '4 Pkt'),
-        _ValueRow('Dame', '3 Pkt'),
-        _ValueRow('Bauer', '2 Pkt'),
-        _ValueRow('9, 7 (Obenabe) / Ass, 9, 7 (Undenufe)', '0 Pkt'),
+        _Section(tr('Kartenwerte – Obenabe & Undenufe'), []),
+        _ValueRow(tr('Ass (Obenabe) / Sechs (Undenufe)'), tr('11 Pkt'), isHighlight: true),
+        _ValueRow(tr('Zehner'), tr('10 Pkt')),
+        _ValueRow(tr('Achter'), tr('8 Pkt'), isHighlight: true),
+        _ValueRow(tr('König'), tr('4 Pkt')),
+        _ValueRow(tr('Dame'), tr('3 Pkt')),
+        _ValueRow(tr('Bauer'), tr('2 Pkt')),
+        _ValueRow(tr('9, 7 (Obenabe) / Ass, 9, 7 (Undenufe)'), tr('0 Pkt')),
 
-        _Section('Grundregeln', [
-          _Rule('36 Karten (6 bis Ass, 4 Farben), je 9 Karten pro Spieler.'),
-          _Rule('Spielrichtung: Süd → Ost → Nord → West (Uhrzeigersinn).'),
-          _Rule('Farbenpflicht: Man muss die angespielte Farbe bedienen. '
-              'Hat man keine, darf man frei spielen.'),
-          _Rule('Jass zurückhalten: Ist der Buur die einzige Trumpfkarte, muss er nicht gespielt werden.'),
-          _Rule('Wer einen Stich gewinnt, spielt den nächsten an.'),
+        _Section(tr('Grundregeln'), [
+          _Rule(tr('36 Karten (6 bis Ass, 4 Farben), je 9 Karten pro Spieler.')),
+          _Rule(tr('Spielrichtung: Süd → Ost → Nord → West (Uhrzeigersinn).')),
+          _Rule(tr('Farbenpflicht: Man muss die angespielte Farbe bedienen. ') +
+              tr('Hat man keine, darf man frei spielen.')),
+          _Rule(tr('Jass zurückhalten: Ist der Buur die einzige Trumpfkarte, muss er nicht gespielt werden.')),
+          _Rule(tr('Wer einen Stich gewinnt, spielt den nächsten an.')),
         ]),
 
         const SizedBox(height: 8),
@@ -184,53 +185,53 @@ class _RulesScreenState extends State<RulesScreen>
   // ── Differenzler ──────────────────────────────────────────────────────────────
 
   List<Widget> _buildDifferenzlerContent() => [
-        _Section('Spielstruktur – Differenzler', [
-          _Rule('Kein festes Team – alle 4 Spieler spielen für sich.'),
-          _Rule('Gespielt werden standardmässig 4 Runden (einstellbar, 1–12). Am Ende gewinnt, wer die '
-              'geringste Gesamtstrafe angesammelt hat.'),
-          _Rule('Jede Runde wird ein zufälliger Trumpf bestimmt. '
-              'Kein Schieben, keine Modusauswahl.'),
+        _Section(tr('Spielstruktur – Differenzler'), [
+          _Rule(tr('Kein festes Team – alle 4 Spieler spielen für sich.')),
+          _Rule(tr('Gespielt werden standardmässig 4 Runden (einstellbar, 1–12). Am Ende gewinnt, wer die ') +
+              tr('geringste Gesamtstrafe angesammelt hat.')),
+          _Rule(tr('Jede Runde wird ein zufälliger Trumpf bestimmt. ') +
+              tr('Kein Schieben, keine Modusauswahl.')),
         ]),
 
-        _Section('Vorhersage', [
-          _Rule('Bevor die Karten gespielt werden, muss jeder Spieler seine '
-              'erwarteten Stichpunkte voraussagen (0 bis 157 – inkl. 5 Bonus für den letzten Stich).'),
-          _Rule('Der menschliche Spieler wählt seine Vorhersage per Schieberegler. '
-              'KI-Spieler schätzen anhand ihrer Handkarten.'),
-          _Rule('Die Vorhersagen der anderen Spieler sind während des Spiels nicht sichtbar – '
-              'jeder sieht nur seine eigenen Punkte.'),
+        _Section(tr('Vorhersage'), [
+          _Rule(tr('Bevor die Karten gespielt werden, muss jeder Spieler seine ') +
+              tr('erwarteten Stichpunkte voraussagen (0 bis 157 – inkl. 5 Bonus für den letzten Stich).')),
+          _Rule(tr('Der menschliche Spieler wählt seine Vorhersage per Schieberegler. ') +
+              tr('KI-Spieler schätzen anhand ihrer Handkarten.')),
+          _Rule(tr('Die Vorhersagen der anderen Spieler sind während des Spiels nicht sichtbar – ') +
+              tr('jeder sieht nur seine eigenen Punkte.')),
         ]),
 
-        _Section('Wertung & Strafe', [
-          _Rule('Nach jeder Runde: Strafe = |Vorhersage − tatsächliche Stichpunkte|.'),
-          _Rule('Je genauer die Vorhersage, desto kleiner die Strafe. '
-              'Eine perfekte Vorhersage ergibt 0 Strafe.'),
-          _Rule('Die Rundenstraf-Punkte werden über alle Runden aufsummiert.'),
-          _Rule('Nach jeder Runde erscheint eine Übersicht aller Spieler:\n'
-              'Vorhersage (Ziel) · Ist-Punkte · Differenz diese Runde · Gesamtstrafe.'),
-          _Rule('Nach der letzten Runde gewinnt der Spieler mit der kleinsten Gesamtstrafe.'),
+        _Section(tr('Wertung & Strafe'), [
+          _Rule(tr('Nach jeder Runde: Strafe = |Vorhersage − tatsächliche Stichpunkte|.')),
+          _Rule(tr('Je genauer die Vorhersage, desto kleiner die Strafe. ') +
+              tr('Eine perfekte Vorhersage ergibt 0 Strafe.')),
+          _Rule(tr('Die Rundenstraf-Punkte werden über alle Runden aufsummiert.')),
+          _Rule(tr('Nach jeder Runde erscheint eine Übersicht aller Spieler:\n') +
+              tr('Vorhersage (Ziel) · Ist-Punkte · Differenz diese Runde · Gesamtstrafe.')),
+          _Rule(tr('Nach der letzten Runde gewinnt der Spieler mit der kleinsten Gesamtstrafe.')),
         ]),
 
-        _Section('Kartenwerte – Trumpfspiel', [
-          _Rule('Da jede Runde Trumpf gespielt wird, gelten die Standard-Trumpfwerte:'),
+        _Section(tr('Kartenwerte – Trumpfspiel'), [
+          _Rule(tr('Da jede Runde Trumpf gespielt wird, gelten die Standard-Trumpfwerte:')),
         ]),
-        _ValueRow('Buur (Trumpf-Bauer)', '20 Pkt', isHighlight: true),
-        _ValueRow('Näll (Trumpf-Neun)', '14 Pkt', isHighlight: true),
-        _ValueRow('Ass', '11 Pkt'),
-        _ValueRow('Zehner', '10 Pkt'),
-        _ValueRow('König', '4 Pkt'),
-        _ValueRow('Dame', '3 Pkt'),
-        _ValueRow('Bauer (kein Trumpf)', '2 Pkt'),
-        _ValueRow('8, 7, 6 (Trumpf) / 9, 8, 7, 6 (andere)', '0 Pkt'),
+        _ValueRow(tr('Buur (Trumpf-Bauer)'), tr('20 Pkt'), isHighlight: true),
+        _ValueRow(tr('Näll (Trumpf-Neun)'), tr('14 Pkt'), isHighlight: true),
+        _ValueRow(tr('Ass'), tr('11 Pkt')),
+        _ValueRow(tr('Zehner'), tr('10 Pkt')),
+        _ValueRow(tr('König'), tr('4 Pkt')),
+        _ValueRow(tr('Dame'), tr('3 Pkt')),
+        _ValueRow(tr('Bauer (kein Trumpf)'), tr('2 Pkt')),
+        _ValueRow(tr('8, 7, 6 (Trumpf) / 9, 8, 7, 6 (andere)'), tr('0 Pkt')),
 
-        _Section('Grundregeln', [
-          _Rule('36 Karten (6 bis Ass, 4 Farben), je 9 Karten pro Spieler.'),
-          _Rule('Spielrichtung: Süd → Ost → Nord → West (Uhrzeigersinn).'),
-          _Rule('Farbenpflicht: Man muss die angespielte Farbe bedienen. '
-              'Hat man keine, darf man frei spielen.'),
-          _Rule('Jass zurückhalten: Ist der Buur die einzige Trumpfkarte, muss er nicht gespielt werden.'),
-          _Rule('Letzter Stich: +5 Bonuspunkte für den Gewinner. '
-              'Gesamtpunkte pro Runde: 157.'),
+        _Section(tr('Grundregeln'), [
+          _Rule(tr('36 Karten (6 bis Ass, 4 Farben), je 9 Karten pro Spieler.')),
+          _Rule(tr('Spielrichtung: Süd → Ost → Nord → West (Uhrzeigersinn).')),
+          _Rule(tr('Farbenpflicht: Man muss die angespielte Farbe bedienen. ') +
+              tr('Hat man keine, darf man frei spielen.')),
+          _Rule(tr('Jass zurückhalten: Ist der Buur die einzige Trumpfkarte, muss er nicht gespielt werden.')),
+          _Rule(tr('Letzter Stich: +5 Bonuspunkte für den Gewinner. ') +
+              tr('Gesamtpunkte pro Runde: 157.')),
         ]),
 
         const SizedBox(height: 8),
@@ -240,32 +241,32 @@ class _RulesScreenState extends State<RulesScreen>
 
   List<Widget> _buildFriseurTeamContent(CardType ct) {
     final isGerman = ct == CardType.german;
-    final grp1 = isGerman ? 'Metall-Trumpf (Schellen/Schilten)' : 'Schaufeln/Kreuz-Trumpf (♠♣)';
-    final grp2 = isGerman ? 'Gemüse-Trumpf (Rosen/Eichel)' : 'Herz/Ecken-Trumpf (♥♦)';
+    final grp1 = isGerman ? tr('Metall-Trumpf (Schellen/Schilten)') : tr('Schaufeln/Kreuz-Trumpf (♠♣)');
+    final grp2 = isGerman ? tr('Gemüse-Trumpf (Rosen/Eichel)') : tr('Herz/Ecken-Trumpf (♥♦)');
     final grpHint = isGerman
-        ? 'Metall (Schellen/Schilten) und Gemüse (Rosen/Eichel)'
-        : '♠♣ schwarz und ♥♦ rot';
+        ? tr('Metall (Schellen/Schilten) und Gemüse (Rosen/Eichel)')
+        : tr('♠♣ schwarz und ♥♦ rot');
     return [
-        _Section('Spielstruktur – Coiffeur', [
-          _Rule('2 Teams: Süd & Nord gegen West & Ost.'),
-          _Rule('Jedes Team muss alle 10 Spielvarianten je einmal ansagen:\n'
-              '$grp1, $grp2, Obenabe, Undenufe, Slalom, Elefant, Misere, Tutti, Schafkopf, Molotow.'),
-          _Rule('Alle Varianten zählen zu Beginn 1×. Der Multiplikator kann in den Einstellungen angepasst werden.'),
-          _Rule('Trumpf Oben / Unten: Jede Trumpfgruppe ($grpHint) muss ein Team je einmal als Oben und einmal als Unten spielen. '
-              'Die erste Wahl ist frei; die zweite Gruppe wird automatisch erzwungen.'),
-          _Rule('Schieben: Der Ansager kann die Trumpfwahl an den Partner weitergeben. '
-              'Wer zurückkommt (Schiebi), muss Trumpf wählen.'),
-          _Rule('Der Ansager wechselt jede Runde: Süd → Ost → Nord → West → Süd → …'),
-          _Rule('Bereits gespielte Varianten des eigenen Teams sind ausgegraut.'),
-          _Rule('Nach allen 20 Runden endet das Gesamtspiel. Das Team mit den meisten Punkten gewinnt.'),
+        _Section(tr('Spielstruktur – Coiffeur'), [
+          _Rule(tr('2 Teams: Süd & Nord gegen West & Ost.')),
+          _Rule(tr('Jedes Team muss alle 10 Spielvarianten je einmal ansagen:\n') +
+              trp('{0}, {1}, Obenabe, Undenufe, Slalom, Elefant, Misere, Tutti, Schafkopf, Molotow.', [grp1, grp2])),
+          _Rule(tr('Alle Varianten zählen zu Beginn 1×. Der Multiplikator kann in den Einstellungen angepasst werden.')),
+          _Rule(trp('Trumpf Oben / Unten: Jede Trumpfgruppe ({0}) muss ein Team je einmal als Oben und einmal als Unten spielen. ', [grpHint]) +
+              tr('Die erste Wahl ist frei; die zweite Gruppe wird automatisch erzwungen.')),
+          _Rule(tr('Schieben: Der Ansager kann die Trumpfwahl an den Partner weitergeben. ') +
+              tr('Wer zurückkommt (Schiebi), muss Trumpf wählen.')),
+          _Rule(tr('Der Ansager wechselt jede Runde: Süd → Ost → Nord → West → Süd → …')),
+          _Rule(tr('Bereits gespielte Varianten des eigenen Teams sind ausgegraut.')),
+          _Rule(tr('Nach allen 20 Runden endet das Gesamtspiel. Das Team mit den meisten Punkten gewinnt.')),
         ]),
-        _Section('Wertung', [
-          _Rule('Nur das ansagende Team (Ansager + Partner) erhält die Punkte aus dieser Runde. '
-              'Das gegnerische Team erhält für diese Runde keine Punkte.'),
-          _Rule('Misere & Molotow:\n'
-              'Gutschrift = 157 − eigene Kartenpunkte (je tiefer, desto besser).'),
-          _Rule('Match: Gewinnt ein Team alle 9 Stiche, erhält es 170 Punkte. '
-              'Das andere Team erhält 0.'),
+        _Section(tr('Wertung'), [
+          _Rule(tr('Nur das ansagende Team (Ansager + Partner) erhält die Punkte aus dieser Runde. ') +
+              tr('Das gegnerische Team erhält für diese Runde keine Punkte.')),
+          _Rule(tr('Misere & Molotow:\n') +
+              tr('Gutschrift = 157 − eigene Kartenpunkte (je tiefer, desto besser).')),
+          _Rule(tr('Match: Gewinnt ein Team alle 9 Stiche, erhält es 170 Punkte. ') +
+              tr('Das andere Team erhält 0.')),
         ]),
         ..._commonRules(ct),
       ];
@@ -274,24 +275,24 @@ class _RulesScreenState extends State<RulesScreen>
   // ── Friseur Solo ──────────────────────────────────────────────────────────────
 
   List<Widget> _buildFriseurSoloContent(CardType ct) => [
-        _Section('Spielstruktur – Wunschkarte', [
-          _Rule('Kein festes Team – jeder Spieler spielt grundsätzlich für sich.'),
-          _Rule('Jeder Spieler hat eine eigene Liste von 10 Spielvarianten, die er ansagen muss. '
-              'Eine angesagte Variante wird von der eigenen Liste gestrichen.'),
-          _Rule('Wunschkarte: Der Ansager wählt eine Wunschkarte. '
-              'Wer diese Karte hat, ist für diese Runde sein geheimer Partner.'),
-          _Rule('Wichtig – Gewünscht ≠ Angesagt: Wird für dich eine Variante gewünscht '
-              '(du bist Partner), wird diese Variante von deiner Liste gestrichen – '
-              'du kannst sie danach nicht mehr selbst ansagen. '
-              'Du kannst aber erneut für dieselbe Variante gewünscht werden.'),
-          _Rule('Sobald die Wunschkarte gespielt wird, ist der Partner aufgedeckt '
-              'und die Spieler werden farblich markiert.'),
-          _Rule('Schieben: Der Ansager kann die Trumpfwahl bis zu 2× weitergeben. '
-              'Nach 2× Schieben muss er selbst Trumpf wählen (Im Loch 🕳️).'),
-          _Rule('Punkte: Nur der ansagende Spieler und der gewünschte Partner erhalten '
-              'die Punkte aus dieser Runde. Die zwei Gegner erhalten keine Punkte.'),
-          _Rule('Ziel: Das Spiel endet, wenn alle Spieler ihre verbleibenden Varianten '
-              'angesagt haben. Wer am Ende die meisten Punkte hat, gewinnt.'),
+        _Section(tr('Spielstruktur – Wunschkarte'), [
+          _Rule(tr('Kein festes Team – jeder Spieler spielt grundsätzlich für sich.')),
+          _Rule(tr('Jeder Spieler hat eine eigene Liste von 10 Spielvarianten, die er ansagen muss. ') +
+              tr('Eine angesagte Variante wird von der eigenen Liste gestrichen.')),
+          _Rule(tr('Wunschkarte: Der Ansager wählt eine Wunschkarte. ') +
+              tr('Wer diese Karte hat, ist für diese Runde sein geheimer Partner.')),
+          _Rule(tr('Wichtig – Gewünscht ≠ Angesagt: Wird für dich eine Variante gewünscht ') +
+              tr('(du bist Partner), wird diese Variante von deiner Liste gestrichen – ') +
+              'du kannst sie danach nicht mehr selbst ansagen. ' +
+              tr('Du kannst aber erneut für dieselbe Variante gewünscht werden.')),
+          _Rule(tr('Sobald die Wunschkarte gespielt wird, ist der Partner aufgedeckt ') +
+              tr('und die Spieler werden farblich markiert.')),
+          _Rule(tr('Schieben: Der Ansager kann die Trumpfwahl bis zu 2× weitergeben. ') +
+              tr('Nach 2× Schieben muss er selbst Trumpf wählen (Im Loch 🕳️).')),
+          _Rule(tr('Punkte: Nur der ansagende Spieler und der gewünschte Partner erhalten ') +
+              tr('die Punkte aus dieser Runde. Die zwei Gegner erhalten keine Punkte.')),
+          _Rule(tr('Ziel: Das Spiel endet, wenn alle Spieler ihre verbleibenden Varianten ') +
+              tr('angesagt haben. Wer am Ende die meisten Punkte hat, gewinnt.')),
         ]),
         ..._commonRules(ct),
       ];
@@ -300,121 +301,122 @@ class _RulesScreenState extends State<RulesScreen>
 
   List<Widget> _commonRules(CardType ct) {
     final isGerman = ct == CardType.german;
-    final bauer  = isGerman ? 'Buur (Trumpf-Under)'  : 'Buur (Trumpf-Bauer)';
-    final naell  = 'Näll (Trumpf-Neun)';
-    final dame   = isGerman ? 'Ober'                 : 'Dame';
-    final bube   = isGerman ? 'Under (kein Trumpf)'  : 'Bauer (kein Trumpf)';
-    final grp1   = isGerman ? 'Metall (Schellen / Schilten)' : '♠♣  Schaufeln / Kreuz  (Trumpf schwarz)';
-    final grp1w  = isGerman ? _germanSuitTitle([Suit.schellen, Suit.schilten], 'Metall  (Schellen / Schilten)') : null;
+    final bauer  = isGerman ? tr('Buur (Trumpf-Under)')  : tr('Buur (Trumpf-Bauer)');
+    final naell  = tr('Näll (Trumpf-Neun)');
+    final dame   = isGerman ? 'Ober'                 : tr('Dame');
+    final oberOrQueen = isGerman ? 'Ober' : tr('Damen');
+    final bube   = isGerman ? tr('Under (kein Trumpf)')  : tr('Bauer (kein Trumpf)');
+    final grp1   = isGerman ? tr('Metall (Schellen / Schilten)') : tr('♠♣  Schaufeln / Kreuz  (Trumpf schwarz)');
+    final grp1w  = isGerman ? _germanSuitTitle([Suit.schellen, Suit.schilten], tr('Metall  (Schellen / Schilten)')) : null;
     final grp1d  = isGerman
-        ? 'Schellen oder Schilten wird Trumpf. Buur (Under) und Näll (9) sind die stärksten Karten.'
-        : 'Eine Farbe aus der Gruppe Schaufeln (♠) / Kreuz (♣) wird Trumpf. Der Buur (Bauer) und die Näll (9) sind die stärksten Karten.';
-    final grp2   = isGerman ? 'Gemüse (Rosen / Eicheln)' : '♥♦  Herz / Ecken  (Trumpf rot)';
-    final grp2w  = isGerman ? _germanSuitTitle([Suit.herzGerman, Suit.eichel], 'Gemüse  (Rosen / Eicheln)') : null;
+        ? tr('Schellen oder Schilten wird Trumpf. Buur (Under) und Näll (9) sind die stärksten Karten.')
+        : tr('Eine Farbe aus der Gruppe Schaufeln (♠) / Kreuz (♣) wird Trumpf. Der Buur (Bauer) und die Näll (9) sind die stärksten Karten.');
+    final grp2   = isGerman ? tr('Gemüse (Rosen / Eicheln)') : tr('♥♦  Herz / Ecken  (Trumpf rot)');
+    final grp2w  = isGerman ? _germanSuitTitle([Suit.herzGerman, Suit.eichel], tr('Gemüse  (Rosen / Eicheln)')) : null;
     final grp2d  = isGerman
-        ? 'Rosen oder Eicheln wird Trumpf. Gleiche Regeln wie Metall.'
-        : 'Eine Farbe aus der Gruppe Herz (♥) / Ecken (♦) wird Trumpf. Gleiche Regeln wie oben.';
-    final schafJack = isGerman ? 'Under' : 'Bauer';
+        ? tr('Rosen oder Eicheln wird Trumpf. Gleiche Regeln wie Metall.')
+        : tr('Eine Farbe aus der Gruppe Herz (♥) / Ecken (♦) wird Trumpf. Gleiche Regeln wie oben.');
+    final schafJack = isGerman ? 'Under' : tr('Bauer');
     final schafTrumpfReihe = isGerman
-        ? 'Trumpfreihenfolge: Schellen-Ober › Schilten-Ober › Rosen-Ober › Eichel-Ober › '
-          'Schellen-8 › Schilten-8 › Rosen-8 › Eichel-8 › '
-          'Zehner › König › Under › Ass › 9 › 7 › 6 (Trumpffarbe).'
-        : 'Trumpfreihenfolge: Kreuz-Dame › Schaufeln-Dame › Herz-Dame › Ecken-Dame › '
-          'Kreuz-8 › Schaufeln-8 › Herz-8 › Ecken-8 › '
-          'Zehner › König › Bauer › Ass › 9 › 7 › 6 (Trumpffarbe).';
-    final schafNonTrumpOrder = 'Nicht-Trumpf-Farben: Zehner › König › $schafJack › Ass › 9 › 7 › 6 (Achtung: Zehner schlägt Ass!).';
+        ? tr('Trumpfreihenfolge: Schellen-Ober › Schilten-Ober › Rosen-Ober › Eichel-Ober › ') +
+          'Schellen-8 › Schilten-8 › Rosen-8 › Eichel-8 › ' +
+          tr('Zehner › König › Under › Ass › 9 › 7 › 6 (Trumpffarbe).')
+        : tr('Trumpfreihenfolge: Kreuz-Dame › Schaufeln-Dame › Herz-Dame › Ecken-Dame › ') +
+          tr('Kreuz-8 › Schaufeln-8 › Herz-8 › Ecken-8 › ') +
+          tr('Zehner › König › Bauer › Ass › 9 › 7 › 6 (Trumpffarbe).');
+    final schafNonTrumpOrder = trp('Nicht-Trumpf-Farben: Zehner › König › {0} › Ass › 9 › 7 › 6 (Achtung: Zehner schlägt Ass!).', [schafJack]);
 
     return [
-        _Section('Grundregeln', [
-          _Rule('36 Karten pro Spiel (6 bis Ass, 4 Farben), je 9 Karten pro Spieler.'),
-          _Rule('Spielrichtung: Süd → Ost → Nord → West (Uhrzeigersinn).'),
-          _Rule('Wer einen Stich gewinnt, spielt den nächsten an.'),
+        _Section(tr('Grundregeln'), [
+          _Rule(tr('36 Karten pro Spiel (6 bis Ass, 4 Farben), je 9 Karten pro Spieler.')),
+          _Rule(tr('Spielrichtung: Süd → Ost → Nord → West (Uhrzeigersinn).')),
+          _Rule(tr('Wer einen Stich gewinnt, spielt den nächsten an.')),
         ]),
 
-        _Section('Farbenpflicht', [
-          _Rule('Man muss immer die angespielte Farbe bedienen, falls vorhanden.'),
-          _Rule('Hat man keine Karte der gespielten Farbe, darf man beliebig spielen – auch trumpfen.'),
-          _Rule('Jass zurückhalten (nur Trumpfspiel): Ist der Buur die einzige Trumpfkarte in der Hand, muss er nicht gespielt werden.'),
+        _Section(tr('Farbenpflicht'), [
+          _Rule(tr('Man muss immer die angespielte Farbe bedienen, falls vorhanden.')),
+          _Rule(tr('Hat man keine Karte der gespielten Farbe, darf man beliebig spielen – auch trumpfen.')),
+          _Rule(tr('Jass zurückhalten (nur Trumpfspiel): Ist der Buur die einzige Trumpfkarte in der Hand, muss er nicht gespielt werden.')),
         ]),
 
-        _Section('Kartenwerte – Trumpfspiel', []),
-        _ValueRow(bauer, '20 Pkt', isHighlight: true),
-        _ValueRow(naell, '14 Pkt', isHighlight: true),
-        _ValueRow('Ass', '11 Pkt'),
-        _ValueRow('Zehner', '10 Pkt'),
-        _ValueRow('König', '4 Pkt'),
-        _ValueRow(dame, '3 Pkt'),
-        _ValueRow(bube, '2 Pkt'),
-        _ValueRow('8, 7, 6 (Trumpf) / 9, 8, 7, 6 (andere)', '0 Pkt'),
+        _Section(tr('Kartenwerte – Trumpfspiel'), []),
+        _ValueRow(bauer, tr('20 Pkt'), isHighlight: true),
+        _ValueRow(naell, tr('14 Pkt'), isHighlight: true),
+        _ValueRow(tr('Ass'), tr('11 Pkt')),
+        _ValueRow(tr('Zehner'), tr('10 Pkt')),
+        _ValueRow(tr('König'), tr('4 Pkt')),
+        _ValueRow(dame, tr('3 Pkt')),
+        _ValueRow(bube, tr('2 Pkt')),
+        _ValueRow(tr('8, 7, 6 (Trumpf) / 9, 8, 7, 6 (andere)'), tr('0 Pkt')),
 
-        _Section('Kartenwerte – Trumpf Unten', [
-          _Rule('Stichstärke Trumpf: Buur › Näll › 6 › 7 › 8 › 10 › $dame › König › Ass.\n'
-              'Nicht-Trumpf: wie Undenufe (6 schlägt Ass).'),
+        _Section(tr('Kartenwerte – Trumpf Unten'), [
+          _Rule(trp('Stichstärke Trumpf: Buur › Näll › 6 › 7 › 8 › 10 › {0} › König › Ass.\n', [dame]) +
+              tr('Nicht-Trumpf: wie Undenufe (6 schlägt Ass).')),
         ]),
-        _ValueRow(bauer, '20 Pkt', isHighlight: true),
-        _ValueRow(naell, '14 Pkt', isHighlight: true),
-        _ValueRow('Sechs (Trumpf oder nicht)', '11 Pkt', isHighlight: true),
-        _ValueRow('Zehner', '10 Pkt'),
-        _ValueRow('König', '4 Pkt'),
-        _ValueRow(dame, '3 Pkt'),
-        _ValueRow(bube, '2 Pkt'),
-        _ValueRow('Ass, 8, 7 (Trumpf) / Ass, 9, 8, 7 (andere)', '0 Pkt'),
+        _ValueRow(bauer, tr('20 Pkt'), isHighlight: true),
+        _ValueRow(naell, tr('14 Pkt'), isHighlight: true),
+        _ValueRow(tr('Sechs (Trumpf oder nicht)'), tr('11 Pkt'), isHighlight: true),
+        _ValueRow(tr('Zehner'), tr('10 Pkt')),
+        _ValueRow(tr('König'), tr('4 Pkt')),
+        _ValueRow(dame, tr('3 Pkt')),
+        _ValueRow(bube, tr('2 Pkt')),
+        _ValueRow(tr('Ass, 8, 7 (Trumpf) / Ass, 9, 8, 7 (andere)'), tr('0 Pkt')),
 
-        _Section('Kartenwerte – Obenabe & Undenufe', []),
-        _ValueRow('Ass (Obenabe) / Sechs (Undenufe)', '11 Pkt', isHighlight: true),
-        _ValueRow('Zehner', '10 Pkt'),
-        _ValueRow('Achter', '8 Pkt', isHighlight: true),
-        _ValueRow('König', '4 Pkt'),
-        _ValueRow(dame, '3 Pkt'),
-        _ValueRow(bube, '2 Pkt'),
-        _ValueRow('9, 7 (Obenabe) / Ass, 9, 7 (Undenufe)', '0 Pkt'),
+        _Section(tr('Kartenwerte – Obenabe & Undenufe'), []),
+        _ValueRow(tr('Ass (Obenabe) / Sechs (Undenufe)'), tr('11 Pkt'), isHighlight: true),
+        _ValueRow(tr('Zehner'), tr('10 Pkt')),
+        _ValueRow(tr('Achter'), tr('8 Pkt'), isHighlight: true),
+        _ValueRow(tr('König'), tr('4 Pkt')),
+        _ValueRow(dame, tr('3 Pkt')),
+        _ValueRow(bube, tr('2 Pkt')),
+        _ValueRow(tr('9, 7 (Obenabe) / Ass, 9, 7 (Undenufe)'), tr('0 Pkt')),
 
-        _Section('Letzter Stich & Match', [
-          _Rule('Wer den letzten (9.) Stich gewinnt, erhält 5 Bonuspunkte.'),
-          _Rule('Gesamtpunkte pro Runde: 157 (152 Kartenwerte + 5 Bonus).'),
-          _Rule('Match: Gewinnt ein Team alle 9 Stiche, erhält das ansagende Team 170 Punkte. Das andere Team erhält 0.'),
+        _Section(tr('Letzter Stich & Match'), [
+          _Rule(tr('Wer den letzten (9.) Stich gewinnt, erhält 5 Bonuspunkte.')),
+          _Rule(tr('Gesamtpunkte pro Runde: 157 (152 Kartenwerte + 5 Bonus).')),
+          _Rule(tr('Match: Gewinnt ein Team alle 9 Stiche, erhält das ansagende Team 170 Punkte. Das andere Team erhält 0.')),
         ]),
 
-        _Section('Spielmodi', []),
+        _Section(tr('Spielmodi'), []),
         _ModeCard(grp1, grp1d, titleWidget: grp1w),
         _ModeCard(grp2, grp2d, titleWidget: grp2w),
         _ModeCard('⬆️  Trumpf Unten',
-            'Wie Trumpfspiel, aber die Reihenfolge im Trumpf ist umgekehrt. '
-            'Nicht-Trumpf folgt der Undenufe-Reihenfolge (6 schlägt Ass).'),
+            tr('Wie Trumpfspiel, aber die Reihenfolge im Trumpf ist umgekehrt. ') +
+            tr('Nicht-Trumpf folgt der Undenufe-Reihenfolge (6 schlägt Ass).')),
         _ModeCard('⬇️  Obenabe',
-            'Kein Trumpf. Das Ass ist die höchste Karte, die Sechs die niedrigste. '
-            'Die vier Achter zählen je 8 Punkte.'),
+            tr('Kein Trumpf. Das Ass ist die höchste Karte, die Sechs die niedrigste. ') +
+            tr('Die vier Achter zählen je 8 Punkte.')),
         _ModeCard('⬆️  Undenufe',
-            'Kein Trumpf. Die Sechs ist die höchste Karte, das Ass die niedrigste. '
-            'Die vier Achter zählen je 8 Punkte.'),
+            tr('Kein Trumpf. Die Sechs ist die höchste Karte, das Ass die niedrigste. ') +
+            tr('Die vier Achter zählen je 8 Punkte.')),
         _ModeCard('↕️  Slalom',
-            'Abwechselnd Obenabe und Undenufe. Beim Slalom Oben gilt der 1. Stich nach Obenabe-Regeln usw.'),
+            tr('Abwechselnd Obenabe und Undenufe. Beim Slalom Oben gilt der 1. Stich nach Obenabe-Regeln usw.')),
         _ModeCard('🐘  Elefant',
-            'Stiche 1–3: Obenabe. Stiche 4–6: Undenufe. '
-            'Ab Stich 7: erste gespielte Karte bestimmt die Trumpffarbe.'),
+            tr('Stiche 1–3: Obenabe. Stiche 4–6: Undenufe. ') +
+            tr('Ab Stich 7: erste gespielte Karte bestimmt die Trumpffarbe.')),
         _ModeCard('😶  Misere',
-            'Ziel: möglichst wenige Punkte sammeln – wer am wenigsten Kartenpunkte macht, erhält die beste Gutschrift.\n'
-            'Gutschrift = 157 − eigene Kartenpunkte.\n'
-            'Es wird nach Obenabe-Regeln gespielt (kein Trumpf, Ass ist hoch). '
-            'Farbzwang gilt, aber es gibt keine Trumpfpflicht.\n'
-            'Match (0 Punkte gemacht) = 170 Punkte Gutschrift für das ansagende Team.'),
+            tr('Ziel: möglichst wenige Punkte sammeln – wer am wenigsten Kartenpunkte macht, erhält die beste Gutschrift.\n') +
+            tr('Gutschrift = 157 − eigene Kartenpunkte.\n') +
+            tr('Es wird nach Obenabe-Regeln gespielt (kein Trumpf, Ass ist hoch). ') +
+            tr('Farbzwang gilt, aber es gibt keine Trumpfpflicht.\n') +
+            tr('Match (0 Punkte gemacht) = 170 Punkte Gutschrift für das ansagende Team.')),
         _ModeCard('👑  Tutti',
-            'Kein fester Trumpf – die angespielte Farbe entscheidet. '
-            'Nur Buur (20 Pkt), Näll (14 Pkt) und König (4 Pkt) zählen.'),
+            tr('Kein fester Trumpf – die angespielte Farbe entscheidet. ') +
+            tr('Nur Buur (20 Pkt), Näll (14 Pkt) und König (4 Pkt) zählen.')),
         _ModeCard('🐑  Schafkopf',
-            'Es gibt 15 Trumpfkarten: alle vier ${isGerman ? "Ober" : "Damen"}, alle vier Achter und alle Karten der gewählten Trumpffarbe.\n'
+            trp('Es gibt 15 Trumpfkarten: alle vier {0}, alle vier Achter und alle Karten der gewählten Trumpffarbe.\n', [oberOrQueen]) +
             '$schafTrumpfReihe\n'
-            '$schafNonTrumpOrder\n'
-            'Punktesystem: Obenabe-Werte (Achter = 8 Punkte).\n'
-            '${isGerman ? "Ober" : "Damen"} und Achter gelten IMMER als Trumpf – auch wenn sie in einer anderen Farbe sind. '
-            'Wer eine Nicht-Trumpf-Farbe bedienen muss, darf ${isGerman ? "Ober" : "Damen"}/Achter dieser Farbe trotzdem behalten.'),
+            '$schafNonTrumpOrder\n' +
+            tr('Punktesystem: Obenabe-Werte (Achter = 8 Punkte).\n') +
+            trp('{0} und Achter gelten IMMER als Trumpf – auch wenn sie in einer anderen Farbe sind. ', [oberOrQueen]) +
+            trp('Wer eine Nicht-Trumpf-Farbe bedienen muss, darf {0}/Achter dieser Farbe trotzdem behalten.', [oberOrQueen])),
         _ModeCard('💣  Molotow',
-            'Strenge Farbenpflicht für ALLE Spieler – auch der erste Spieler muss Farbe angeben, wenn er kann.\n'
-            'Der erste Spieler, der nicht Farbe angeben kann, bestimmt mit seiner Karte den restlichen Spielmodus:\n'
-            '• 6 → Undenufe  • Ass → Obenabe  • Andere Karte → Trumpf (die Farbe dieser Karte wird Trumpf)\n\n'
-            'Ziel: möglichst wenige Punkte sammeln. Gutschrift = 157 − eigene Kartenpunkte.\n'
-            'Solange kein Modus bestimmt wurde, gelten Obenabe-Regeln.\n'
-            'Match (0 Punkte) = 170 Punkte Gutschrift für das ansagende Team.'),
+            tr('Strenge Farbenpflicht für ALLE Spieler – auch der erste Spieler muss Farbe angeben, wenn er kann.\n') +
+            tr('Der erste Spieler, der nicht Farbe angeben kann, bestimmt mit seiner Karte den restlichen Spielmodus:\n') +
+            tr('• 6 → Undenufe  • Ass → Obenabe  • Andere Karte → Trumpf (die Farbe dieser Karte wird Trumpf) +\n') +
+            tr('Ziel: möglichst wenige Punkte sammeln. Gutschrift = 157 − eigene Kartenpunkte.\n') +
+            tr('Solange kein Modus bestimmt wurde, gelten Obenabe-Regeln.\n') +
+            tr('Match (0 Punkte) = 170 Punkte Gutschrift für das ansagende Team.')),
 
         const SizedBox(height: 8),
       ];
