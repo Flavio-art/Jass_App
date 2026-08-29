@@ -2,7 +2,7 @@ name: jass_app
 description: "Jass Kartenspiel App mit Französischen und Deutschen Karten"
 publish_to: 'none'
 
-version: 1.19.0+2016
+version: 2.0.0+2017
 
 environment:
   sdk: ^3.11.0
