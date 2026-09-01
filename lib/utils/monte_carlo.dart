@@ -4464,6 +4464,33 @@ class MonteCarloAI {
   ) {
     if (cards.length == 1) return cards.first;
 
+    // ── Slalom-Endspiel (ab Stich 8) ──────────────────────────────────────
+    // Die behaltene Karte wird erst im (letzten) Stich gespielt → nach dessen
+    // Richtung bewerten, NICHT nach der aktuellen. Sonst gilt z.B. ein Ass in
+    // einem Oben-Stich als "sicherer Gewinner" und wird behalten, obwohl der
+    // Schlussstich Unten ist und das Ass dort tot verliert – während eine tiefe
+    // Karte (6) diesen Stich gewinnen würde. (Bei 9 Stichen hat der letzte
+    // dieselbe Richtung wie der erste → slalomStartsOben.)
+    if (state.gameMode == GameMode.slalom && state.currentTrickNumber >= 8) {
+      final lastMode = state.slalomStartsOben ? GameMode.oben : GameMode.unten;
+      final ordered = [...cards]
+        ..sort((a, b) {
+          // Schwächste in der Schlussrichtung zuerst abwerfen …
+          final sa = GameLogic.cardPlayStrength(a, lastMode, null);
+          final sb = GameLogic.cardPlayStrength(b, lastMode, null);
+          if (sa != sb) return sa.compareTo(sb);
+          // … bei Gleichstand die punktärmere zuerst.
+          return GameLogic.cardPoints(a, lastMode, null)
+              .compareTo(GameLogic.cardPoints(b, lastMode, null));
+        });
+      // Wunschkarte (Übergabe-Farbe) nie als Erstes abwerfen, falls Alternative.
+      if (state.wishCard != null && ordered.first == state.wishCard &&
+          ordered.length >= 2) {
+        return ordered[1];
+      }
+      return ordered.first;
+    }
+
     // Sichere Gewinner identifizieren (sollten behalten werden)
     final safeWinners = cards
         .where((c) => _isHighestRemaining(c, state))
