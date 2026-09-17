@@ -1196,6 +1196,20 @@ class GameProvider extends ChangeNotifier {
       (L10n.lang == 'en' ? '$playerName: "Drier than a schnitzel with no sauce."' : '$playerName: "Trockener als ein Zürcher Geschnetzeltes ohne Sauce."'),
       (L10n.lang == 'en' ? '$playerName: "I could use a beer right now. And better cards."' : '$playerName: "Ich bräuchte jetzt ein Bier. Und bessere Karten."'),
       (L10n.lang == 'en' ? '$playerName: "Tastes like passing today."' : '$playerName: "Schmeckt nach Schieben heute."'),
+      (L10n.lang == 'en' ? '$playerName: "These cards are why I have trust issues."' : '$playerName: "Diese Karten sind der Grund, warum ich Trust-Issues habe."'),
+      (L10n.lang == 'en' ? '$playerName: "I\'ve seen better leaves in autumn."' : '$playerName: "Ich hab bessere Blätter im Herbst gesehen."'),
+      (L10n.lang == 'en' ? '$playerName: "My hand is calling: it doesn\'t want to be played."' : '$playerName: "Mein Blatt ruft an: Es will nicht gespielt werden."'),
+      (L10n.lang == 'en' ? '$playerName: "If luck had an address, I live somewhere else."' : '$playerName: "Wenn das Glück eine Adresse hätte, ich wohne woanders."'),
+      (L10n.lang == 'en' ? '$playerName: "I pass faster than my WiFi loads."' : '$playerName: "Ich schiebe schneller als mein WLAN lädt."'),
+      (L10n.lang == 'en' ? '$playerName: "These cards and me – a toxic relationship."' : '$playerName: "Diese Karten und ich – eine toxische Beziehung."'),
+      (L10n.lang == 'en' ? '$playerName: "Even Solitaire would be more exciting."' : '$playerName: "Selbst Solitär wäre spannender."'),
+      (L10n.lang == 'en' ? '$playerName: "My cards look like a Monday-morning face."' : '$playerName: "Mini Charte gseh us wie es Mäntig-Morge-Gsicht."'),
+      (L10n.lang == 'en' ? '$playerName: "I\'d have better odds in the lottery. Without a ticket."' : '$playerName: "Ich hätte mehr Chancen im Lotto. Ohne Ticket."'),
+      (L10n.lang == 'en' ? '$playerName: "Passing is a decision too. My favorite one."' : '$playerName: "Schieben ist auch eine Entscheidung. Meine Lieblingsentscheidung."'),
+      (L10n.lang == 'en' ? '$playerName: "The dealer owes me an apology."' : '$playerName: "Der Kartengeber schuldet mir eine Entschuldigung."'),
+      (L10n.lang == 'en' ? '$playerName: "I\'m ready... to pass."' : '$playerName: "Ich bin bereit... zum Schieben."'),
+      (L10n.lang == 'en' ? '$playerName: "Can someone silence the dealer? Thanks."' : '$playerName: "Chan öpper de Kartegeber zum Schwiige bringe? Merci."'),
+      (L10n.lang == 'en' ? '$playerName: "My cards are like a Monday: nobody wants them."' : '$playerName: "Meine Karten sind wie ein Montag: niemand will sie."'),
     ];
     final rng = Random().nextInt(comments.length);
     return comments[rng];
@@ -1254,6 +1268,14 @@ class GameProvider extends ChangeNotifier {
       (L10n.lang == 'en' ? '$playerName: "I do it for the honor. Not the points."' : '$playerName: "Ich tue es für die Ehre. Nicht für die Punkte."'),
       (L10n.lang == 'en' ? '$playerName: "There are worse things. Like passing again."' : '$playerName: "Es gibt schlimmeres. Zum Beispiel nochmal schieben."'),
       (L10n.lang == 'en' ? '$playerName: "Fine, I\'ll be nice and declare."' : '$playerName: "Gut, ich bin so nett und sage an."'),
+      (L10n.lang == 'en' ? '$playerName: "Fine, I\'ll be the sacrificial lamb."' : '$playerName: "Na schön, ich bin das Opferlamm."'),
+      (L10n.lang == 'en' ? '$playerName: "Someone has to be the adult. Today it\'s me."' : '$playerName: "Einer muss der Erwachsene sein. Heute bin ich\'s."'),
+      (L10n.lang == 'en' ? '$playerName: "I\'ll play. Expectations: low. Courage: high."' : '$playerName: "Ich spiele. Erwartungen: unten. Mut: oben."'),
+      (L10n.lang == 'en' ? '$playerName: "What could go wrong? Everything. But whatever."' : '$playerName: "Was soll schon schiefgehen? Alles. Aber egal."'),
+      (L10n.lang == 'en' ? '$playerName: "I\'ve got nothing, but I\'ve got confidence."' : '$playerName: "Ich hab zwar nichts, aber ich hab Selbstvertrauen."'),
+      (L10n.lang == 'en' ? '$playerName: "Legends are made from bad cards."' : '$playerName: "Legenden werden aus schlechten Karten gemacht."'),
+      (L10n.lang == 'en' ? '$playerName: "You want drama? I deliver."' : '$playerName: "Ihr wollt Drama? Ich liefere."'),
+      (L10n.lang == 'en' ? '$playerName: "I\'ll play – just call me the brave one."' : '$playerName: "Ich spiele – nennt mich einfach den Mutigen."'),
     ];
     return comments[Random().nextInt(comments.length)];
   }
@@ -1340,6 +1362,16 @@ class GameProvider extends ChangeNotifier {
       (L10n.lang == 'en' ? '$commentPlayerName: "Conclusion: never believe $announcerName again."' : '$commentPlayerName: "Fazit: Nie wieder $announcerName glauben."'),
       (L10n.lang == 'en' ? '$commentPlayerName: "$score points. So\'s my blood pressure."' : '$commentPlayerName: "$score Punkte. Mein Blutdruck auch."'),
       (L10n.lang == 'en' ? '$commentPlayerName: "Cadeller level: $announcerName."' : '$commentPlayerName: "Cadeller-Level: $announcerName."'),
+      (L10n.lang == 'en' ? '$commentPlayerName: "$score points and no regret. Typical $announcerName."' : '$commentPlayerName: "$score Punkte und keine Reue. Typisch $announcerName."'),
+      (L10n.lang == 'en' ? '$commentPlayerName: "I should have bet. Against myself."' : '$commentPlayerName: "Ich hätte wetten sollen. Gegen mich selbst."'),
+      (L10n.lang == 'en' ? '$commentPlayerName: "$announcerName, your \'bad hand\' deserves an Oscar."' : '$commentPlayerName: "$announcerName, dein \'schlechtes Blatt\' verdient einen Oscar."'),
+      (L10n.lang == 'en' ? '$commentPlayerName: "$score points. And I thought I understood the game."' : '$commentPlayerName: "$score Punkte. Und ich dachte, ich hätte den Modus verstanden."'),
+      (L10n.lang == 'en' ? '$commentPlayerName: "Cadeller world championship: winner $announcerName."' : '$commentPlayerName: "Cadeller-Weltmeisterschaft: Sieger $announcerName."'),
+      (L10n.lang == 'en' ? '$commentPlayerName: "Please put those $score points in witness protection."' : '$commentPlayerName: "Bitte $score Punkte in den Zeugenschutz aufnehmen."'),
+      (L10n.lang == 'en' ? '$commentPlayerName: "$announcerName passes, $announcerName wins. Every. Time."' : '$commentPlayerName: "$announcerName schiebt, $announcerName gewinnt. Jedes. Mal."'),
+      (L10n.lang == 'en' ? '$commentPlayerName: "I\'m applauding. Internally. Very deep internally."' : '$commentPlayerName: "Ich klatsche. Innerlich. Ganz tief innerlich."'),
+      (L10n.lang == 'en' ? '$commentPlayerName: "$score points. I need a moment. And a drink."' : '$commentPlayerName: "$score Punkte. Ich brauche einen Moment. Und ein Getränk."'),
+      (L10n.lang == 'en' ? '$commentPlayerName: "Passed twice, cleaned up once. Balance."' : '$commentPlayerName: "Zwei Mal geschoben, ein Mal abgeräumt. Balance."'),
     ];
     final rng = Random().nextInt(comments.length);
     return comments[rng];
