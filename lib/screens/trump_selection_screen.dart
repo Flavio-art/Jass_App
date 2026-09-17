@@ -889,34 +889,45 @@ class _TrumpGroupButton extends StatelessWidget {
               BoxShadow(color: Colors.black45, blurRadius: 4, offset: Offset(2, 3)),
             ],
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                _groupLabel,
-                style: const TextStyle(
-                    color: Colors.black87,
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 6),
-              Row(
+          // FittedBox: skaliert den Inhalt bei knappem Platz herunter, damit der
+          // Untertitel (Schellen/Schilten bzw. Rosen/Eichel) auf schmaleren
+          // Bildschirmen (z.B. iPhone) nicht unten überläuft/überlappt.
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _SuitPip(suit: s[0], cardType: cardType),
-                  const SizedBox(width: 8),
-                  _SuitPip(suit: s[1], cardType: cardType),
+                  Text(
+                    _groupLabel,
+                    style: const TextStyle(
+                        color: Colors.black87,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _SuitPip(suit: s[0], cardType: cardType),
+                      const SizedBox(width: 8),
+                      _SuitPip(suit: s[1], cardType: cardType),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${s[0].label(cardType)} / ${s[1].label(cardType)}',
+                    style: const TextStyle(
+                        color: Colors.black54,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500),
+                  ),
                 ],
               ),
-              const SizedBox(height: 4),
-              Text(
-                '${s[0].label(cardType)} / ${s[1].label(cardType)}',
-                style: const TextStyle(
-                    color: Colors.black54,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500),
-              ),
-            ],
+            ),
           ),
         ),
       ),
