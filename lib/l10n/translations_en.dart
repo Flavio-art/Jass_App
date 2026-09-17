@@ -373,7 +373,7 @@ const Map<String, String> kEn = {
   'Schieben – Partner wählt': "Pass – partner chooses",
   'Schieben – Nächster entscheidet': "Pass – next one decides",
   '🕳️ Im Loch – Du musst spielen!': "🕳️ In the hole – you must play!",
-  '2. Runde – Gegner sind genervt! Du kannst nochmals passen.': "Round 2 – opponents are annoyed! You can pass again.",
+  '2. Runde – Gegner sind genervt! Du kannst nochmals schieben.': "Round 2 – opponents are annoyed! You can pass again.",
   'Du sagst an – wähle Modus & Wunschkarte': "You declare – choose mode & wish card",
   'Ansager wählt Richtung': "Declarer chooses direction",
   'Start: Oben ⬇️': "Start: Up ⬇️",

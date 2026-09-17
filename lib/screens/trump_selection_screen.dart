@@ -306,13 +306,13 @@ class TrumpSelectionScreen extends StatelessWidget {
     if (hasSchieben) {
       // Intermediate player (not original announcer)
       return selector.isHuman
-          ? '${ansager.name} hat gepasst – Du entscheidest'
-          : '${ansager.name} passte zu ${selector.name}';
+          ? '${ansager.name} hat geschoben – Du entscheidest'
+          : '${ansager.name} schob zu ${selector.name}';
     }
     // Original announcer
     if (state.soloSchiebungRounds == 1) {
       return selector.isHuman
-          ? tr('2. Runde – Gegner sind genervt! Du kannst nochmals passen.')
+          ? tr('2. Runde – Gegner sind genervt! Du kannst nochmals schieben.')
           : trp('{0} sagt an (Runde 2)', [ansager.name]);
     }
     return selector.isHuman
