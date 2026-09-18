@@ -538,6 +538,25 @@ class ModeSelectorAI {
     return byFamily;
   }
 
+  /// Bester (strafbewusster, verfügbar-gefilterter) Friseur-Score der Hand über
+  /// die noch verfügbaren [available] Varianten – auf der NN-Score-Skala.
+  ///
+  /// Für die Schiebe-Entscheidung: berücksichtigt – anders als das rohe
+  /// predict().max() über ALLE Varianten – die Schafkopf-/Slalom-Strafen, die
+  /// ideale Wunschkarte UND nur die Varianten, die der Spieler noch ansagen
+  /// kann. Verhindert, dass die KI mit schwacher Resthand (z.B. nur schlechtes
+  /// Schafkopf) trotzdem ansagt statt zu schieben.
+  static double friseurBestAvailableScore(
+      Player player, GameState state, List<String> available) {
+    if (available.isEmpty) return 0;
+    final isTeam1 = player.position == PlayerPosition.south ||
+        player.position == PlayerPosition.north;
+    final entries =
+        _friseurRawEntries(player.hand, state, available, isTeam1, state.cardType);
+    if (entries.isEmpty) return 0;
+    return entries.map((e) => e.raw).reduce((a, b) => a > b ? a : b);
+  }
+
   /// Pass 1 der Friseur-Solo-Auswahl: baut alle Kandidaten und berechnet
   /// für jeden den Roh-Score (inkl. Schafkopf-/Slalom-Strafen) und den
   /// Friseur-Multiplikator. Kein Argmax, keine Mult-Anwendung.
