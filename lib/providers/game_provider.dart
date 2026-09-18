@@ -603,6 +603,17 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
+  /// Wunschkarte-Spielende: true, wenn JEDER Spieler alle seine Varianten
+  /// angesagt hat. [announced] = pro-Spieler angesagte Varianten (inkl. der
+  /// gerade beendeten Runde). Einzige Wahrheitsquelle für beide Ende-Prüfungen.
+  @visibleForTesting
+  static bool friseurSoloAllAnnounced(
+      GameState state, Map<String, Set<String>> announced) {
+    final vc = state.enabledVariants.length;
+    return state.players.every(
+        (p) => (announced[p.id] ?? const <String>{}).length >= vc);
+  }
+
   void _startNewRoundFriseurSolo(GameState currentState) {
     _aiRunning = false;
     // Gespielte Variante für Ansager markieren
@@ -650,10 +661,7 @@ class GameProvider extends ChangeNotifier {
 
     // Spielende: alle Spieler haben alle aktivierten Varianten angesagt
     final variantCount = currentState.enabledVariants.length;
-    final allDone = currentState.players.every((p) {
-      final announced = newAnnounced[p.id] ?? {};
-      return announced.length >= variantCount;
-    });
+    final allDone = friseurSoloAllAnnounced(currentState, newAnnounced);
 
     if (allDone) {
       _state = _state.copyWith(
@@ -2684,15 +2692,28 @@ class GameProvider extends ChangeNotifier {
             (_state.isTeam1Ansager ? 0 : 1);
         if (u1 >= vc && u2 >= vc) skipRoundEnd = true;
       }
-      // Friseur Solo: alle Spieler haben alle Varianten angesagt
+      // Friseur Solo: alle Spieler haben alle Varianten angesagt.
+      // WICHTIG: autoritativ über die pro-Spieler ANGESAGTEN Varianten prüfen
+      // (wie _startNewRoundFriseurSolo / availableVariantsForPlayer), NICHT über
+      // friseurSoloScores. Die Punkte-Tabelle bekommt Einträge für Ansager UND
+      // Partner und läuft dadurch aus dem Takt → sonst endet das Spiel zu früh
+      // ("Freund 1 gewinnt"), obwohl Spieler noch Varianten offen haben.
       if (_state.gameType == GameType.friseur) {
-        final vc = _state.enabledVariants.length;
-        final scores = newFriseurSoloScores ?? _state.friseurSoloScores;
-        final allDone = _state.players.every((p) {
-          final variants = scores[p.id] ?? {};
-          return variants.length >= vc;
-        });
-        if (allDone) skipRoundEnd = true;
+        // Angesagte Varianten inkl. der gerade beendeten Runde (Ansager + Partner).
+        final announced = <String, Set<String>>{
+          for (final e in _state.friseurAnnouncedVariants.entries)
+            e.key: Set<String>.from(e.value),
+        };
+        final roundVarKey =
+            _state.variantKey(_state.gameMode, trumpSuit: _state.trumpSuit);
+        final annId = _state.players[_state.ansagerIndex].id;
+        (announced[annId] ??= <String>{}).add(roundVarKey);
+        final pIdx = _state.friseurPartnerIndex;
+        if (pIdx != null) {
+          final pId = _state.players[pIdx].id;
+          if (pId != annId) (announced[pId] ??= <String>{}).add(roundVarKey);
+        }
+        if (friseurSoloAllAnnounced(_state, announced)) skipRoundEnd = true;
       }
       // Differenzler: letzte Runde
       if (_state.gameType == GameType.differenzler) {
