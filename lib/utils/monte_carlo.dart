@@ -633,6 +633,8 @@ class MonteCarloAI {
     // letzter Stich (Stich 9) — da muss sie eh raus.
     if (state.currentTrickCards.isNotEmpty &&
         state.gameType == GameType.friseur &&
+        state.gameMode != GameMode.misere &&
+        state.gameMode != GameMode.molotof &&
         state.wishCard != null &&
         playable.contains(state.wishCard) &&
         playable.length >= 2 &&
