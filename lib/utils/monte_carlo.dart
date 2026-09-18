@@ -1844,22 +1844,52 @@ class MonteCarloAI {
         state.currentTrickNumber >= 2 &&
         (state.gameMode == GameMode.oben ||
             state.gameMode == GameMode.unten)) {
-      final wishSuit = state.wishCard!.suit;
-      final wishCards = playable.where((c) => c.suit == wishSuit).toList();
-      if (wishCards.isNotEmpty) {
-        final notSafe = wishCards
-            .where((c) => !_isHighestRemaining(c, state))
-            .toList();
-        if (notSafe.isNotEmpty) {
-          // Höchste Stärke unter den nicht-sicheren = mittelhohe Karte
-          // (Stärke in Unten: 6=hoch, A=tief; in Oben: A=hoch, 6=tief)
-          // Höchste Stärke = Karte am ehesten zum Stich, aber nicht sicher
-          notSafe.sort((a, b) =>
-              GameLogic.cardPlayStrength(b, state.gameMode, null)
-                  .compareTo(GameLogic.cardPlayStrength(a, state.gameMode, null)));
-          return _pick('auto_L1468', notSafe.first);
-        }
+      final mode = state.effectiveMode;
+      // (a) Sicherer Gewinner: eine Karte, die nach den bereits GESPIELTEN Karten
+      //     die tiefste/höchste verbleibende ihrer Farbe ist (öffentliche Info).
+      //     → anspielen, gewinnt den Stich sicher.
+      final sureWinners = playable
+          .where((c) => _leadWinsByPublicInfo(c, aiPlayer, state))
+          .toList();
+      if (sureWinners.isNotEmpty) {
+        sureWinners.sort((a, b) => GameLogic.cardPlayStrength(b, mode, null)
+            .compareTo(GameLogic.cardPlayStrength(a, mode, null)));
+        return _pick('auto_L1468', sureWinners.first);
       }
+      // (b) Sonst: HOHE Karte einer Farbe anspielen, in der ich mehrere Karten
+      //     habe (behalte die tiefe als späteren Gewinner) UND in der der Ansager
+      //     NICHT öffentlich void ist (kann bedienen und evtl. stechen). Nie eine
+      //     Farbe anspielen, in der der Ansager schon abgeworfen hat – dort kann
+      //     er nicht helfen und der Stich geht sicher an den Gegner.
+      final annId = state.players[state.ansagerIndex].id;
+      Suit? bestSuit;
+      int bestKeepStr = -1;
+      for (final s in playable.map((c) => c.suit).toSet()) {
+        if (_publiclyVoid(annId, s, state)) continue; // Ansager void → nutzlos
+        final mine = playable.where((c) => c.suit == s).toList();
+        if (mine.length < 2) continue; // brauche hohe + zu behaltende tiefe Karte
+        final keepStr = mine
+            .map((c) => GameLogic.cardPlayStrength(c, mode, null))
+            .reduce((a, b) => a > b ? a : b);
+        if (keepStr > bestKeepStr) { bestKeepStr = keepStr; bestSuit = s; }
+      }
+      if (bestSuit != null) {
+        // Die HOHE Karte (schwächste Richtung) anspielen, tiefe behalten.
+        final inSuit = playable.where((c) => c.suit == bestSuit).toList()
+          ..sort((a, b) => GameLogic.cardPlayStrength(a, mode, null)
+              .compareTo(GameLogic.cardPlayStrength(b, mode, null)));
+        return _pick('auto_L1468b', inSuit.first);
+      }
+      // (c) Keine geeignete Farbe (Ansager überall void / nur Einzelkarten) →
+      //     am wenigsten schädlich: punktärmste, dann schwächste Karte.
+      final dump = [...playable]..sort((a, b) {
+          final pa = GameLogic.cardPoints(a, mode, null);
+          final pb = GameLogic.cardPoints(b, mode, null);
+          if (pa != pb) return pa.compareTo(pb);
+          return GameLogic.cardPlayStrength(a, mode, null)
+              .compareTo(GameLogic.cardPlayStrength(b, mode, null));
+        });
+      return _pick('auto_L1468c', dump.first);
     }
 
     // ── Friseur Solo: Ansager spielt Wunschkarten-Farbe an ─────────────────
@@ -3712,6 +3742,48 @@ class MonteCarloAI {
   /// Ob [card] ein sicherer Stichgewinner ist:
   /// - Keine stärkere Karte der gleichen Farbe bei anderen Spielern, UND
   /// - Kein Trumpf mehr bei Gegnern (sonst wird die Karte gestochen).
+  /// Ob [card] beim ANSPIELEN sicher den Stich gewinnt – NUR aus öffentlicher
+  /// Information (bereits gespielte Karten + eigene Hand), ohne in fremde Hände
+  /// zu schauen. Nur für Oben/Unten (kein Trumpf): eine schlagende Karte der
+  /// Farbe ist nur dann gefährlich, wenn sie weder gespielt noch auf der eigenen
+  /// Hand ist (dann liegt sie verdeckt bei jemand anderem).
+  static bool _leadWinsByPublicInfo(
+      JassCard card, Player aiPlayer, GameState state) {
+    final mode = state.effectiveMode;
+    if (mode != GameMode.oben && mode != GameMode.unten) return false;
+    final myStr = GameLogic.cardPlayStrength(card, mode, null);
+    final played = <JassCard>[
+      for (final t in state.completedTricks) ...t.cards.values,
+      ...state.currentTrickCards,
+    ];
+    for (final v in CardValue.values) {
+      final candidate =
+          JassCard(suit: card.suit, value: v, cardType: state.cardType);
+      if (candidate == card) continue;
+      // Nur Karten der Farbe, die unsere schlagen (höhere Spielstärke).
+      if (GameLogic.cardPlayStrength(candidate, mode, null) <= myStr) continue;
+      final isPlayed = played.any((p) => p == candidate);
+      final inMyHand = aiPlayer.hand.any((h) => h == candidate);
+      if (!isPlayed && !inMyHand) return false; // schlagende Karte liegt verdeckt
+    }
+    return true;
+  }
+
+  /// Ob [playerId] in [suit] ÖFFENTLICH void ist: hat in einem früheren Stich,
+  /// in dem diese Farbe angespielt wurde, nicht bedient (Fehlfarbe abgeworfen).
+  /// Nur Oben/Unten (kein Trumpf) – dort ist die angespielte Farbe = Farbe der
+  /// Gewinnerkarte. Rein öffentliche Info (kein Blick in fremde Hände).
+  static bool _publiclyVoid(String playerId, Suit suit, GameState state) {
+    for (final t in state.completedTricks) {
+      final w = t.winnerId;
+      final winnerCard = w == null ? null : t.cards[w];
+      if (winnerCard == null || winnerCard.suit != suit) continue;
+      final theirs = t.cards[playerId];
+      if (theirs != null && theirs.suit != suit) return true;
+    }
+    return false;
+  }
+
   static bool _isHighestRemaining(JassCard card, GameState state) {
     final effectMode = state.effectiveMode;
     final trump = state.trumpSuit;
