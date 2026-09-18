@@ -1,3 +1,5 @@
+import 'package:meta/meta.dart';
+
 import '../models/card_model.dart';
 import '../models/deck.dart';
 import '../models/game_state.dart';
@@ -1012,6 +1014,44 @@ class ModeSelectorAI {
 
     // Schafkopf: Dame/8 in Stärke-Reihenfolge
     if (mode == GameMode.schafkopf) {
+      // Trumpf-dominante Hand (≥3 Damen UND ≥7 Trümpfe): ein weiterer Trumpf
+      // bringt kaum etwas. Stattdessen die höchste Nicht-Trumpf-Punktekarte
+      // (die 10) einer ANSPIELBAREN Farbe wünschen (Ansager hat dort Karten).
+      // Bei mehreren Farben: die mit mehr Punkten in eigener Hand.
+      if (trumpSuit != null) {
+        final queenCnt =
+            hand.where((c) => c.value == CardValue.queen).length;
+        final trumpCnt = _countSchafkopfTrumps(hand, trumpSuit);
+        if (queenCnt >= 3 && trumpCnt >= 7) {
+          bool isTrumpSk(JassCard c) =>
+              c.value == CardValue.queen ||
+              c.value == CardValue.eight ||
+              c.suit == trumpSuit;
+          final playableSuits = <Suit>{
+            for (final c in hand)
+              if (!isTrumpSk(c)) c.suit
+          };
+          Suit? bestSuit;
+          int bestPts = -1;
+          for (final s in playableSuits) {
+            final tenFree = available
+                .any((c) => c.suit == s && c.value == CardValue.ten);
+            if (!tenFree) continue;
+            final pts = hand
+                .where((c) => c.suit == s && !isTrumpSk(c))
+                .fold(0, (sum, c) => sum + _nonTrumpPoints(c.value));
+            if (pts > bestPts) {
+              bestPts = pts;
+              bestSuit = s;
+            }
+          }
+          if (bestSuit != null) {
+            return available.firstWhere(
+                (c) => c.suit == bestSuit && c.value == CardValue.ten);
+          }
+          // Kein passender Nicht-Trumpf-10er → normale Trumpf-Wunsch-Logik.
+        }
+      }
       final isFrench = cardType == CardType.french;
       final suitOrder = isFrench
           ? [Suit.clubs, Suit.spades, Suit.hearts, Suit.diamonds]
@@ -1530,6 +1570,28 @@ class ModeSelectorAI {
         c.value == CardValue.eight ||
         c.suit == trumpSuit).length;
   }
+
+  /// Kartenpunkte einer Nicht-Trumpf-Karte (A=11, 10=10, K=4, U=2, sonst 0).
+  static int _nonTrumpPoints(CardValue v) {
+    switch (v) {
+      case CardValue.ace:
+        return 11;
+      case CardValue.ten:
+        return 10;
+      case CardValue.king:
+        return 4;
+      case CardValue.jack:
+        return 2;
+      default:
+        return 0;
+    }
+  }
+
+  /// Test-Zugang zur idealen Wunschkarte.
+  @visibleForTesting
+  static JassCard bestWishCardForTest(
+          List<JassCard> hand, GameMode mode, Suit? trumpSuit, CardType cardType) =>
+      _bestWishCard(hand, mode, trumpSuit, cardType);
 
   /// Molotof: Ziel ist wenig Punkte (157 − eigene).
   /// Gut wenn viele mittlere Karten; schlecht bei vielen Assen/Zehnern.
