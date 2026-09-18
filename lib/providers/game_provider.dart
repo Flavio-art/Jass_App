@@ -1009,7 +1009,11 @@ class GameProvider extends ChangeNotifier {
   }) {
     final nnScores = JassNNModel.instance.predict(player.hand, _state.cardType);
     if (nnScores.isNotEmpty) {
-      final best = nnScores.reduce((a, b) => a > b ? a : b);
+      // Nur die noch VERFÜGBAREN Varianten bewerten – inkl. Schafkopf-/Slalom-
+      // Strafen (wie die tatsächliche Ansage-Wahl). Vorher: rohes Maximum über
+      // ALLE Varianten → die KI hielt eine schwache Resthand (z.B. nur schlechtes
+      // Schafkopf mit 2 tiefen Trümpfen) für gut und sagte an, statt zu schieben.
+      final best = ModeSelectorAI.friseurBestAvailableScore(player, _state, available);
       return best >= nnPlayThreshold;
     }
     // Heuristik: normale und Spezialvarianten getrennt bewerten
