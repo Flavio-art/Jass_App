@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'package:meta/meta.dart';
+
 import '../models/card_model.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
@@ -576,7 +578,7 @@ class MonteCarloAI {
         state.trumpSuit != null &&
         (state.gameMode == GameMode.trump ||
             state.gameMode == GameMode.trumpUnten) &&
-        _onlyTeamHasTrump(aiPlayer, state, state.trumpSuit!)) {
+        onlyTeamHasTrump(aiPlayer, state, state.trumpSuit!)) {
       final trump = state.trumpSuit!;
       final nonTrump = playable.where((c) => c.suit != trump).toList();
       if (nonTrump.isNotEmpty) {
@@ -592,7 +594,7 @@ class MonteCarloAI {
         state.wishCard != null &&
         (state.gameMode == GameMode.trump ||
             state.gameMode == GameMode.trumpUnten) &&
-        _onlyTeamHasTrump(aiPlayer, state, state.trumpSuit!) &&
+        onlyTeamHasTrump(aiPlayer, state, state.trumpSuit!) &&
         aiPlayer.id == state.players[state.ansagerIndex].id) {
       final wishW = state.wishCard!;
       final wishSuitCards = playable
@@ -807,7 +809,7 @@ class MonteCarloAI {
         // Einziger Spieler mit Trumpf → Trumpf sparen, Nebenfarbe spielen
         // Nur Team hat Trumpf → ebenfalls sparen (sonst 2 Trümpfe für 1 Stich)
         if (_onlyPlayerWithTrump(aiPlayer, state, trump) ||
-            _onlyTeamHasTrump(aiPlayer, state, trump)) {
+            onlyTeamHasTrump(aiPlayer, state, trump)) {
           final nonTrump = playable.where((c) => c.suit != trump).toList();
           if (nonTrump.isNotEmpty) {
             final safeNonTrump = nonTrump
@@ -1226,7 +1228,7 @@ class MonteCarloAI {
         (state.gameMode == GameMode.trump ||
             state.gameMode == GameMode.trumpUnten) &&
         state.trumpSuit != null &&
-        _onlyTeamHasTrump(aiPlayer, state, state.trumpSuit!)) {
+        onlyTeamHasTrump(aiPlayer, state, state.trumpSuit!)) {
       final safeNonTrump = playable
           .where((c) =>
               c.suit != state.trumpSuit! && _isHighestRemaining(c, state))
@@ -2196,7 +2198,7 @@ class MonteCarloAI {
             state.gameMode == GameMode.molotof;
         if (isMisereLike) {
           // Normal weiterspielen → fall through zu MC/Minimax
-        } else if (trump != null && _onlyTeamHasTrump(aiPlayer, state, trump)) {
+        } else if (trump != null && onlyTeamHasTrump(aiPlayer, state, trump)) {
           // NUR TEAM HAT TRUMPF → Gegner können nicht trumpfen. ABER: der
           // Partner-Stich ist nur dann sicher, wenn seine Karte auch NICHT in
           // der geführten Farbe überstochen werden kann. Bsp: Partner führt ♣6,
@@ -2595,7 +2597,7 @@ class MonteCarloAI {
       }
 
       // Nicht trumpfen wenn nur Team Trumpf hat und Partner noch kommt
-      if (trump != null && !partnerWins && _onlyTeamHasTrump(aiPlayer, state, trump)) {
+      if (trump != null && !partnerWins && onlyTeamHasTrump(aiPlayer, state, trump)) {
         final ls = state.currentTrickCards.first.suit;
         final hasLedSuit = playable.any((c) => c.suit == ls);
         final trickLen = state.currentTrickCards.length;
@@ -2770,7 +2772,7 @@ class MonteCarloAI {
       // Gegner gewinnt → versuche billigst möglich zu übernehmen
       // Aber: nicht trumpfen wenn nur eigenes Team Trumpf hat und Partner noch spielen muss
       // (Partner wird selber stechen → eigenen Trumpf sparen)
-      if (trump != null && _onlyTeamHasTrump(aiPlayer, state, trump)) {
+      if (trump != null && onlyTeamHasTrump(aiPlayer, state, trump)) {
         final trickLen = state.currentTrickCards.length;
         final isLast = trickLen == 3;
         if (!isLast) {
@@ -2795,7 +2797,7 @@ class MonteCarloAI {
         }
         // Letzte Trümpfe: wenn nur noch eigenes Team Trumpf hat →
         // STÄRKSTE spielen (alle gewinnen sowieso, stärkste jetzt nutzen)
-        if (trump != null && _onlyTeamHasTrump(aiPlayer, state, trump)) {
+        if (trump != null && onlyTeamHasTrump(aiPlayer, state, trump)) {
           final winningTrumps = winning.where((c) => c.suit == trump).toList();
           if (winningTrumps.length >= 2) {
             return _pick('auto_L2315', _strongest(winningTrumps, effectMode, trump));
@@ -3074,7 +3076,7 @@ class MonteCarloAI {
       if (state.trumpSuit != null &&
           card.suit == state.trumpSuit &&
           state.currentTrickCards.isNotEmpty &&
-          _onlyTeamHasTrump(aiPlayer, state, state.trumpSuit!)) {
+          onlyTeamHasTrump(aiPlayer, state, state.trumpSuit!)) {
         final ledSuit = state.currentTrickCards.first.suit;
         if (ledSuit != state.trumpSuit) {
           // Fehlfarbe + nur Team hat Trumpf → NIE trumpfen!
@@ -3678,9 +3680,35 @@ class MonteCarloAI {
 
   /// Nur das eigene Team (Spieler + Partner) hat noch Trumpf.
   /// → Trumpf ausspielen kostet 2 Team-Trümpfe für 1 Stich.
-  static bool _onlyTeamHasTrump(Player player, GameState state, Suit trump) {
-    final opponents = state.players.where((p) => !_sameTeamFor(p, player, state));
-    return !opponents.any((p) => p.hand.any((c) => c.suit == trump));
+  /// LEGITIM (nur öffentliche Info): true, wenn die Gegner von [player] sicher
+  /// KEINEN Trumpf mehr haben – OHNE in fremde Hände zu schauen.
+  ///
+  /// Sicher ist das nur, wenn ALLE Trümpfe abgezählt sind über: eigene Hand +
+  /// bereits gespielte Karten + (Wunsch-Trumpf, der im Friseur ja beim Partner
+  /// liegt). Bleibt danach kein Trumpf „offen", kann kein Gegner mehr einen
+  /// haben. Früher las die Funktion direkt die Gegnerhände (= Schummeln).
+  @visibleForTesting
+  static bool onlyTeamHasTrump(Player player, GameState state, Suit trump) {
+    const totalTrumps = 9; // 6..Ass einer Farbe
+    final played = <JassCard>[
+      for (final t in state.completedTricks) ...t.cards.values,
+      ...state.currentTrickCards,
+    ];
+    final myTrumps = player.hand.where((c) => c.suit == trump).length;
+    final playedTrumps = played.where((c) => c.suit == trump).length;
+    // Wunsch-Trumpf: liegt beim (gewünschten) Partner. Als Team-Trumpf abziehen,
+    // wenn er die Trumpffarbe hat, noch nicht gespielt und nicht in meiner Hand ist.
+    var wishedTeamTrump = 0;
+    final wish = state.wishCard;
+    if (state.gameType == GameType.friseur &&
+        wish != null &&
+        wish.suit == trump &&
+        !player.hand.any((c) => c == wish) &&
+        !played.any((c) => c == wish)) {
+      wishedTeamTrump = 1;
+    }
+    final unaccounted = totalTrumps - myTrumps - playedTrumps - wishedTeamTrump;
+    return unaccounted <= 0;
   }
 
   /// Ist eine Karte ein Schafkopf-Trumpf? (Damen + 8er + Trumpffarbe)
@@ -4022,7 +4050,7 @@ class MonteCarloAI {
           (effectMode == GameMode.trump ||
               effectMode == GameMode.trumpUnten) &&
           (_onlyPlayerWithTrump(player, state, trump) ||
-              _onlyTeamHasTrump(player, state, trump))) {
+              onlyTeamHasTrump(player, state, trump))) {
         final nonTrump = playable.where((c) => c.suit != trump).toList();
         if (nonTrump.isNotEmpty) {
           final safeNonTrump = nonTrump
@@ -4039,7 +4067,7 @@ class MonteCarloAI {
       if (trump != null &&
           (effectMode == GameMode.trump ||
               effectMode == GameMode.trumpUnten) &&
-          !_onlyTeamHasTrump(player, state, trump)) {
+          !onlyTeamHasTrump(player, state, trump)) {
         final myTeamTrump = _teamTrumpCount(player, state, trump);
         final oppTrump = _opponentTrumpCount(player, state, trump);
         final myTrump = playable.where((c) => c.suit == trump).toList();
@@ -4458,7 +4486,7 @@ class MonteCarloAI {
 
     // Nur Team hat Trumpf → NIE trumpfen (weder als Letzter noch als Vorletzter)
     // Jeder Trumpf-Stich kostet 2 Team-Trümpfe. Stattdessen: abwerfen.
-    if (trump != null && _onlyTeamHasTrump(player, state, trump)) {
+    if (trump != null && onlyTeamHasTrump(player, state, trump)) {
       final ledSuit = state.currentTrickCards.first.suit;
       final isDiscarding = !playable.any((c) => c.suit == ledSuit);
       if (isDiscarding) {
