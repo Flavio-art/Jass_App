@@ -29,7 +29,35 @@ class MonteCarloAI {
   /// NUR für Benchmarks (MC-pur vs. MC+Overrides). Default false = Produktivpfad.
   static bool bypassOverrides = false;
 
-  static final math.Random _rng = math.Random();
+  static math.Random _rng = math.Random();
+
+  /// Wenn true, wird [_rng] zu Beginn jeder chooseCard()-Entscheidung
+  /// deterministisch aus der Spielsituation geseedet → gleiche Lage ⇒ gleicher
+  /// Zug. NUR für reproduzierbare Benchmarks aktivieren — in Produktion AUS,
+  /// sonst spielt die KI völlig vorhersehbar (ausnutzbar).
+  static bool deterministicSeed = false;
+
+  /// Deterministischer Seed aus der aktuellen Informationsmenge der KI:
+  /// eigene Hand + aktueller Stich + Anzahl gespielter Stiche + Modus.
+  static int _seedFor(Player aiPlayer, GameState state) {
+    int h = 17;
+    void mix(int v) => h = (h * 31 + v) & 0x7fffffff;
+    mix(aiPlayer.id.hashCode);
+    mix(state.gameMode.index);
+    mix(state.trumpSuit?.index ?? -1);
+    mix(state.completedTricks.length);
+    final hand = [...aiPlayer.hand]
+      ..sort((a, b) => (a.suit.index * 100 + a.value.index)
+          .compareTo(b.suit.index * 100 + b.value.index));
+    for (final c in hand) {
+      mix(c.suit.index);
+      mix(c.value.index);
+    }
+    for (final c in state.currentTrickCards) {
+      mix(c.suit.index * 100 + c.value.index);
+    }
+    return h;
+  }
 
   /// Letzter genommener Entscheidungspfad (für Debug-Logs im Replay).
   /// Wird vom GameProvider nach jedem chooseCard()-Aufruf gelesen.
@@ -73,6 +101,7 @@ class MonteCarloAI {
     }
 
     lastChoicePath = 'unset';
+    if (deterministicSeed) _rng = math.Random(_seedFor(aiPlayer, state));
     var playable = _getPlayable(aiPlayer, state);
     if (playable.length == 1) return _pick('OnlyOne', playable.first);
 
