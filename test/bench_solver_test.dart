@@ -21,6 +21,9 @@ import 'sim_helpers.dart';
 ///   flutter test --dart-define=SOLVE_FROM=5 --dart-define=BENCH_DEALS=40 ...
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  // Reproduzierbare Messung: KI pro Lage deterministisch seeden, damit ein
+  // erneuter Lauf identische Zahlen liefert (Produktion bleibt variabel).
+  MonteCarloAI.deterministicSeed = true;
 
   // Ab welchem Stich (1-basiert) wird gelöst/gemessen. Höher = schneller.
   const solveFrom = int.fromEnvironment('SOLVE_FROM', defaultValue: 6);
