@@ -12,6 +12,19 @@ import 'game_logic.dart';
 /// Spielern zufällige Karten aus dem unbekannten Pool zugeteilt, aber nur
 /// Karten die mit den beobachteten Fehlfarben kompatibel sind (Void-Tracking).
 /// Pro Kandidatenkarte werden [simulations] Welten gezogen und simuliert.
+/// Knoten im ISMCTS-Baum (ein Baum über Zugfolgen; die Zugfolge bestimmt
+/// eindeutig, wer am Zug ist, unabhängig von versteckten Karten). Kinder sind
+/// per Karten-ID verschlüsselt; Statistiken zählen aus Sicht des Spielers, der
+/// an DIESEM Knoten zieht.
+class _IsNode {
+  final bool moverIsTeam1;
+  final Map<String, _IsNode> children = {};
+  int visits = 0;
+  double totalValue = 0.0;
+  final Map<String, int> availability = {};
+  _IsNode(this.moverIsTeam1);
+}
+
 class MonteCarloAI {
   /// Anzahl äusserer Simulationen pro Kandidatenkarte.
   static const int simulations = 60;
@@ -28,6 +41,15 @@ class MonteCarloAI {
   /// Überspringt alle Heuristik-Overrides → reine MonteCarlo-Entscheidung.
   /// NUR für Benchmarks (MC-pur vs. MC+Overrides). Default false = Produktivpfad.
   static bool bypassOverrides = false;
+
+  /// ISMCTS (Information-Set Monte-Carlo-Tree-Search) statt flachem MC im
+  /// Fallthrough. Default AN: schlägt im Benchmark das flache MC (ØVerlust
+  /// 1.70 → 1.63, Overrides bleiben davor). [ismctsIterations] = Anzahl
+  /// Determinisierungs-Iterationen pro Entscheidung (800 = validiert, gute
+  /// Latenz ~65ms/Zug Desktop).
+  static bool ismcts = true;
+  static int ismctsIterations = 800;
+  static double ismctsC = 1.4; // UCB-Explorationskonstante
 
   static math.Random _rng = math.Random();
 
@@ -106,7 +128,11 @@ class MonteCarloAI {
     if (playable.length == 1) return _pick('OnlyOne', playable.first);
 
     // Benchmark: alle Heuristik-Overrides überspringen → reine MC-Entscheidung.
-    if (bypassOverrides) return _mcCard(playable, aiPlayer, state);
+    if (bypassOverrides) {
+      return ismcts
+          ? _ismctsCard(playable, aiPlayer, state)
+          : _mcCard(playable, aiPlayer, state);
+    }
 
     // ── HARD-OVERRIDE: Friseur Solo — gewünschten Trumpf-Nell cashen ───────
     // Halte ich (= Partner, Wunschkarten-Halter) den Trumpf-Nell und der Ansager
@@ -2913,7 +2939,104 @@ class MonteCarloAI {
       }
     }
 
+    if (ismcts) return _ismctsCard(playable, aiPlayer, state);
     return _mcCard(playable, aiPlayer, state);
+  }
+
+  static String _ck(JassCard c) => '${c.suit.index}_${c.value.index}';
+
+  /// ISMCTS (Phase A): einzelner Baum über Zugfolgen. Pro Iteration wird eine
+  /// Welt determinisiert (nur öffentliche Info), im Baum per UCB (mit
+  /// Verfügbarkeits-Zählung) selektiert, ein neuer Knoten expandiert, per
+  /// [_guidedCard]-Rollout bis Spielende simuliert und zurückpropagiert.
+  /// Wurzel-Entscheidung = meistbesuchtes Kind. Nutzt NUR öffentliche Info.
+  static JassCard _ismctsCard(
+      List<JassCard> playable, Player aiPlayer, GameState state) {
+    final voidSuits = _inferVoidSuits(state);
+    final rootTeam1 = _simIsTeam1(state, aiPlayer);
+    final root = _IsNode(rootTeam1);
+
+    for (int it = 0; it < ismctsIterations; it++) {
+      var s = _sampleWorld(state, aiPlayer.id, voidSuits);
+      final path = <_IsNode>[root];
+      var node = root;
+
+      // ── Selektion + Expansion ─────────────────────────────────────────
+      while (s.completedTricks.length < 9) {
+        final p = s.players[s.currentPlayerIndex];
+        if (p.hand.isEmpty) break;
+        final legal = _getPlayable(p, s);
+        if (legal.isEmpty) break;
+        // Verfügbarkeit aller aktuell legalen Züge hochzählen.
+        for (final m in legal) {
+          final k = _ck(m);
+          node.availability[k] = (node.availability[k] ?? 0) + 1;
+        }
+        final untried =
+            legal.where((m) => !node.children.containsKey(_ck(m))).toList();
+        if (untried.isNotEmpty) {
+          final m = untried[_rng.nextInt(untried.length)];
+          s = _playCard(s, p.id, m);
+          final child = _IsNode(_simIsTeam1(s, s.players[s.currentPlayerIndex]));
+          node.children[_ck(m)] = child;
+          node = child;
+          path.add(node);
+          break; // → Simulation
+        }
+        // Alle legalen Züge erprobt → UCB-Auswahl unter den legalen.
+        // Werte sind aus Wurzel-Sicht gespeichert; der aktuelle Mover maximiert
+        // seine eigene Perspektive → Wurzel-Team: +mean, Gegner: −mean.
+        final moverTeam1 = _simIsTeam1(s, p);
+        JassCard? best;
+        double bestUcb = double.negativeInfinity;
+        for (final m in legal) {
+          final c = node.children[_ck(m)]!;
+          final avail = node.availability[_ck(m)] ?? 1;
+          final meanNorm =
+              c.visits == 0 ? 0.5 : (c.totalValue / c.visits) / 170.0;
+          final signed = (moverTeam1 == rootTeam1) ? meanNorm : -meanNorm;
+          final explore =
+              ismctsC * math.sqrt(math.log(avail) / (c.visits + 1e-9));
+          final ucb = signed + explore;
+          if (ucb > bestUcb) {
+            bestUcb = ucb;
+            best = m;
+          }
+        }
+        s = _playCard(s, p.id, best!);
+        node = node.children[_ck(best)]!;
+        path.add(node);
+      }
+
+      // ── Simulation (Guided-Rollout bis Spielende) ─────────────────────
+      while (s.completedTricks.length < 9) {
+        final p = s.players[s.currentPlayerIndex];
+        if (p.hand.isEmpty) break;
+        final c = _guidedCard(s, p);
+        if (c == null) break;
+        s = _playCard(s, p.id, c);
+      }
+
+      // ── Backprop: alle Knoten bekommen den Ausgang aus WURZEL-Sicht.
+      final rootVal = _scoreFor(s, rootTeam1, aiPlayer.id);
+      for (final n in path) {
+        n.visits++;
+        n.totalValue += rootVal;
+      }
+    }
+
+    // Wurzel: meistbesuchtes legales Kind.
+    JassCard best = playable.first;
+    int bestVisits = -1;
+    for (final m in playable) {
+      final c = root.children[_ck(m)];
+      final v = c?.visits ?? 0;
+      if (v > bestVisits) {
+        bestVisits = v;
+        best = m;
+      }
+    }
+    return best;
   }
 
   /// Reine MonteCarlo-Entscheidung (ohne Heuristik-Overrides). Ausgelagert,

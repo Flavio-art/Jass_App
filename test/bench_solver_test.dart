@@ -24,12 +24,23 @@ void main() {
   // Reproduzierbare Messung: KI pro Lage deterministisch seeden, damit ein
   // erneuter Lauf identische Zahlen liefert (Produktion bleibt variabel).
   MonteCarloAI.deterministicSeed = true;
+  // ISMCTS im Fallthrough testen: --dart-define=ISMCTS=true [--dart-define=ITERS=1500]
+  if (const bool.fromEnvironment('ISMCTS')) {
+    MonteCarloAI.ismcts = true;
+    MonteCarloAI.ismctsIterations = const int.fromEnvironment('ITERS', defaultValue: 1500);
+  }
+  // Overrides überspringen (reine Engine messen): --dart-define=BYPASS=true
+  if (const bool.fromEnvironment('BYPASS')) {
+    MonteCarloAI.bypassOverrides = true;
+  }
 
   // Ab welchem Stich (1-basiert) wird gelöst/gemessen. Höher = schneller.
   const solveFrom = int.fromEnvironment('SOLVE_FROM', defaultValue: 6);
   const deals = int.fromEnvironment('BENCH_DEALS', defaultValue: 25);
   // Zug zählt als Blunder, wenn er ≥ dieser Punktzahl unter dem Optimum liegt.
   const blunderThreshold = int.fromEnvironment('BLUNDER_PTS', defaultValue: 3);
+  // Gibt die N schlimmsten Blunder je Modus aus (Lage/Zug/Optimum/Verlust).
+  const dumpN = int.fromEnvironment('DUMP', defaultValue: 0);
 
   // Optional: nur einen Modus messen (z.B. --dart-define=MODE=slalom).
   const modeFilter = String.fromEnvironment('MODE', defaultValue: '');
@@ -81,6 +92,22 @@ void main() {
         p.hand, s.currentTrickCards,
         mode: s.gameMode, trumpSuit: s.trumpSuit,
       );
+
+  const sym = {'spades': '♠', 'hearts': '♥', 'diamonds': '♦', 'clubs': '♣'};
+  const valSym = {
+    'six': '6', 'seven': '7', 'eight': '8', 'nine': '9', 'ten': '10',
+    'jack': 'U', 'queen': 'O', 'king': 'K', 'ace': 'A',
+  };
+  String fmt(JassCard c) => '${sym[c.suit.name]}${valSym[c.value.name]}';
+  String fmtKey(String k) {
+    final parts = k.split('_');
+    return '${sym[parts[0]]}${valSym[parts[1]]}';
+  }
+
+  // Gesammelte Blunder für den Dump: (Modus, Verlust, Zustand, KI-Zug,
+  // Optimalwert, KI-Wert, perMove).
+  final blunderDump =
+      <(String, int, GameState, JassCard, double, double, Map<String, double>)>[];
 
   // ── Blatt-Bewertung: Ansager-Team-Score (team-basiert, mit Inversion/Match) ─
   double friseurScore(GameState s, GameMode mode) {
@@ -140,6 +167,34 @@ void main() {
     return (best, perMove);
   }
 
+  // Optimale Linie (Principal Variation) ab [s]: jeder Spieler wählt seinen
+  // optimalen Zug (Ansager-Team max, Gegner min). Gibt Zugfolge + wer welchen
+  // Stich nimmt + finalen Ansager-Score zurück.
+  (List<String>, double) pvLine(GameState s0, GameMode mode) {
+    final out = <String>[];
+    var cur = s0;
+    while (cur.completedTricks.length < 9) {
+      final p = cur.players[cur.currentPlayerIndex];
+      final moves = legal(cur, p);
+      if (moves.isEmpty) break;
+      final maximizing = cur.isFriseurAnnouncingTeam(p);
+      var bestM = moves.first;
+      var bestV = maximizing ? -1e9 : 1e9;
+      for (final m in moves) {
+        final v = solve(apply(cur, p.id, m), mode, -1e9, 1e9);
+        if (maximizing ? v > bestV : v < bestV) {
+          bestV = v;
+          bestM = m;
+        }
+      }
+      final team = cur.isFriseurAnnouncingTeam(p) ? 'A' : 'G';
+      final wasLastOfTrick = cur.currentTrickCards.length == 3;
+      out.add('${p.id}($team)${fmt(bestM)}${wasLastOfTrick ? ' |' : ''}');
+      cur = apply(cur, p.id, bestM);
+    }
+    return (out, friseurScore(cur, mode));
+  }
+
   GameState mkFriseur(int seed, GameMode m, Suit? t) {
     final all = Deck.allCards(CardType.french)..shuffle(Random(seed));
     final players = [
@@ -189,6 +244,10 @@ void main() {
             if (lostR >= blunderThreshold) blunders++;
             if (lostR > 0) lostSum += lostR;
             if (lostR > maxLost) maxLost = lostR;
+            if (dumpN > 0 && lostR >= blunderThreshold) {
+              blunderDump.add((md.$1, lostR, s, chosen, best, chosenVal,
+                  Map<String, double>.from(perMove)));
+            }
             s = apply(s, p.id, chosen);
           } else {
             s = apply(s, p.id, MonteCarloAI.chooseCard(aiPlayer: p, state: s));
@@ -209,5 +268,52 @@ void main() {
         '${(gLost / (gDec == 0 ? 1 : gDec)).toStringAsFixed(2).padLeft(9)}');
     print('\n  Blunder-Rate = % Entscheidungen ≥${blunderThreshold}p unter Optimum.');
     print('  ØVerlust = mittlerer Punkte-Verlust pro Entscheidung (perfekt = 0).\n');
+
+    if (dumpN > 0 && blunderDump.isNotEmpty) {
+      String hcards(List<JassCard> h) => (List<JassCard>.from(h)
+            ..sort((a, b) => (a.suit.index * 100 + a.value.index)
+                .compareTo(b.suit.index * 100 + b.value.index)))
+          .map(fmt)
+          .join(' ');
+      print('══════ TOP-$dumpN BLUNDER JE MODUS (mit allen Händen + Optimal-Linie) ══════');
+      for (final mdName in modes.map((m) => m.$1)) {
+        final forMode = blunderDump.where((b) => b.$1 == mdName).toList()
+          ..sort((a, b) => b.$2.compareTo(a.$2));
+        if (forMode.isEmpty) continue;
+        final md = modes.firstWhere((m) => m.$1 == mdName);
+        print('\n──────── $mdName ────────');
+        for (final b in forMode.take(dumpN)) {
+          final (_, lost, s, chosen, best, chosenVal, perMove) = b;
+          final p = s.players[s.currentPlayerIndex];
+          final role = s.isFriseurAnnouncingTeam(p) ? 'Ansager-Team' : 'Gegner';
+          final annId = s.players[s.ansagerIndex].id;
+          print('\n  Stich ${s.currentTrickNumber} · am Zug ${p.id} ($role) · −${lost}p');
+          print('    Ansager=$annId  (Score = 157 − Ansager-Team-Punkte, Match=170)');
+          for (final pl in s.players) {
+            final tag = pl.id == annId
+                ? 'Ansager'
+                : (s.isFriseurAnnouncingTeam(pl) ? 'Partner ' : 'Gegner  ');
+            print('    ${pl.id} $tag: ${hcards(pl.hand)}');
+          }
+          if (s.currentTrickCards.isNotEmpty) {
+            print('    im Stich: ${[
+              for (int k = 0; k < s.currentTrickCards.length; k++)
+                '${s.currentTrickPlayerIds[k]}:${fmt(s.currentTrickCards[k])}'
+            ].join(' ')}');
+          }
+          // Wert jeder spielbaren Karte (höher = besser für Ansager-Team).
+          final vals = perMove.entries.toList()
+            ..sort((a, b) => b.value.compareTo(a.value));
+          print('    Kartenwerte: ${vals.map((e) => '${fmtKey(e.key)}=${e.value.toStringAsFixed(0)}').join('  ')}');
+          print('    KI: ${fmt(chosen)} (Wert ${chosenVal.toStringAsFixed(0)})  |  Optimal-Wert ${best.toStringAsFixed(0)}');
+          // Optimal-Linie vs. KI-Linie.
+          final (optPv, optScore) = pvLine(s, md.$2);
+          final (aiPv, aiScore) = pvLine(apply(s, p.id, chosen), md.$2);
+          print('    Optimal-Linie: ${optPv.join(' ')}  → Ansager-Score $optScore');
+          print('    KI-Linie:      ${fmt(chosen)}| ${aiPv.join(' ')}  → Ansager-Score $aiScore');
+        }
+      }
+      print('');
+    }
   });
 }
