@@ -127,6 +127,14 @@ class MonteCarloAI {
     var playable = _getPlayable(aiPlayer, state);
     if (playable.length == 1) return _pick('OnlyOne', playable.first);
 
+    // Differenzler: Einzelspiel (jeder trifft seine eigene Vorhersage). Die
+    // Team-Overrides + Team-Suche passen hier NICHT → eigener Ziel-basierter
+    // Pfad (nehmen wenn unter Ziel, ducken wenn drüber), MC über Welten mit
+    // ziel-bewusstem Rollout für alle Spieler.
+    if (state.gameType == GameType.differenzler) {
+      return _pick('Differenzler', _differenzlerCard(playable, aiPlayer, state));
+    }
+
     // Benchmark: alle Heuristik-Overrides überspringen → reine MC-Entscheidung.
     if (bypassOverrides) {
       return ismcts
@@ -2952,6 +2960,33 @@ class MonteCarloAI {
   /// Wurzel-Entscheidung = meistbesuchtes Kind. Nutzt NUR öffentliche Info.
   static JassCard _ismctsCard(
       List<JassCard> playable, Player aiPlayer, GameState state) {
+    final root = _ismctsSearch(aiPlayer, state);
+    JassCard best = playable.first;
+    int bestVisits = -1;
+    for (final m in playable) {
+      final v = root.children[_ck(m)]?.visits ?? 0;
+      if (v > bestVisits) {
+        bestVisits = v;
+        best = m;
+      }
+    }
+    return best;
+  }
+
+  /// Besuchsverteilung der Wurzel über die spielbaren Karten (Phase-B
+  /// Policy-Trainingsziele). Schlüssel = Karten-ID, Wert = Besuchszahl.
+  @visibleForTesting
+  static Map<String, int> ismctsVisits(
+      List<JassCard> playable, Player aiPlayer, GameState state) {
+    final root = _ismctsSearch(aiPlayer, state);
+    return {
+      for (final m in playable) _ck(m): root.children[_ck(m)]?.visits ?? 0
+    };
+  }
+
+  /// Führt die ISMCTS-Suche aus und gibt die Wurzel zurück (geteilt von
+  /// [_ismctsCard] und [ismctsVisits]).
+  static _IsNode _ismctsSearch(Player aiPlayer, GameState state) {
     final voidSuits = _inferVoidSuits(state);
     final rootTeam1 = _simIsTeam1(state, aiPlayer);
     final root = _IsNode(rootTeam1);
@@ -3025,17 +3060,95 @@ class MonteCarloAI {
       }
     }
 
-    // Wurzel: meistbesuchtes legales Kind.
-    JassCard best = playable.first;
-    int bestVisits = -1;
-    for (final m in playable) {
-      final c = root.children[_ck(m)];
-      final v = c?.visits ?? 0;
-      if (v > bestVisits) {
-        bestVisits = v;
-        best = m;
+    return root;
+  }
+
+  // ─── Differenzler (Einzelspiel: jeder trifft seine eigene Vorhersage) ──────
+
+  static int _diffTarget(GameState s, String pid) =>
+      s.differenzlerPredictions[pid] ?? 0;
+
+  /// Test-Zugang zur ziel-bewussten Differenzler-Politik.
+  @visibleForTesting
+  static JassCard diffRolloutForTest(GameState s, Player p) =>
+      _diffRolloutCard(s, p);
+
+  /// Von [pid] bisher genommene Punkte (gewonnene Stiche; +5 für den letzten
+  /// Stich erst am Spielende).
+  static int _diffPointsTaken(GameState s, String pid) {
+    int pts = 0;
+    final n = s.completedTricks.length;
+    for (int i = 0; i < n; i++) {
+      final t = s.completedTricks[i];
+      if (t.winnerId == pid) {
+        pts += GameLogic.trickPoints(
+            t.cards.values.toList(), s.gameMode, s.trumpSuit);
+        if (i == n - 1 && n == 9) pts += 5;
       }
     }
+    return pts;
+  }
+
+  /// Ziel-bewusste Politik: wer unter dem Ziel ist, versucht (billig) den Stich
+  /// zu holen; wer am/über dem Ziel ist, duckt (nimmt möglichst keine Punkte).
+  static JassCard _diffRolloutCard(GameState s, Player p) {
+    final legal = _getPlayable(p, s);
+    if (legal.length == 1) return legal.first;
+    final mode = s.gameMode;
+    final trump = s.trumpSuit;
+    final need = _diffTarget(s, p.id) - _diffPointsTaken(s, p.id);
+    int cp(JassCard c) => GameLogic.cardPoints(c, mode, trump);
+    final winners = legal.where((c) => _wouldWin(c, s, trump)).toList();
+    final losers = legal.where((c) => !_wouldWin(c, s, trump)).toList();
+    if (need > 7) {
+      // Will Punkte → Stich holen, möglichst mit billiger eigener Karte.
+      if (winners.isNotEmpty) {
+        winners.sort((a, b) => cp(a).compareTo(cp(b)));
+        return winners.first;
+      }
+      losers.sort((a, b) => cp(a).compareTo(cp(b)));
+      return losers.isNotEmpty ? losers.first : legal.first;
+    }
+    // Am/über Ziel → ducken; wenn Gewinn unvermeidlich, mit wenig Zusatzpunkten.
+    if (losers.isNotEmpty) {
+      losers.sort((a, b) => cp(a).compareTo(cp(b)));
+      return losers.first;
+    }
+    winners.sort((a, b) => cp(a).compareTo(cp(b)));
+    return winners.first;
+  }
+
+  /// Differenzler-Kartenwahl: MC über determinisierte Welten, in jeder Welt
+  /// ziel-bewusster Rollout für ALLE Spieler; bewertet wird die eigene
+  /// Zielabweichung −|Ziel − genommene Punkte|. Jeder Spieler optimiert so
+  /// sein eigenes Ziel (Einzelspiel, kein Team).
+  static JassCard _differenzlerCard(
+      List<JassCard> playable, Player aiPlayer, GameState state) {
+    final voidSuits = _inferVoidSuits(state);
+    final target = _diffTarget(state, aiPlayer.id);
+    const worlds = 60;
+    final totals = <JassCard, double>{for (final c in playable) c: 0.0};
+    for (int w = 0; w < worlds; w++) {
+      final world = _sampleWorld(state, aiPlayer.id, voidSuits);
+      for (final c in playable) {
+        var s = _playCard(world, aiPlayer.id, c);
+        while (s.completedTricks.length < 9) {
+          final p = s.players[s.currentPlayerIndex];
+          if (p.hand.isEmpty) break;
+          s = _playCard(s, p.id, _diffRolloutCard(s, p));
+        }
+        final pts = _diffPointsTaken(s, aiPlayer.id);
+        totals[c] = totals[c]! - (target - pts).abs();
+      }
+    }
+    JassCard best = playable.first;
+    double bestScore = double.negativeInfinity;
+    totals.forEach((card, sum) {
+      if (sum > bestScore) {
+        bestScore = sum;
+        best = card;
+      }
+    });
     return best;
   }
 
