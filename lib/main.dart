@@ -70,11 +70,32 @@ class JassApp extends StatelessWidget {
           // damit SafeArea und useSafeArea in Sheets korrekt funktionieren.
           builder: (context, child) {
             final mq = MediaQuery.of(context);
-            return MediaQuery(
-              data: mq.copyWith(
-                padding: mq.padding.copyWith(bottom: mq.viewPadding.bottom),
+            // Globale Referenz-Skalierung: Die ganze App rendert auf einer
+            // Referenz-Breite (393 = Samsung A53) und wird proportional auf
+            // jedes Gerät skaliert → gleiches Layout auf allen Bildschirmen.
+            // Faktor sanft begrenzt (Mini-/Tablet-Extreme abfedern).
+            const refW = 393.0;
+            final scale = (mq.size.width / refW).clamp(0.85, 1.35);
+            final cw = mq.size.width / scale;
+            final ch = mq.size.height / scale;
+            EdgeInsets sc(EdgeInsets e) => EdgeInsets.fromLTRB(
+                e.left / scale, e.top / scale, e.right / scale, e.bottom / scale);
+            final vp = sc(mq.viewPadding);
+            return FittedBox(
+              fit: BoxFit.fill,
+              child: SizedBox(
+                width: cw,
+                height: ch,
+                child: MediaQuery(
+                  data: mq.copyWith(
+                    size: Size(cw, ch),
+                    padding: sc(mq.padding).copyWith(bottom: vp.bottom),
+                    viewPadding: vp,
+                    viewInsets: sc(mq.viewInsets),
+                  ),
+                  child: child!,
+                ),
               ),
-              child: child!,
             );
           },
           home: const SplashScreen(),
