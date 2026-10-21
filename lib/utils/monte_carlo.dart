@@ -3089,8 +3089,10 @@ class MonteCarloAI {
     return pts;
   }
 
-  /// Ziel-bewusste Politik: wer unter dem Ziel ist, versucht (billig) den Stich
-  /// zu holen; wer am/über dem Ziel ist, duckt (nimmt möglichst keine Punkte).
+  /// Ziel-bewusste Politik mit Pacing: wer unter dem Ziel ist, holt Punkte —
+  /// aber NICHT über das Ziel hinaus und bevorzugt mit HOHEN Karten (lädt sie
+  /// ab, damit sie später keinen ungewollten Stich erzwingen). Wer am/über dem
+  /// Ziel ist, duckt und wirft dabei hohe Karten ab, die noch verlieren.
   static JassCard _diffRolloutCard(GameState s, Player p) {
     final legal = _getPlayable(p, s);
     if (legal.length == 1) return legal.first;
@@ -3098,22 +3100,37 @@ class MonteCarloAI {
     final trump = s.trumpSuit;
     final need = _diffTarget(s, p.id) - _diffPointsTaken(s, p.id);
     int cp(JassCard c) => GameLogic.cardPoints(c, mode, trump);
+    int str(JassCard c) => GameLogic.cardPlayStrength(c, mode, trump);
+    final trickPts = s.currentTrickCards.fold<int>(0, (a, c) => a + cp(c));
     final winners = legal.where((c) => _wouldWin(c, s, trump)).toList();
     final losers = legal.where((c) => !_wouldWin(c, s, trump)).toList();
+    // Höchste Karte zuerst (zum Abladen hoher Karten).
+    int byStrDesc(JassCard a, JassCard b) => str(b).compareTo(str(a));
+
     if (need > 7) {
-      // Will Punkte → Stich holen, möglichst mit billiger eigener Karte.
-      if (winners.isNotEmpty) {
-        winners.sort((a, b) => cp(a).compareTo(cp(b)));
-        return winners.first;
+      // Punkte holen, aber nicht (stark) überschiessen; dabei hohe Karten
+      // abladen → mit der HÖCHSTEN Karte holen, die nicht >10 übers Ziel geht.
+      final good = winners
+          .where((c) => (trickPts + cp(c)) - need <= 10)
+          .toList()
+        ..sort(byStrDesc);
+      if (good.isNotEmpty) return good.first;
+      // Jeder Gewinn würde überschiessen → lieber ducken und hohe Karte abladen.
+      if (losers.isNotEmpty) {
+        losers.sort(byStrDesc);
+        return losers.first;
       }
-      losers.sort((a, b) => cp(a).compareTo(cp(b)));
-      return losers.isNotEmpty ? losers.first : legal.first;
+      // Zwang zu gewinnen → wenigste Zusatzpunkte.
+      winners.sort((a, b) => cp(a).compareTo(cp(b)));
+      return winners.first;
     }
-    // Am/über Ziel → ducken; wenn Gewinn unvermeidlich, mit wenig Zusatzpunkten.
+
+    // Am/über Ziel → ducken; hohe Karten loswerden, die noch verlieren.
     if (losers.isNotEmpty) {
-      losers.sort((a, b) => cp(a).compareTo(cp(b)));
+      losers.sort(byStrDesc);
       return losers.first;
     }
+    // Muss gewinnen → mit wenigsten Punkten.
     winners.sort((a, b) => cp(a).compareTo(cp(b)));
     return winners.first;
   }
@@ -3150,6 +3167,49 @@ class MonteCarloAI {
       }
     });
     return best;
+  }
+
+  /// Neutrale, kompetitive Politik für die Vorhersage-Schätzung: anspielen mit
+  /// starker Karte; sonst billig gewinnen, wenn möglich, sonst tief abwerfen.
+  /// (Keine Ziele bekannt → modelliert normales Stiche-Ziehen.)
+  static JassCard _diffNeutralCard(GameState s, Player p) {
+    final legal = _getPlayable(p, s);
+    if (legal.length == 1) return legal.first;
+    final mode = s.gameMode;
+    final trump = s.trumpSuit;
+    int str(JassCard c) => GameLogic.cardPlayStrength(c, mode, trump);
+    int cp(JassCard c) => GameLogic.cardPoints(c, mode, trump);
+    if (s.currentTrickCards.isEmpty) {
+      legal.sort((a, b) => str(b).compareTo(str(a)));
+      return legal.first;
+    }
+    final winners = legal.where((c) => _wouldWin(c, s, trump)).toList();
+    if (winners.isNotEmpty) {
+      winners.sort((a, b) => str(a).compareTo(str(b)));
+      return winners.first; // billig gewinnen
+    }
+    legal.sort((a, b) => cp(a).compareTo(cp(b)));
+    return legal.first; // tief abwerfen
+  }
+
+  /// Schätzt per MC, wie viele Punkte [player] im Differenzler nehmen wird
+  /// (über determinisierte Welten, neutrale kompetitive Politik für alle).
+  /// Ersetzt die grobe Faustformel-Vorhersage. Auf 5 gerundet.
+  static int estimateDifferenzlerPoints(Player player, GameState state) {
+    final voidSuits = _inferVoidSuits(state);
+    const worlds = 40;
+    int total = 0;
+    for (int w = 0; w < worlds; w++) {
+      var s = _sampleWorld(state, player.id, voidSuits);
+      while (s.completedTricks.length < 9) {
+        final p = s.players[s.currentPlayerIndex];
+        if (p.hand.isEmpty) break;
+        s = _playCard(s, p.id, _diffNeutralCard(s, p));
+      }
+      total += _diffPointsTaken(s, player.id);
+    }
+    final avg = total / worlds;
+    return ((avg / 5).round() * 5).clamp(0, 157);
   }
 
   /// Reine MonteCarlo-Entscheidung (ohne Heuristik-Overrides). Ausgelagert,
