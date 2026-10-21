@@ -96,13 +96,35 @@ class GameLogic {
         return trumpCards.isNotEmpty ? trumpCards : List.of(hand);
       }
 
-      // Nicht-Trump angeführt
+      // Nicht-Trump angeführt. Untertrumpfen ist verboten: liegt bereits ein
+      // Trumpf im Stich, darf nur ÜBERtrumpft werden. Untertrumpfen nur, wenn
+      // man weder bedienen noch abwerfen noch übertrumpfen kann (nur noch
+      // tiefere Trümpfe auf der Hand → Zwang).
       final suitCards = hand.where((c) => c.suit == ledSuit).toList();
-      if (suitCards.isNotEmpty) {
-        // Hat angespielte Farbe: darf Farbe spielen ODER abstechen (Trump)
-        return <JassCard>{...suitCards, ...trumpCards}.toList();
+      int highestTrumpInTrick = 0;
+      var trumpLies = false;
+      for (final c in currentTrick) {
+        if (c.suit == trumpSuit) {
+          trumpLies = true;
+          final st = cardPlayStrength(c, mode, trumpSuit);
+          if (st > highestTrumpInTrick) highestTrumpInTrick = st;
+        }
       }
-      // Keine angespielte Farbe → freie Kartenwahl, kein Trumpfzwang
+      final allowedTrumps = trumpLies
+          ? trumpCards
+              .where((c) =>
+                  cardPlayStrength(c, mode, trumpSuit) > highestTrumpInTrick)
+              .toList()
+          : trumpCards;
+      if (suitCards.isNotEmpty) {
+        // Farbe bekennen ODER (über)stechen
+        return <JassCard>{...suitCards, ...allowedTrumps}.toList();
+      }
+      // Kann nicht bedienen: abwerfen (Nicht-Trumpf) ODER übertrumpfen
+      final nonTrump = hand.where((c) => c.suit != trumpSuit).toList();
+      final options = <JassCard>{...nonTrump, ...allowedTrumps};
+      if (options.isNotEmpty) return options.toList();
+      // Nur noch tiefere Trümpfe übrig → Untertrumpfen erzwungen
       return List.of(hand);
     }
 
