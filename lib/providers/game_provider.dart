@@ -2421,7 +2421,7 @@ class GameProvider extends ChangeNotifier {
       if (player.isHuman) {
         predictions[player.id] = humanPrediction;
       } else {
-        predictions[player.id] = _computeAiPrediction(player, _state.trumpSuit!);
+        predictions[player.id] = _computeAiPrediction(player);
       }
     }
 
@@ -2434,27 +2434,11 @@ class GameProvider extends ChangeNotifier {
     _triggerAiIfNeeded();
   }
 
-  /// Schätzt die Punkte die ein KI-Spieler gewinnen wird (für Differenzler-Vorhersage).
-  int _computeAiPrediction(Player player, Suit trumpSuit) {
-    int estimate = 0;
-    for (final card in player.hand) {
-      final isTrump = card.suit == trumpSuit;
-      if (isTrump && card.value == CardValue.jack) {
-        estimate += 28;
-      } else if (isTrump && card.value == CardValue.nine) {
-        estimate += 10;
-      } else if (card.value == CardValue.ace) {
-        estimate += 8;
-      } else if (card.value == CardValue.ten) {
-        estimate += 7;
-      } else if (isTrump) {
-        estimate += 4;
-      } else if (card.value == CardValue.king) {
-        estimate += 3;
-      }
-    }
-    // Auf nächste 5 runden, Bereich 0-152
-    return ((estimate / 5).round() * 5).clamp(0, 152);
+  /// Schätzt die Punkte die ein KI-Spieler gewinnen wird (für Differenzler-
+  /// Vorhersage). MC-Schätzung über viele vorgestellte Welten mit neutraler
+  /// kompetitiver Politik — deutlich treffsicherer als die frühere Faustformel.
+  int _computeAiPrediction(Player player) {
+    return MonteCarloAI.estimateDifferenzlerPoints(player, _state);
   }
 
   // ─── Partner-Aufdeckung bestätigt (UI) ───────────────────────────────────
