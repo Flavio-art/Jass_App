@@ -23,6 +23,9 @@ import 'sim_helpers.dart';
 /// MC-AI-Signal. Ausführen: flutter test test/bench_selfplay_test.dart
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  MonteCarloAI.deterministicSeed = true; // reproduzierbar
+  // ISMCTS-Anteil messen: --dart-define=NOISMCTS=true schaltet ISMCTS aus.
+  if (const bool.fromEnvironment('NOISMCTS')) MonteCarloAI.ismcts = false;
 
   // Deals pro Modus & Richtung. Über ENV BENCH_DEALS überschreibbar.
   final deals = int.tryParse(
