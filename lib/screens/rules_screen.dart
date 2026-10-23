@@ -107,7 +107,7 @@ class _RulesScreenState extends State<RulesScreen>
               tr('Der Partner muss dann wählen.')),
           _Rule(tr('Der Ansager wechselt jede Runde: Süd → Ost → Nord → West → Süd → …')),
           _Rule(tr('Gespielt wird bis das erste Team das vereinbarte Punktelimit ') +
-              '(1000–5000, einstellbar) erreicht hat.'),
+              tr('(1000–5000, einstellbar) erreicht hat.')),
         ]),
 
         _Section(tr('Spielvarianten & Multiplikatoren'), [

@@ -100,10 +100,10 @@ class TrickAreaWidget extends StatelessWidget {
                     color: Colors.black45,
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: const Center(
+                  child: Center(
                     child: Text(
-                      'Tippen zum Weiter',
-                      style: TextStyle(
+                      tr('Tippen zum Weiter'),
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
@@ -183,8 +183,8 @@ class _ModeIndicator extends StatelessWidget {
       children: [
         modeWidget,
         const SizedBox(height: 2),
-        const Text('Geschoben',
-            style: TextStyle(color: Colors.white38, fontSize: 8, fontStyle: FontStyle.italic)),
+        Text(tr('Geschoben'),
+            style: const TextStyle(color: Colors.white38, fontSize: 8, fontStyle: FontStyle.italic)),
       ],
     );
   }
@@ -357,7 +357,7 @@ class _ModeIndicator extends StatelessWidget {
       subMode = tr('Unten ⬆️');
       color = Colors.orange.shade300;
     } else {
-      final trumpLabel = trumpSuit != null ? 'Trump ${trumpSuit!.symbol}' : 'Trump 🎯';
+      final trumpLabel = trumpSuit != null ? trp('Trumpf {0}', [trumpSuit!.symbol]) : tr('Trumpf 🎯');
       subMode = trumpLabel;
       color = Colors.amber.shade300;
     }
