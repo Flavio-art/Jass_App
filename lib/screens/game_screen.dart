@@ -339,7 +339,15 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      // Android-Zurück beendet im Tutorial sauber den Übungsmodus.
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          final p = context.read<GameProvider>();
+          if (p.tutorialActive) p.endTutorial();
+        }
+      },
+      child: Scaffold(
       backgroundColor: AppColors.feltGreen,
       resizeToAvoidBottomInset: false,
       body: SafeArea(
@@ -1260,6 +1268,7 @@ class _GameScreenState extends State<GameScreen> {
           },
         ),
       ),
+    ),
     );
   }
 
