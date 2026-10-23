@@ -52,6 +52,8 @@ class GameProvider extends ChangeNotifier {
   Suit? get tutorialAiTrump => _tutorialAiTrump;
   /// true, solange die Auflösung „Computer hätte … gewählt" noch aussteht.
   bool tutorialResolutionPending = false;
+  /// Wer sagt diese Tutorial-Runde an (0=Mensch, 1/3=Gegner, 2=Partner).
+  int _tutorialAnsagerIndex = 0;
 
   GameState get state => _state;
 
@@ -302,8 +304,8 @@ class GameProvider extends ChangeNotifier {
     }
 
     // Zufälliger Startansager / Loch-Spieler
-    // Tutorial: immer der Mensch (Süd), damit er die Moduswahl erklärt bekommt.
-    final initialAnsager = _tutorialMode ? 0 : Random().nextInt(4);
+    // Tutorial: rotierender Ansager (Mensch/Partner/Gegner), von startTutorialGame gesetzt.
+    final initialAnsager = _tutorialMode ? _tutorialAnsagerIndex : Random().nextInt(4);
     final initialLoch = gameType == GameType.friseur ? initialAnsager : 0;
 
     // Differenzler: zufälligen Trumpf wählen und Vorhersage-Phase starten
@@ -365,8 +367,12 @@ class GameProvider extends ChangeNotifier {
     tutorialIntroStep = 0;
     tutorialResolutionPending = false;
 
-    // In ca. 50 % der Fälle wählt der Spieler den Spieltyp selbst.
-    _tutorialPlayerPicks = Random().nextBool();
+    // Ansager rotiert über alle vier Sitze (Mensch, Partner, beide Gegner).
+    _tutorialAnsagerIndex = Random().nextInt(4);
+    final humanIsAnsager = _tutorialAnsagerIndex == 0;
+
+    // Nur wenn der Mensch ansagt, kann er in ~50 % selbst wählen.
+    _tutorialPlayerPicks = humanIsAnsager && Random().nextBool();
 
     // Modus abwechslungsreich wählen – nie derselbe wie zuletzt.
     const modes = [GameMode.trump, GameMode.oben, GameMode.unten, GameMode.slalom];
@@ -374,25 +380,28 @@ class GameProvider extends ChangeNotifier {
     final mode = candidates[Random().nextInt(candidates.length)];
     _lastTutorialMode = mode;
 
-    // Normales Schieber-Setup (Mensch = Ansager, kein Auto-Select wegen Flag).
+    // Schieber-Setup mit rotierendem Ansager; kein Auto-Select (Flag).
     startNewGame(cardType: cardType, gameType: GameType.schieber, schieberWinTarget: 2500);
 
-    // Was ein Computer aus diesem Blatt wählen würde (für die Auflösung).
+    // Was ein Computer aus dem Blatt des Menschen wählen würde (für die Auflösung).
     final human = _state.players.firstWhere((p) => p.isHuman);
     final suggestion = ModeSelectorAI.selectMode(
       player: human,
       state: _state,
-      // Schieber-Varianten-Keys: trump_ss/trump_re decken alle Trumpf-Farben
-      // ab (sonst wertet der Selector Trumpf gar nicht und wählt nie Trumpf).
       availableVariants: const ['trump_ss', 'trump_re', 'oben', 'unten', 'slalom'],
     );
     _tutorialAiMode = suggestion.mode;
     _tutorialAiTrump = suggestion.trumpSuit;
 
-    if (_tutorialPlayerPicks) {
-      // Spieler wählt selbst über die echte Trumpf-Auswahl → Phase bleibt
+    if (!humanIsAnsager) {
+      // Partner oder Gegner sagt an → KI wählt den Modus; das Overlay erklärt es.
+      _autoSelectMode();
+      notifyListeners();
+    } else if (_tutorialPlayerPicks) {
+      // Mensch wählt selbst über die echte Trumpf-Auswahl → Phase bleibt
       // trumpSelection; danach zeigt das Overlay die Auflösung.
       tutorialResolutionPending = true;
+      _lastTutorialMode = null; // Modus noch offen → nächste Runde frei wählbar
       notifyListeners();
     } else {
       // Tutorial gibt den Modus vor (Trumpf: zufällige Farbe, Slalom: Richtung).
@@ -413,6 +422,8 @@ class GameProvider extends ChangeNotifier {
   void tutorialNextIntro() {
     tutorialIntroStep++;
     notifyListeners();
+    // Intro fertig → KI anstossen (z.B. KI-Ansager, der jetzt ausspielen darf).
+    if (tutorialIntroStep >= 3) _triggerAiIfNeeded();
   }
 
   /// Beendet das Tutorial und räumt den Zustand auf.
@@ -1782,7 +1793,10 @@ class GameProvider extends ChangeNotifier {
     final hasGuaranteedWin = highScore >= neverSchiebenScore;
 
     // Schieber / Friseur Team: KI kann einmal zum Partner schieben
+    // (im Tutorial nicht – der KI-Ansager sagt direkt an, sonst landet die
+    // Wahl ungeführt beim Menschen).
     if (!hasGuaranteedWin &&
+        !_tutorialMode &&
         (_state.gameType == GameType.schieber || _state.gameType == GameType.friseurTeam) &&
         _state.trumpSelectorIndex == null) {
       const schiebenThreshold = 105.0;
@@ -3119,7 +3133,9 @@ class GameProvider extends ChangeNotifier {
       // (das Overlay erklärt, wer den Stich gewonnen hat). Kein Auto-Clear.
     } else if (!showingWyssOverlay) {
       _clearTrickTimer?.cancel();
-      _clearTrickTimer = Timer(const Duration(seconds: 2), clearTrick);
+      // Stich länger liegen lassen (war 2 s, wirkte zu schnell). Antippen
+      // räumt ihn jederzeit früher weg (onTap → clearTrick).
+      _clearTrickTimer = Timer(const Duration(seconds: 3), clearTrick);
     }
   }
 
@@ -3197,6 +3213,9 @@ class GameProvider extends ChangeNotifier {
   void _triggerAiIfNeeded() {
     if (_aiRunning) return;
     if (_state.phase != GamePhase.playing) return;
+    // Tutorial: KI pausiert, solange die Einführung (Willkommen/Blatt/Ansage)
+    // läuft – sonst spielt ein KI-Ansager los, bevor der Spieler gelesen hat.
+    if (_tutorialMode && tutorialIntroStep < 3) return;
     // Human ist dran und muss noch über Weisen entscheiden (nur im 1. Stich)
     if (_state.currentPlayer.isHuman && _humanWyssDecisionPending) {
       _humanWyssDecisionPending = false;

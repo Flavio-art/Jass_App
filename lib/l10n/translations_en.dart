@@ -245,6 +245,17 @@ const Map<String, String> kEn = {
   'Du gewinnst Stich {0} mit {1}.': 'You win trick {0} with {1}.',
   '{0} gewinnt Stich {1} mit {2}.': '{0} wins trick {1} with {2}.',
   'Zur Auswertung': 'To the summary',
+  '{0} hat {1} angesagt. ': '{0} announced {1}. ',
+  'Trumpf ({0}) sticht jede andere Farbe – achte darauf!':
+      'Trump ({0}) beats every other suit – watch out!',
+  'Trumpf ({0}) sticht alles; sonst zählt tief (6 hoch).':
+      'Trump ({0}) beats everything; otherwise low wins (6 high).',
+  'Es gewinnt die höchste Karte der angespielten Farbe (Ass hoch).':
+      'The highest card of the led suit wins (Ace high).',
+  'Es gewinnt die höchste Karte – aber die 6 ist am höchsten.':
+      'The highest card wins – but the 6 is highest.',
+  'Obenabe und Undenufe wechseln sich Stich für Stich ab.':
+      'Obenabe and Undenufe alternate trick by trick.',
   'Weil Trumpf ({0}) jede andere Farbe sticht.':
       'Because trump ({0}) beats every other suit.',
   'Weil es der höchste Trumpf im Stich war.':
