@@ -1947,6 +1947,51 @@ class MonteCarloAI {
               .compareTo(GameLogic.cardPlayStrength(b, mode, null)));
         return _pick('auto_L1468b', inSuit.first);
       }
+      // (b2) Nur noch Einzelkarten: die Farbe zurückspielen, in der das EIGENE
+      //      Team wahrscheinlich die höchste offene Karte hält. Faustregel
+      //      (Flavio): ist der absolute Boss (6 im Undenufe / Ass im Obenabe)
+      //      schon weg, ist die verbliebene Top-Karte (z.B. die 7) eher beim
+      //      Team → diese Farbe anspielen, statt die punktärmste Karte blind
+      //      abzuwerfen. Nur Farben, in denen der Ansager nicht void ist.
+      {
+        final played = <JassCard>{
+          for (final t in state.completedTricks) ...t.cards.values,
+          ...state.currentTrickCards,
+        };
+        Suit? teamSuit;
+        int bestTopStr = -1;
+        for (final s in playable.map((c) => c.suit).toSet()) {
+          if (_publiclyVoid(annId, s, state)) continue;
+          final allInSuit = CardValue.values
+              .map((v) => JassCard(suit: s, value: v, cardType: state.cardType))
+              .toList();
+          final absBoss = allInSuit.reduce((a, b) =>
+              GameLogic.cardPlayStrength(a, mode, null) >=
+                      GameLogic.cardPlayStrength(b, mode, null)
+                  ? a
+                  : b);
+          final bossGone =
+              played.contains(absBoss) || aiPlayer.hand.contains(absBoss);
+          if (!bossGone) continue; // Boss noch live → vermutlich beim Gegner
+          final outstanding = allInSuit
+              .where((c) => !played.contains(c) && !aiPlayer.hand.contains(c))
+              .toList();
+          if (outstanding.isEmpty) continue;
+          final topStr = outstanding
+              .map((c) => GameLogic.cardPlayStrength(c, mode, null))
+              .reduce((a, b) => a > b ? a : b);
+          if (topStr > bestTopStr) {
+            bestTopStr = topStr;
+            teamSuit = s;
+          }
+        }
+        if (teamSuit != null) {
+          final inSuit = playable.where((c) => c.suit == teamSuit).toList()
+            ..sort((a, b) => GameLogic.cardPlayStrength(a, mode, null)
+                .compareTo(GameLogic.cardPlayStrength(b, mode, null)));
+          return _pick('auto_L1468d_TeamFarbe', inSuit.first);
+        }
+      }
       // (c) Keine geeignete Farbe (Ansager überall void / nur Einzelkarten) →
       //     am wenigsten schädlich: punktärmste, dann schwächste Karte.
       final dump = [...playable]..sort((a, b) {
