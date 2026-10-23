@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
+import '../l10n/tr.dart';
 
 class ScoreBoardWidget extends StatelessWidget {
   final Map<String, int> teamScores;
@@ -31,7 +32,7 @@ class ScoreBoardWidget extends StatelessWidget {
             _teamScore(label1, teamScores['team1'] ?? 0, AppColors.gold),
             const SizedBox(width: 16),
             Text(
-              'Runde $roundNumber',
+              trp('Runde {0}', [roundNumber]),
               style: const TextStyle(color: Colors.white54, fontSize: 12),
             ),
             const SizedBox(width: 16),

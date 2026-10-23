@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/card_model.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
+import '../l10n/tr.dart';
 import 'card_widget.dart';
 
 class TrickAreaWidget extends StatelessWidget {
@@ -192,13 +193,13 @@ class _ModeIndicator extends StatelessWidget {
     switch (gameMode) {
       case GameMode.trump:
         if (trumpSuit == null) return const SizedBox.shrink();
-        final trumpLabel = _isFriseur ? '⬇️ Trumpf' : 'Trumpf';
+        final trumpLabel = _isFriseur ? tr('⬇️ Trumpf') : tr('Trumpf');
         final trumpColor = _isFriseur ? Colors.amber : Colors.amber.shade300;
         return _trumpBox(trumpLabel, trumpColor);
 
       case GameMode.trumpUnten:
         if (trumpSuit == null) return const SizedBox.shrink();
-        final uLabel = _isFriseur ? '⬆️ Trumpf' : 'Trumpf ⬆️';
+        final uLabel = _isFriseur ? tr('⬆️ Trumpf') : tr('Trumpf ⬆️');
         return _trumpBox(uLabel, Colors.orange);
 
       case GameMode.oben:
@@ -304,7 +305,7 @@ class _ModeIndicator extends StatelessWidget {
         _label('Slalom ↕️', Colors.purple.shade300),
         const SizedBox(height: 2),
         _label(
-          isOben ? 'Oben ⬇️' : 'Unten ⬆️',
+          isOben ? tr('Oben ⬇️') : tr('Unten ⬆️'),
           isOben ? Colors.blue.shade300 : Colors.orange.shade300,
         ),
       ],
@@ -318,7 +319,7 @@ class _ModeIndicator extends StatelessWidget {
         children: [
           _label('Molotow 💣', Colors.deepOrange.shade300),
           const SizedBox(height: 2),
-          _label('Trumpf offen…', Colors.white54),
+          _label(tr('Trumpf offen…'), Colors.white54),
         ],
       );
     }
@@ -331,7 +332,7 @@ class _ModeIndicator extends StatelessWidget {
         subWidget = _label('Undenufe ⬆️', Colors.orange.shade300);
         break;
       case GameMode.trump:
-        subWidget = _trumpLabel('Trumpf', Colors.amber.shade300);
+        subWidget = _trumpLabel(tr('Trumpf'), Colors.amber.shade300);
         break;
       default:
         subWidget = const SizedBox.shrink();
@@ -350,10 +351,10 @@ class _ModeIndicator extends StatelessWidget {
     String subMode;
     Color color;
     if (trickNumber <= 3) {
-      subMode = 'Oben ⬇️';
+      subMode = tr('Oben ⬇️');
       color = Colors.blue.shade300;
     } else if (trickNumber <= 6) {
-      subMode = 'Unten ⬆️';
+      subMode = tr('Unten ⬆️');
       color = Colors.orange.shade300;
     } else {
       final trumpLabel = trumpSuit != null ? 'Trump ${trumpSuit!.symbol}' : 'Trump 🎯';
