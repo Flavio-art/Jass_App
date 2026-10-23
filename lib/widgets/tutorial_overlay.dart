@@ -26,18 +26,18 @@ class TutorialOverlay extends StatelessWidget {
     return Stack(
       children: [
         if (bubble != null) _modalBubble(bubble),
+        // Schlichtes Kreuz oben links zum Beenden (überlappt die Blasen nicht).
         Positioned(
-          top: 8,
-          right: 8,
+          top: 2,
+          left: 2,
           child: SafeArea(
-            child: TextButton.icon(
+            child: IconButton(
+              tooltip: tr('Tutorial beenden'),
               onPressed: () {
                 provider.endTutorial();
                 Navigator.of(context).maybePop();
               },
-              icon: const Icon(Icons.close, size: 16, color: Colors.white54),
-              label: Text(tr('Tutorial beenden'),
-                  style: const TextStyle(color: Colors.white54, fontSize: 13)),
+              icon: const Icon(Icons.close, size: 22, color: Colors.white70),
             ),
           ),
         ),
@@ -280,7 +280,7 @@ class TutorialCoachBar extends StatelessWidget {
     if (!provider.tutorialActive) return const SizedBox.shrink();
     final text = _statusText(provider);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(44, 8, 44, 4),
+      padding: const EdgeInsets.fromLTRB(48, 6, 12, 4),
       child: Container(
         height: 40,
         alignment: Alignment.center,
@@ -416,6 +416,7 @@ String modeExplanation(GameState state) {
 String modeLabel(GameMode mode, Suit? trumpSuit) {
   switch (mode) {
     case GameMode.trump:
+    case GameMode.trumpUnten:
       return trumpSuit != null
           ? trp('Trumpf {0}', [suitSymbol(trumpSuit)])
           : 'Trumpf';
