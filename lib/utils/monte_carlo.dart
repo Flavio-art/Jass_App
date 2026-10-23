@@ -4080,7 +4080,14 @@ class MonteCarloAI {
       wishedTeamTrump = 1;
     }
     final unaccounted = totalTrumps - myTrumps - playedTrumps - wishedTeamTrump;
-    return unaccounted <= 0;
+    if (unaccounted <= 0) return true;
+    // Sind noch Trümpfe offen, aber ALLE Gegner nachweislich trumpf-void
+    // (haben die Trumpffarbe schon einmal nicht bedient), liegen diese Trümpfe
+    // zwangsläufig beim eigenen Team. Dann lohnt kein Trumpf-Ziehen mehr –
+    // es würde nur dem Partner den Trumpf wegnehmen.
+    final anyOpponentCouldHoldTrump = state.players.any((p) =>
+        !_sameTeamFor(player, p, state) && !_publiclyVoid(p.id, trump, state));
+    return !anyOpponentCouldHoldTrump;
   }
 
   /// Ist eine Karte ein Schafkopf-Trumpf? (Damen + 8er + Trumpffarbe)
