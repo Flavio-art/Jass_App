@@ -168,9 +168,9 @@ class _GameScreenState extends State<GameScreen> {
               style: const TextStyle(color: Colors.white, fontSize: 16),
             ),
             const SizedBox(height: 12),
-            const Text(
-              'Runde zu Ende spielen?\nDer Gewinner ändert sich nicht mehr.',
-              style: TextStyle(color: Colors.white70, fontSize: 13),
+            Text(
+              tr('Runde zu Ende spielen?\nDer Gewinner ändert sich nicht mehr.'),
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
               textAlign: TextAlign.center,
             ),
           ],
@@ -2151,7 +2151,7 @@ class _RoundEndOverlay extends StatelessWidget {
     if (variant == 'trump_ss' || variant == 'trump_re') {
       final isBlack = variant == 'trump_ss';
       final symbols = isBlack ? '♠♣' : '♥♦';
-      final label = isBlack ? 'Schaufeln/Kreuz' : 'Herz/Ecken';
+      final label = isBlack ? tr('Schaufeln/Kreuz') : tr('Herz/Ecken');
       final symbolColor = isBlack ? Colors.black : AppColors.cardRed;
       final symbolStyle = TextStyle(
         fontSize: 12,
@@ -2288,7 +2288,7 @@ class _GameEndOverlay extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                '$winner gewinnt!',
+                trp('{0} gewinnt!', [winner]),
                 style: const TextStyle(
                   color: AppColors.gold,
                   fontSize: 28,
@@ -3996,8 +3996,8 @@ class _DifferenzlerGameEndOverlay extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 winner.isHuman && winner.name == 'Du'
-                    ? 'Du gewinnst!'
-                    : '${winner.name} gewinnt!',
+                    ? tr('Du gewinnst!')
+                    : trp('{0} gewinnt!', [winner.name]),
                 style: const TextStyle(
                   color: AppColors.gold,
                   fontSize: 24,
@@ -4087,7 +4087,7 @@ class _WyssBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     // Ansage: nur Typ nennen (z.B. "Vier gleiche", "Dreiblatt"), keine Details.
     // Details werden erst bei der Auflösung im _WyssOverlay gezeigt.
-    final text = '💬 ${wyss.typeName}';
+    final text = '💬 ${tr(wyss.typeName)}';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
@@ -4319,7 +4319,7 @@ class _WyssDeclarationOverlay extends StatelessWidget {
 
     final typeName = best.isFourOfAKind
         ? trp('Vierling {0}', [best.topValueLabel(ct)])
-        : '${best.typeName} ${best.topValueLabel(ct)}';
+        : '${tr(best.typeName)} ${best.topValueLabel(ct)}';
 
     return Positioned.fill(
       child: Container(
@@ -4578,9 +4578,9 @@ class _WyssOverlayState extends State<_WyssOverlay> {
                         textAlign: TextAlign.center,
                       ),
                     const SizedBox(height: 4),
-                    const Text(
-                      '(Tippen zum Schliessen)',
-                      style: TextStyle(color: Colors.white30, fontSize: 10),
+                    Text(
+                      tr('(Tippen zum Schliessen)'),
+                      style: const TextStyle(color: Colors.white30, fontSize: 10),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 8),

@@ -7,6 +7,17 @@
 // Platzhalter-Templates verwenden {0}, {1}, … und werden über trp() befüllt.
 
 const Map<String, String> kEn = {
+  // ── settings_screen / Spielfluss (Lokalisierungs-Nachtrag 2) ──────────────
+  'Multiplikatoren': 'Multipliers',
+  'Zielpunkte': 'Target score',
+  'Varianten & Multiplikatoren': 'Variants & multipliers',
+  '{0} Varianten · {1} Runden': '{0} variants · {1} rounds',
+  '{0} Varianten': '{0} variants',
+  '≈ {0}–{1} Runden': '≈ {0}–{1} rounds',
+  'Anzahl Runden': 'Number of rounds',
+  '6 gewinnt': '6 wins',
+  'DEINE KARTEN': 'YOUR CARDS',
+  '(1000–5000, einstellbar) erreicht hat.': '(1000–5000, adjustable).',
   // ── settings_screen (Lokalisierungs-Nachtrag) ─────────────────────────────
   'Name ändern': 'Change Name',
   'Dein Name': 'Your Name',
@@ -143,6 +154,16 @@ const Map<String, String> kEn = {
   // ── game_screen: Weis / Wunschkarte-Overlay ───────────────────────────────
   'Vier gleiche': 'Four of a kind',
   'Dreiblatt': 'Three-card run',
+  'Vierblatt': 'Four-card run',
+  'Fünfblatt': 'Five-card run',
+  'Schaufeln/Kreuz': 'Spades/Clubs',
+  'Herz/Ecken': 'Hearts/Diamonds',
+  '(Tippen zum Schliessen)': '(Tap to close)',
+  '{0} sagt an': '{0} announces',
+  'Trumpf 🎯': 'Trump 🎯',
+  '{0} am Zug': "{0}'s turn",
+  'Kein Weisen im Coiffeur.': 'No melds in Coiffeur.',
+  'Tippen zum Weiter': 'Tap to continue',
   '🎯 Wunschkarte': '🎯 Wish card',
   'Tippen zum Schliessen': 'Tap to close',
   'Geschoben': 'Passed',
