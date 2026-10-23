@@ -245,6 +245,34 @@ const Map<String, String> kEn = {
   'Du gewinnst Stich {0} mit {1}.': 'You win trick {0} with {1}.',
   '{0} gewinnt Stich {1} mit {2}.': '{0} wins trick {1} with {2}.',
   'Zur Auswertung': 'To the summary',
+  'Übungsspiel': 'Practice game',
+  'Die Gegner spielen …': 'The opponents are playing …',
+  'Jetzt wählst du!': 'Now you choose!',
+  'Deine Wahl': 'Your choice',
+  'Das sind deine 9 Karten. Gleich wählst du selbst den '
+      'Spieltyp – schau sie dir gut an.':
+      'These are your 9 cards. In a moment you\'ll choose the game type '
+          'yourself – take a good look.',
+  'Tippe unten auf „Spielmodus wählen" und entscheide dich:\n'
+          '• Trumpf – deine Trumpf-Karten stechen alles\n'
+          '• Obenabe – die hohen Karten gewinnen (Ass hoch)\n'
+          '• Undenufe – die tiefen Karten gewinnen (6 hoch)\n'
+          '• Slalom – hoch/tief wechseln sich ab':
+      'Tap „Spielmodus wählen" below and decide:\n'
+          '• Trump – your trump cards beat everything\n'
+          '• Obenabe – the high cards win (Ace high)\n'
+          '• Undenufe – the low cards win (6 high)\n'
+          '• Slalom – high/low alternate',
+  'Tippe unten auf „Spielmodus wählen".': 'Tap „Spielmodus wählen" below.',
+  'Stich fertig – tippe „Weiter".': 'Trick done – tap „Continue".',
+  'Du hast {0} gewählt – genau wie ein Computer es getan hätte. '
+      'Gute Wahl! 👏':
+      'You chose {0} – exactly what a computer would have done. Good choice! 👏',
+  'Du hast {0} gewählt.\n\nEin Computer hätte {1} gewählt. '
+      'Beides ist völlig in Ordnung – mit der Zeit bekommst du ein Gefühl '
+      'dafür.':
+      'You chose {0}.\n\nA computer would have chosen {1}. Both are perfectly '
+          'fine – you\'ll get a feel for it over time.',
   '🎯 Wunschkarte': '🎯 Wish card',
   'Tippen zum Schliessen': 'Tap to close',
   'Geschoben': 'Passed',

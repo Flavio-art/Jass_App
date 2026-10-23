@@ -426,7 +426,8 @@ class _GameScreenState extends State<GameScreen> {
 
                 Column(
                   children: [
-                    // ── Top bar ───────────────────────────────────────
+                    // ── Top bar (im Tutorial durch Coach-Leiste ersetzt) ──
+                    if (!provider.tutorialActive)
                     Padding(
                       padding: const EdgeInsets.all(8),
                       child: Row(
@@ -547,7 +548,9 @@ class _GameScreenState extends State<GameScreen> {
                           ),
                         ],
                       ),
-                    ),
+                    )
+                    else
+                      const TutorialCoachBar(),
 
                     // ── North player + won pile ───────────────────────
                     Padding(
@@ -971,7 +974,8 @@ class _GameScreenState extends State<GameScreen> {
                 if (state.phase == GamePhase.trumpSelection &&
                     state.currentTrumpSelector.isHuman) ...[
                   // ── Schieben-Button (über Spielmodus wählen) ──────────
-                  if (_canSchieben(state))
+                  // Im Tutorial ausgeblendet – der Spieler soll selbst wählen.
+                  if (_canSchieben(state) && !provider.tutorialActive)
                     Positioned(
                       left: 0,
                       right: 0,

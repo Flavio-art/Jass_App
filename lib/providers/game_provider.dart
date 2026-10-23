@@ -42,6 +42,16 @@ class GameProvider extends ChangeNotifier {
   int tutorialIntroStep = 0;
   /// Zuletzt gelehrter Modus – für Abwechslung bei „Neue Runde".
   GameMode? _lastTutorialMode;
+  /// true = der Spieler wählt den Spieltyp diese Runde selbst (ca. 50 %).
+  bool _tutorialPlayerPicks = false;
+  bool get tutorialPlayerPicks => _tutorialPlayerPicks;
+  /// Was ein Computer gewählt hätte (für die Auflösung nach eigener Wahl).
+  GameMode? _tutorialAiMode;
+  Suit? _tutorialAiTrump;
+  GameMode? get tutorialAiMode => _tutorialAiMode;
+  Suit? get tutorialAiTrump => _tutorialAiTrump;
+  /// true, solange die Auflösung „Computer hätte … gewählt" noch aussteht.
+  bool tutorialResolutionPending = false;
 
   GameState get state => _state;
 
@@ -353,6 +363,10 @@ class GameProvider extends ChangeNotifier {
   void startTutorialGame({CardType cardType = CardType.french}) {
     _tutorialMode = true;
     tutorialIntroStep = 0;
+    tutorialResolutionPending = false;
+
+    // In ca. 50 % der Fälle wählt der Spieler den Spieltyp selbst.
+    _tutorialPlayerPicks = Random().nextBool();
 
     // Modus abwechslungsreich wählen – nie derselbe wie zuletzt.
     const modes = [GameMode.trump, GameMode.oben, GameMode.unten, GameMode.slalom];
@@ -363,10 +377,33 @@ class GameProvider extends ChangeNotifier {
     // Normales Schieber-Setup (Mensch = Ansager, kein Auto-Select wegen Flag).
     startNewGame(cardType: cardType, gameType: GameType.schieber, schieberWinTarget: 2500);
 
-    // Modus vorgeben: Trumpf braucht eine zufällige Farbe, Slalom eine Richtung.
-    final trumpSuit = mode == GameMode.trump ? _pickRandomTrumpSuit(cardType) : null;
-    final slalomOben = Random().nextBool();
-    selectGameMode(mode, trumpSuit: trumpSuit, slalomStartsOben: slalomOben);
+    // Was ein Computer aus diesem Blatt wählen würde (für die Auflösung).
+    final human = _state.players.firstWhere((p) => p.isHuman);
+    final suggestion = ModeSelectorAI.selectMode(
+      player: human,
+      state: _state,
+      availableVariants: const ['trump_oben', 'oben', 'unten', 'slalom'],
+    );
+    _tutorialAiMode = suggestion.mode;
+    _tutorialAiTrump = suggestion.trumpSuit;
+
+    if (_tutorialPlayerPicks) {
+      // Spieler wählt selbst über die echte Trumpf-Auswahl → Phase bleibt
+      // trumpSelection; danach zeigt das Overlay die Auflösung.
+      tutorialResolutionPending = true;
+      notifyListeners();
+    } else {
+      // Tutorial gibt den Modus vor (Trumpf: zufällige Farbe, Slalom: Richtung).
+      final trumpSuit = mode == GameMode.trump ? _pickRandomTrumpSuit(cardType) : null;
+      final slalomOben = Random().nextBool();
+      selectGameMode(mode, trumpSuit: trumpSuit, slalomStartsOben: slalomOben);
+      notifyListeners();
+    }
+  }
+
+  /// Bestätigt die Auflösung „Ein Computer hätte … gewählt".
+  void ackTutorialResolution() {
+    tutorialResolutionPending = false;
     notifyListeners();
   }
 
@@ -380,6 +417,8 @@ class GameProvider extends ChangeNotifier {
   void endTutorial() {
     _tutorialMode = false;
     tutorialIntroStep = 0;
+    tutorialResolutionPending = false;
+    _tutorialPlayerPicks = false;
     resetToSetup();
   }
 
