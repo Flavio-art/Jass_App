@@ -120,11 +120,11 @@ class TutorialOverlay extends StatelessWidget {
       if (step == 2) {
         return _Bubble(
           title: tr('Jetzt wählst du!'),
-          body: tr('Tippe unten auf „Spielmodus wählen" und entscheide dich:\n'
+          body: trp('Tippe unten auf „{0}" und entscheide dich:\n'
               '• Trumpf – deine Trumpf-Karten stechen alles\n'
               '• Obenabe – die hohen Karten gewinnen (Ass hoch)\n'
               '• Undenufe – die tiefen Karten gewinnen (6 hoch)\n'
-              '• Slalom – hoch/tief wechseln sich ab'),
+              '• Slalom – hoch/tief wechseln sich ab', [tr('Spielmodus wählen')]),
           primaryLabel: tr('Verstanden'),
           primaryAction: provider.tutorialNextIntro,
         );
@@ -313,7 +313,7 @@ class TutorialCoachBar extends StatelessWidget {
     final s = p.state;
     if (s.phase == GamePhase.trumpSelection) {
       return p.tutorialPlayerPicks && p.tutorialIntroStep >= 3
-          ? tr('Tippe unten auf „Spielmodus wählen".')
+          ? trp('Tippe unten auf „{0}".', [tr('Spielmodus wählen')])
           : tr('Übungsspiel');
     }
     if (s.phase == GamePhase.trickClearPending) {
