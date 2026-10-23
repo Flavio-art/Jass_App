@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -351,13 +352,16 @@ class _HomeScreenState extends State<HomeScreen> {
                     label: Text(tr('Spielen lernen'),
                         style: const TextStyle(color: AppColors.gold, fontSize: 15)),
                   ),
-                  TextButton.icon(
-                    onPressed: _openReplay,
-                    icon: const Icon(Icons.play_circle_outline,
-                        color: Colors.white38, size: 18),
-                    label: Text(l.openReplay,
-                        style: const TextStyle(color: Colors.white38, fontSize: 15)),
-                  ),
+                  // Open Replay nur im Debug-Build (Entwickler-Werkzeug),
+                  // in der offiziellen Release-App ausgeblendet.
+                  if (!kReleaseMode)
+                    TextButton.icon(
+                      onPressed: _openReplay,
+                      icon: const Icon(Icons.play_circle_outline,
+                          color: Colors.white38, size: 18),
+                      label: Text(l.openReplay,
+                          style: const TextStyle(color: Colors.white38, fontSize: 15)),
+                    ),
                   SizedBox(height: constraints.maxHeight * 0.02),
                 ],
               ),
