@@ -599,8 +599,8 @@ class _StatsScreenState extends State<StatsScreen> {
     switch (key) {
       case 'trump_ss': return _isGerman ? tr('Trumpf Metall') : tr('Trumpf Schwarz');
       case 'trump_re': return _isGerman ? tr('Trumpf Gemüse') : tr('Trumpf Rot');
-      case 'oben':       return 'Oben';
-      case 'unten':      return 'Unten';
+      case 'oben':       return tr('Oben');
+      case 'unten':      return tr('Unten');
       case 'slalom':     return 'Slalom';
       case 'elefant':    return 'Elefant';
       case 'misere':     return 'Misere';
