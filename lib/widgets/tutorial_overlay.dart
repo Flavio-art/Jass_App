@@ -169,6 +169,18 @@ class TutorialOverlay extends StatelessWidget {
       );
     }
     if (step == 2) {
+      final ansager = state.currentAnsager;
+      if (!ansager.isHuman) {
+        // Partner oder Gegner hat angesagt → erklären, wer was.
+        return _Bubble(
+          title: trp('{0} sagt an', [ansager.name]),
+          body: trp('{0} hat {1} angesagt. ',
+                  [ansager.name, modeLabel(state.gameMode, state.trumpSuit)]) +
+              modeRuleShort(state),
+          primaryLabel: tr('Verstanden'),
+          primaryAction: provider.tutorialNextIntro,
+        );
+      }
       return _Bubble(
         title: modeTitle(state),
         body: modeExplanation(state),
@@ -415,6 +427,26 @@ String modeExplanation(GameState state) {
               'ab. Achte auf den Wechsel! Du spielst aus – wähle eine Karte.');
     default:
       return intro;
+  }
+}
+
+/// Kurze Modus-Regel (für die Ansage durch Partner/Gegner).
+String modeRuleShort(GameState state) {
+  switch (state.gameMode) {
+    case GameMode.trump:
+      return trp('Trumpf ({0}) sticht jede andere Farbe – achte darauf!',
+          [suitSymbol(state.trumpSuit!)]);
+    case GameMode.trumpUnten:
+      return trp('Trumpf ({0}) sticht alles; sonst zählt tief (6 hoch).',
+          [suitSymbol(state.trumpSuit!)]);
+    case GameMode.oben:
+      return tr('Es gewinnt die höchste Karte der angespielten Farbe (Ass hoch).');
+    case GameMode.unten:
+      return tr('Es gewinnt die höchste Karte – aber die 6 ist am höchsten.');
+    case GameMode.slalom:
+      return tr('Obenabe und Undenufe wechseln sich Stich für Stich ab.');
+    default:
+      return '';
   }
 }
 
