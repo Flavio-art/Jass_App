@@ -35,6 +35,14 @@ class GameProvider extends ChangeNotifier {
   /// Wird zu Beginn jeder neuen Runde geleert und ins Replay übernommen.
   final Map<int, List<String>> _aiDecisionLogs = {};
 
+  // ─── Tutorial (geführtes Übungsspiel, nur Schieber) ─────────────────────────
+  bool _tutorialMode = false;
+  bool get tutorialActive => _tutorialMode;
+  /// Schritt in der Einführungs-Sequenz (Willkommen → Blatt → Modus).
+  int tutorialIntroStep = 0;
+  /// Zuletzt gelehrter Modus – für Abwechslung bei „Neue Runde".
+  GameMode? _lastTutorialMode;
+
   GameState get state => _state;
 
   @override
@@ -51,6 +59,7 @@ class GameProvider extends ChangeNotifier {
   static String _saveKey(GameType type) => 'saved_game_${type.name}';
 
   Future<void> _saveState() async {
+    if (_tutorialMode) return; // Tutorial-Runden nicht als Speicherstand ablegen
     if (_state.phase == GamePhase.setup || _state.phase == GamePhase.gameEnd) {
       await clearSavedGame(_state.gameType);
       return;
@@ -135,6 +144,7 @@ class GameProvider extends ChangeNotifier {
   // ─── Spiel archivieren ──────────────────────────────────────────────────
 
   void _archiveGame() {
+    if (_tutorialMode) return; // Tutorial-Spiele nicht in die Statistik aufnehmen
     final s = _state;
 
     // Spieler-Punkte / Gegner-Punkte bestimmen
@@ -282,7 +292,8 @@ class GameProvider extends ChangeNotifier {
     }
 
     // Zufälliger Startansager / Loch-Spieler
-    final initialAnsager = Random().nextInt(4);
+    // Tutorial: immer der Mensch (Süd), damit er die Moduswahl erklärt bekommt.
+    final initialAnsager = _tutorialMode ? 0 : Random().nextInt(4);
     final initialLoch = gameType == GameType.friseur ? initialAnsager : 0;
 
     // Differenzler: zufälligen Trumpf wählen und Vorhersage-Phase starten
@@ -329,10 +340,47 @@ class GameProvider extends ChangeNotifier {
     notifyListeners();
     _debugLogModePicks();
 
-    // KI-Ansager wählt automatisch
-    if (!_state.currentAnsager.isHuman) {
+    // KI-Ansager wählt automatisch (im Tutorial gibt das Tutorial den Modus vor)
+    if (!_tutorialMode && !_state.currentAnsager.isHuman) {
       _autoSelectMode();
     }
+  }
+
+  /// Startet ein geführtes Übungsspiel (nur Schieber). Zufälliges Blatt,
+  /// Mensch ist Ansager (Süd), der Modus wird vom Tutorial vorgegeben und
+  /// gegenüber der letzten Runde variiert (Trumpf/Obenabe/Undenufe/Slalom).
+  /// Weisen sind deaktiviert; Tutorial-Runden landen nicht in Statistik/Save.
+  void startTutorialGame({CardType cardType = CardType.french}) {
+    _tutorialMode = true;
+    tutorialIntroStep = 0;
+
+    // Modus abwechslungsreich wählen – nie derselbe wie zuletzt.
+    const modes = [GameMode.trump, GameMode.oben, GameMode.unten, GameMode.slalom];
+    final candidates = modes.where((m) => m != _lastTutorialMode).toList();
+    final mode = candidates[Random().nextInt(candidates.length)];
+    _lastTutorialMode = mode;
+
+    // Normales Schieber-Setup (Mensch = Ansager, kein Auto-Select wegen Flag).
+    startNewGame(cardType: cardType, gameType: GameType.schieber, schieberWinTarget: 2500);
+
+    // Modus vorgeben: Trumpf braucht eine zufällige Farbe, Slalom eine Richtung.
+    final trumpSuit = mode == GameMode.trump ? _pickRandomTrumpSuit(cardType) : null;
+    final slalomOben = Random().nextBool();
+    selectGameMode(mode, trumpSuit: trumpSuit, slalomStartsOben: slalomOben);
+    notifyListeners();
+  }
+
+  /// Nächster Schritt in der Tutorial-Einführungssequenz.
+  void tutorialNextIntro() {
+    tutorialIntroStep++;
+    notifyListeners();
+  }
+
+  /// Beendet das Tutorial und räumt den Zustand auf.
+  void endTutorial() {
+    _tutorialMode = false;
+    tutorialIntroStep = 0;
+    resetToSetup();
   }
 
   /// Schieber: Punktemultiplikator für den gewählten Spielmodus (aus state.schieberMultipliers).
@@ -2217,6 +2265,10 @@ class GameProvider extends ChangeNotifier {
     if (needsWishCard) {
       nextPhase = GamePhase.wishCardSelection;
     } else if (_state.gameType == GameType.schieber) {
+      if (_tutorialMode) {
+        // Tutorial: keine Weisen – hält das Übungsspiel einfach.
+        nextPhase = GamePhase.playing;
+      } else {
       for (final p in _state.players) {
         final entries = _detectWyssForPlayer(p.hand, trumpSuit, p.id, mode);
         if (entries.isNotEmpty) playerWyss[p.id] = entries;
@@ -2236,6 +2288,7 @@ class GameProvider extends ChangeNotifier {
           nextPhase = GamePhase.playing;
           newWyssDeclarationPending = true;
         }
+      }
       }
     } else {
       nextPhase = GamePhase.playing;
@@ -3020,7 +3073,10 @@ class GameProvider extends ChangeNotifier {
     // wyssDeclarationPending=false; danach tippt der Spieler den Stich weg.
     final showingWyssOverlay =
         _state.wyssDeclarationPending && _state.completedTricks.length == 1;
-    if (!showingWyssOverlay) {
+    if (_tutorialMode) {
+      // Tutorial: Stich bleibt liegen, bis der Spieler „Weiter" tippt
+      // (das Overlay erklärt, wer den Stich gewonnen hat). Kein Auto-Clear.
+    } else if (!showingWyssOverlay) {
       _clearTrickTimer?.cancel();
       _clearTrickTimer = Timer(const Duration(seconds: 2), clearTrick);
     }
@@ -3121,7 +3177,8 @@ class GameProvider extends ChangeNotifier {
     _aiRunning = true;
     try {
       while (_state.phase == GamePhase.playing && !_state.currentPlayer.isHuman) {
-        await Future.delayed(const Duration(milliseconds: 500));
+        // Tutorial: langsamer, damit man die KI-Züge nachvollziehen kann.
+        await Future.delayed(Duration(milliseconds: _tutorialMode ? 1100 : 500));
         if (_state.phase != GamePhase.playing) break;
 
         final aiPlayer = _state.currentPlayer;

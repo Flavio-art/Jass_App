@@ -14,6 +14,7 @@ import '../widgets/card_widget.dart';
 import '../widgets/player_hand_widget.dart';
 import '../widgets/trick_area_widget.dart';
 import '../widgets/score_board_widget.dart';
+import '../widgets/tutorial_overlay.dart';
 import 'trump_selection_screen.dart';
 import 'rules_screen.dart';
 
@@ -1247,6 +1248,9 @@ class _GameScreenState extends State<GameScreen> {
                                     Navigator.pop(context);
                                   },
                                 ),
+
+                // Tutorial-Overlay (nur aktiv im geführten Übungsspiel)
+                const TutorialOverlay(),
               ],
             );
           },
