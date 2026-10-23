@@ -25,7 +25,8 @@ class TutorialOverlay extends StatelessWidget {
 
     return Stack(
       children: [
-        if (bubble != null) _modalBubble(bubble),
+        if (bubble != null)
+          bubble.dimScreen ? _modalBubble(bubble) : _bottomPanel(bubble),
         // Schlichtes Kreuz oben links zum Beenden (überlappt die Blasen nicht).
         Positioned(
           top: 2,
@@ -96,6 +97,8 @@ class TutorialOverlay extends StatelessWidget {
         body: reason != null ? '$sentence\n$reason' : sentence,
         primaryLabel: n >= 9 ? tr('Zur Auswertung') : tr('Weiter'),
         primaryAction: () => provider.clearTrick(),
+        // Nicht abdunkeln – die 4 Karten des Stichs sollen sichtbar bleiben.
+        dimScreen: false,
       );
     }
 
@@ -207,13 +210,32 @@ class TutorialOverlay extends StatelessWidget {
 
   // ─── Darstellung ────────────────────────────────────────────────────────────
 
+  // Vollbild mit Abdunkeln (für Intro/Auflösung/Rundenende).
   Widget _modalBubble(_Bubble b) {
     return Positioned.fill(
       child: Container(
         color: Colors.black.withValues(alpha: 0.6),
         alignment: Alignment.center,
         padding: const EdgeInsets.all(24),
-        child: Material(
+        child: _cardContent(b),
+      ),
+    );
+  }
+
+  // Unten angedockt, OHNE Abdunkeln – lässt die Stich-Karten in der Mitte sichtbar.
+  Widget _bottomPanel(_Bubble b) {
+    return Positioned(
+      left: 10,
+      right: 10,
+      bottom: 10,
+      child: SafeArea(
+        child: Align(alignment: Alignment.bottomCenter, child: _cardContent(b)),
+      ),
+    );
+  }
+
+  Widget _cardContent(_Bubble b) {
+    return Material(
           color: Colors.transparent,
           child: Container(
             constraints: const BoxConstraints(maxWidth: 420),
@@ -280,9 +302,7 @@ class TutorialOverlay extends StatelessWidget {
               ],
             ),
           ),
-        ),
-      ),
-    );
+        );
   }
 }
 
@@ -531,6 +551,9 @@ class _Bubble {
   final VoidCallback primaryAction;
   final String? secondaryLabel;
   final VoidCallback? secondaryAction;
+  /// true = Vollbild abdunkeln (Intro/Auflösung); false = unten andocken,
+  /// damit die Stich-Karten sichtbar bleiben.
+  final bool dimScreen;
 
   _Bubble({
     this.title,
@@ -539,5 +562,6 @@ class _Bubble {
     required this.primaryAction,
     this.secondaryLabel,
     this.secondaryAction,
+    this.dimScreen = true,
   });
 }
