@@ -7,6 +7,31 @@
 // Platzhalter-Templates verwenden {0}, {1}, … und werden über trp() befüllt.
 
 const Map<String, String> kEn = {
+  // ── settings_screen (Lokalisierungs-Nachtrag) ─────────────────────────────
+  'Name ändern': 'Change Name',
+  'Dein Name': 'Your Name',
+  'Alle zurücksetzen': 'Reset All',
+  // ── Richtungs-/Trumpf-Labels + Spielfluss (Nachtrag) ─────────────────────
+  'Oben ⬇️': 'Up ⬇️',
+  'Unten ⬆️': 'Down ⬆️',
+  'Oben': 'Up',
+  'Unten': 'Down',
+  '⬇️ Trumpf': '⬇️ Trump',
+  '⬆️ Trumpf': '⬆️ Trump',
+  'Trumpf offen…': 'Trump open…',
+  'Du gewinnst!': 'You win!',
+  '{0} gewinnt!': '{0} wins!',
+  'Runde {0}': 'Round {0}',
+  '+{0} Punkte': '+{0} points',
+  ' (+ {0} weitere)': ' (+ {0} more)',
+  'Du spielst': 'You play',
+  '{0} spielt': '{0} plays',
+  '{0} schob zu {1}': '{0} passed to {1}',
+  '{0} hat geschoben – Du entscheidest': '{0} passed – you decide',
+  'du kannst sie danach nicht mehr selbst ansagen. ':
+      'you can no longer announce it yourself afterwards. ',
+  '• 6 → Undenufe  • Ass → Obenabe  • Andere Karte → Trumpf (die Farbe dieser Karte wird Trumpf) +\n':
+      '• 6 → Undenufe  • Ace → Obenabe  • Other card → Trump (that card becomes trump) +\n',
   // ── game_screen: Teilen/Kommentar ─────────────────────────────────────────
   'Runde teilen': 'Share round',
   'Kommentar (optional):': 'Comment (optional):',

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_colors.dart';
 import '../l10n/app_localizations.dart';
+import '../l10n/tr.dart';
 import '../models/card_model.dart';
 import '../models/game_state.dart';
 import '../providers/locale_provider.dart';
@@ -145,9 +146,9 @@ class _SettingsScreenState extends State<SettingsScreen>
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1B4D2E),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          'Name ändern',
-          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+        title: Text(
+          tr('Name ändern'),
+          style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
         ),
         content: TextField(
           controller: controller,
@@ -156,7 +157,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           style: const TextStyle(color: Colors.white, fontSize: 18),
           textAlign: TextAlign.center,
           decoration: InputDecoration(
-            hintText: 'Dein Name',
+            hintText: tr('Dein Name'),
             hintStyle: const TextStyle(color: Colors.white38),
             filled: true,
             fillColor: Colors.white10,
@@ -174,7 +175,7 @@ class _SettingsScreenState extends State<SettingsScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Abbrechen', style: TextStyle(color: Colors.white54)),
+            child: Text(tr('Abbrechen'), style: const TextStyle(color: Colors.white54)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.of(ctx).pop(controller.text),
@@ -491,14 +492,14 @@ class _SettingsScreenState extends State<SettingsScreen>
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      _modeNames[i],
+                      tr(_modeNames[i]),
                       style: const TextStyle(color: Colors.white70, fontSize: 13),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   const SizedBox(width: 8),
                   GestureDetector(
-                    onTap: () => _editMultiplier(_modeKeys[i], _modeNames[i]),
+                    onTap: () => _editMultiplier(_modeKeys[i], tr(_modeNames[i])),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
@@ -637,7 +638,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      _variantNames[i],
+                      tr(_variantNames[i]),
                       style: TextStyle(
                         color: _enabledVariants.contains(_variantKeys[i]) ? Colors.white70 : Colors.white24,
                         fontSize: 13,
@@ -647,7 +648,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                   ),
                   const SizedBox(width: 8),
                   GestureDetector(
-                    onTap: () => _editCoiffeurMultiplier(_coiffeurKeys[i], _coiffeurNames[i]),
+                    onTap: () => _editCoiffeurMultiplier(_coiffeurKeys[i], tr(_coiffeurNames[i])),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
@@ -731,8 +732,8 @@ class _SettingsScreenState extends State<SettingsScreen>
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text('Alle zurücksetzen',
-                  style: TextStyle(fontSize: 14)),
+              child: Text(tr('Alle zurücksetzen'),
+                  style: const TextStyle(fontSize: 14)),
             ),
           ),
         ],
@@ -804,7 +805,7 @@ class _SettingsScreenState extends State<SettingsScreen>
                 width: tileWidth,
                 child: _VariantTile(
                   emoji: _variantEmojis[i],
-                  label: _variantNames[i],
+                  label: tr(_variantNames[i]),
                   active: _enabledVariants.contains(_variantKeys[i]),
                   onTap: () {
                     setState(() {
@@ -879,7 +880,7 @@ class _MultiplierDialogState extends State<_MultiplierDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Abbrechen', style: TextStyle(color: Colors.white54)),
+          child: Text(tr('Abbrechen'), style: const TextStyle(color: Colors.white54)),
         ),
         ElevatedButton(
           onPressed: () => Navigator.pop(context, _value),

@@ -85,8 +85,8 @@ class TrumpSelectionScreen extends StatelessWidget {
                               : (hasSchieben
                                   ? (selector.isHuman
                                       ? tr('Partner hat geschoben – Du wählst')
-                                      : '${ansager.name} schob zu ${selector.name}')
-                                  : (ansager.isHuman ? 'Du spielst' : '${ansager.name} spielt')),
+                                      : trp('{0} schob zu {1}', [ansager.name, selector.name]))
+                                  : (ansager.isHuman ? tr('Du spielst') : trp('{0} spielt', [ansager.name]))),
                           style: const TextStyle(color: Colors.white54, fontSize: 12),
                           textAlign: TextAlign.center,
                         ),
@@ -306,8 +306,8 @@ class TrumpSelectionScreen extends StatelessWidget {
     if (hasSchieben) {
       // Intermediate player (not original announcer)
       return selector.isHuman
-          ? '${ansager.name} hat geschoben – Du entscheidest'
-          : '${ansager.name} schob zu ${selector.name}';
+          ? trp('{0} hat geschoben – Du entscheidest', [ansager.name])
+          : trp('{0} schob zu {1}', [ansager.name, selector.name]);
     }
     // Original announcer
     if (state.soloSchiebungRounds == 1) {
