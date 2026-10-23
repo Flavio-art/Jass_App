@@ -382,7 +382,9 @@ class GameProvider extends ChangeNotifier {
     final suggestion = ModeSelectorAI.selectMode(
       player: human,
       state: _state,
-      availableVariants: const ['trump_oben', 'oben', 'unten', 'slalom'],
+      // Schieber-Varianten-Keys: trump_ss/trump_re decken alle Trumpf-Farben
+      // ab (sonst wertet der Selector Trumpf gar nicht und wählt nie Trumpf).
+      availableVariants: const ['trump_ss', 'trump_re', 'oben', 'unten', 'slalom'],
     );
     _tutorialAiMode = suggestion.mode;
     _tutorialAiTrump = suggestion.trumpSuit;
