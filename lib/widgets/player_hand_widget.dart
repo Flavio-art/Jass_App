@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/card_model.dart';
 import '../models/player.dart';
+import '../l10n/tr.dart';
 import 'card_widget.dart';
 
 class PlayerHandWidget extends StatefulWidget {
@@ -154,7 +155,7 @@ class _PlayerHandWidgetState extends State<PlayerHandWidget> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    '${widget.player.name} am Zug',
+                    trp('{0} am Zug', [widget.player.name]),
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                   ),
                 ),

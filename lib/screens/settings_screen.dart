@@ -480,8 +480,8 @@ class _SettingsScreenState extends State<SettingsScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Multiplikatoren',
-              style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600)),
+          Text(tr('Multiplikatoren'),
+              style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600)),
           const SizedBox(height: 10),
           for (int i = 0; i < _modeKeys.length; i++)
             Padding(
@@ -532,8 +532,8 @@ class _SettingsScreenState extends State<SettingsScreen>
           const SizedBox(height: 16),
           Row(
             children: [
-              const Text('Zielpunkte',
-                  style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600)),
+              Text(tr('Zielpunkte'),
+                  style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600)),
               const Spacer(),
               Text(
                 '$_schieberWinTarget',
@@ -594,11 +594,12 @@ class _SettingsScreenState extends State<SettingsScreen>
         children: [
           Row(
             children: [
-              const Text('Varianten & Multiplikatoren',
-                  style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600)),
+              Text(tr('Varianten & Multiplikatoren'),
+                  style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600)),
               const Spacer(),
               Text(
-                '$_effectiveVariantCount Varianten · ${_effectiveVariantCount * 2} Runden',
+                trp('{0} Varianten · {1} Runden',
+                    [_effectiveVariantCount, _effectiveVariantCount * 2]),
                 style: const TextStyle(color: Colors.white38, fontSize: 11),
               ),
             ],
@@ -677,9 +678,9 @@ class _SettingsScreenState extends State<SettingsScreen>
               ),
             ),
           const SizedBox(height: 12),
-          const Text(
-            'Kein Weisen im Coiffeur.',
-            style: TextStyle(color: Colors.white38, fontSize: 11),
+          Text(
+            tr('Kein Weisen im Coiffeur.'),
+            style: const TextStyle(color: Colors.white38, fontSize: 11),
           ),
         ],
       ),
@@ -697,18 +698,19 @@ class _SettingsScreenState extends State<SettingsScreen>
         children: [
           Row(
             children: [
-              const Text('Varianten',
-                  style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600)),
+              Text(tr('Varianten'),
+                  style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600)),
               const Spacer(),
               Text(
-                '$_effectiveVariantCount Varianten',
+                trp('{0} Varianten', [_effectiveVariantCount]),
                 style: const TextStyle(color: Colors.white38, fontSize: 12),
               ),
             ],
           ),
           const SizedBox(height: 4),
           Text(
-            '≈ ${_effectiveVariantCount * 2}–${_effectiveVariantCount * 3} Runden',
+            trp('≈ {0}–{1} Runden',
+                [_effectiveVariantCount * 2, _effectiveVariantCount * 3]),
             style: const TextStyle(color: Colors.white54, fontSize: 11),
           ),
           const SizedBox(height: 12),
@@ -751,8 +753,8 @@ class _SettingsScreenState extends State<SettingsScreen>
         children: [
           Row(
             children: [
-              const Text('Anzahl Runden',
-                  style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600)),
+              Text(tr('Anzahl Runden'),
+                  style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600)),
               const Spacer(),
               Text(
                 '$_differenzlerRounds',

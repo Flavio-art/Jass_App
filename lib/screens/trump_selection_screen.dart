@@ -159,7 +159,7 @@ class TrumpSelectionScreen extends StatelessWidget {
                             color: Colors.blue.shade700, isAvailable: available.contains('oben'),
                             onTap: () => _selectMode(context, GameMode.oben))),
                           const SizedBox(width: 8),
-                          Expanded(child: _ModeButton(label: 'Undenufe', subtitle: '6 gewinnt', emoji: '⬆️',
+                          Expanded(child: _ModeButton(label: 'Undenufe', subtitle: tr('6 gewinnt'), emoji: '⬆️',
                             color: Colors.orange.shade700, isAvailable: available.contains('unten'),
                             onTap: () => _selectMode(context, GameMode.unten))),
                         ],
@@ -257,9 +257,9 @@ class TrumpSelectionScreen extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
-                    'DEINE KARTEN',
-                    style: TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 1.2),
+                  Text(
+                    tr('DEINE KARTEN'),
+                    style: const TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 1.2),
                   ),
                   const SizedBox(height: 8),
                   LayoutBuilder(builder: (context, constraints) {
@@ -317,7 +317,7 @@ class TrumpSelectionScreen extends StatelessWidget {
     }
     return selector.isHuman
         ? tr('Du sagst an – wähle Modus & Wunschkarte')
-        : '${ansager.name} sagt an';
+        : trp('{0} sagt an', [ansager.name]);
   }
 
   /// Schieber: 4 gleich hohe Reihen (2× Trumpf, Obenabe/Undenufe, Slalom).
@@ -385,7 +385,7 @@ class TrumpSelectionScreen extends StatelessWidget {
               multiplier: mults['oben'],
               onTap: () => _selectMode(context, GameMode.oben))),
             const SizedBox(width: 8),
-            Expanded(child: _ModeButton(label: 'Undenufe', subtitle: '6 gewinnt', emoji: '⬆️',
+            Expanded(child: _ModeButton(label: 'Undenufe', subtitle: tr('6 gewinnt'), emoji: '⬆️',
               color: Colors.orange.shade700, isAvailable: available.contains('unten'),
               multiplier: mults['unten'],
               onTap: () => _selectMode(context, GameMode.unten))),
@@ -471,8 +471,8 @@ class TrumpSelectionScreen extends StatelessWidget {
               ],
               // ── Kartenvorschau ────────────────────────────────────────
               const SizedBox(height: 14),
-              const Text('DEINE KARTEN',
-                  style: TextStyle(color: Colors.white38, fontSize: 9, letterSpacing: 1.2)),
+              Text(tr('DEINE KARTEN'),
+                  style: const TextStyle(color: Colors.white38, fontSize: 9, letterSpacing: 1.2)),
               const SizedBox(height: 8),
               LayoutBuilder(builder: (_, cons) {
                 const cw = 42.0;
@@ -627,8 +627,8 @@ class TrumpSelectionScreen extends StatelessWidget {
             ),
             // ── Kartenvorschau ──────────────────────────────────────
             const SizedBox(height: 14),
-            const Text('DEINE KARTEN',
-                style: TextStyle(color: Colors.white38, fontSize: 9, letterSpacing: 1.2)),
+            Text(tr('DEINE KARTEN'),
+                style: const TextStyle(color: Colors.white38, fontSize: 9, letterSpacing: 1.2)),
             const SizedBox(height: 8),
             LayoutBuilder(builder: (_, cons) {
               const cw = 42.0;
@@ -722,8 +722,8 @@ class TrumpSelectionScreen extends StatelessWidget {
             ),
             // ── Kartenvorschau ────────────────────────────────────────
             const SizedBox(height: 14),
-            const Text('DEINE KARTEN',
-                style: TextStyle(color: Colors.white38, fontSize: 9, letterSpacing: 1.2)),
+            Text(tr('DEINE KARTEN'),
+                style: const TextStyle(color: Colors.white38, fontSize: 9, letterSpacing: 1.2)),
             const SizedBox(height: 8),
             LayoutBuilder(builder: (_, cons) {
               const cw = 42.0;
