@@ -253,17 +253,17 @@ const Map<String, String> kEn = {
       'Spieltyp – schau sie dir gut an.':
       'These are your 9 cards. In a moment you\'ll choose the game type '
           'yourself – take a good look.',
-  'Tippe unten auf „Spielmodus wählen" und entscheide dich:\n'
+  'Tippe unten auf „{0}" und entscheide dich:\n'
           '• Trumpf – deine Trumpf-Karten stechen alles\n'
           '• Obenabe – die hohen Karten gewinnen (Ass hoch)\n'
           '• Undenufe – die tiefen Karten gewinnen (6 hoch)\n'
           '• Slalom – hoch/tief wechseln sich ab':
-      'Tap „Spielmodus wählen" below and decide:\n'
+      'Tap „{0}" below and decide:\n'
           '• Trump – your trump cards beat everything\n'
           '• Obenabe – the high cards win (Ace high)\n'
           '• Undenufe – the low cards win (6 high)\n'
           '• Slalom – high/low alternate',
-  'Tippe unten auf „Spielmodus wählen".': 'Tap „Spielmodus wählen" below.',
+  'Tippe unten auf „{0}".': 'Tap „{0}" below.',
   'Stich fertig – tippe „Weiter".': 'Trick done – tap „Continue".',
   'Du hast {0} gewählt – genau wie ein Computer es getan hätte. '
       'Gute Wahl! 👏':
