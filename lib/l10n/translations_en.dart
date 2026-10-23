@@ -245,6 +245,16 @@ const Map<String, String> kEn = {
   'Du gewinnst Stich {0} mit {1}.': 'You win trick {0} with {1}.',
   '{0} gewinnt Stich {1} mit {2}.': '{0} wins trick {1} with {2}.',
   'Zur Auswertung': 'To the summary',
+  'Weil Trumpf ({0}) jede andere Farbe sticht.':
+      'Because trump ({0}) beats every other suit.',
+  'Weil es der höchste Trumpf im Stich war.':
+      'Because it was the highest trump in the trick.',
+  'Weil es die höchste {0}-Karte war (Ass ist am höchsten).':
+      'Because it was the highest {0} card (Ace is highest).',
+  'Weil es die höchste {0}-Karte war (6 ist am höchsten).':
+      'Because it was the highest {0} card (6 is highest).',
+  'Weil es die höchste {0}-Karte im Stich war.':
+      'Because it was the highest {0} card in the trick.',
   'Übungsspiel': 'Practice game',
   'Die Gegner spielen …': 'The opponents are playing …',
   'Jetzt wählst du!': 'Now you choose!',

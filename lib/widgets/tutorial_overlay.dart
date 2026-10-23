@@ -84,11 +84,16 @@ class TutorialOverlay extends StatelessWidget {
       final cardStr = card != null ? '${card.displayValue}${card.displaySuit}' : '';
       final n = state.completedTricks.length;
       final youWon = winner.isHuman;
+      // Angespielte Karte (Stich liegt bei trickClearPending noch in Spielreihenfolge).
+      final led =
+          state.currentTrickCards.isNotEmpty ? state.currentTrickCards.first : null;
+      final reason = trickWinReason(state, card, led);
+      final sentence = youWon
+          ? trp('Du gewinnst Stich {0} mit {1}.', [n, cardStr])
+          : trp('{0} gewinnt Stich {1} mit {2}.', [winner.name, n, cardStr]);
       return _Bubble(
         title: youWon ? tr('Stich für dich! ✅') : trp('Stich für {0}', [winner.name]),
-        body: youWon
-            ? trp('Du gewinnst Stich {0} mit {1}.', [n, cardStr])
-            : trp('{0} gewinnt Stich {1} mit {2}.', [winner.name, n, cardStr]),
+        body: reason != null ? '$sentence\n$reason' : sentence,
         primaryLabel: n >= 9 ? tr('Zur Auswertung') : tr('Weiter'),
         primaryAction: () => provider.clearTrick(),
       );
@@ -429,6 +434,27 @@ String modeLabel(GameMode mode, Suit? trumpSuit) {
     default:
       return mode.name;
   }
+}
+
+/// Warum gewinnt [card] den Stich? (angespielte Karte [led], je nach Modus)
+String? trickWinReason(GameState state, JassCard? card, JassCard? led) {
+  if (card == null || led == null) return null;
+  final trump = state.trumpSuit;
+  if (trump != null && card.suit == trump && led.suit != trump) {
+    return trp('Weil Trumpf ({0}) jede andere Farbe sticht.', [suitSymbol(trump)]);
+  }
+  if (trump != null && card.suit == trump && led.suit == trump) {
+    return tr('Weil es der höchste Trumpf im Stich war.');
+  }
+  final sym = suitSymbol(led.suit);
+  final mode = state.gameMode;
+  if (mode == GameMode.oben || mode == GameMode.trump) {
+    return trp('Weil es die höchste {0}-Karte war (Ass ist am höchsten).', [sym]);
+  }
+  if (mode == GameMode.unten || mode == GameMode.trumpUnten) {
+    return trp('Weil es die höchste {0}-Karte war (6 ist am höchsten).', [sym]);
+  }
+  return trp('Weil es die höchste {0}-Karte im Stich war.', [sym]);
 }
 
 String playHint(GameState state, Player human) {
