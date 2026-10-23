@@ -299,7 +299,7 @@ class _RulesScreenState extends State<RulesScreen>
               tr('Wer diese Karte hat, ist für diese Runde sein geheimer Partner.')),
           _Rule(tr('Wichtig – Gewünscht ≠ Angesagt: Wird für dich eine Variante gewünscht ') +
               tr('(du bist Partner), wird diese Variante von deiner Liste gestrichen – ') +
-              'du kannst sie danach nicht mehr selbst ansagen. ' +
+              tr('du kannst sie danach nicht mehr selbst ansagen. ') +
               tr('Du kannst aber erneut für dieselbe Variante gewünscht werden.')),
           _Rule(tr('Sobald die Wunschkarte gespielt wird, ist der Partner aufgedeckt ') +
               tr('und die Spieler werden farblich markiert.')),
@@ -397,7 +397,7 @@ class _RulesScreenState extends State<RulesScreen>
         _Section(tr('Spielmodi'), []),
         _ModeCard(grp1, grp1d, titleWidget: grp1w),
         _ModeCard(grp2, grp2d, titleWidget: grp2w),
-        _ModeCard('⬆️  Trumpf Unten',
+        _ModeCard('⬆️  ${tr('Trumpf Unten')}',
             tr('Wie Trumpfspiel, aber die Reihenfolge im Trumpf ist umgekehrt. ') +
             tr('Nicht-Trumpf folgt der Undenufe-Reihenfolge (6 schlägt Ass).')),
         _ModeCard('⬇️  Obenabe',

@@ -14,8 +14,8 @@ class ReplayScreen extends StatelessWidget {
   String get _modeLabel {
     final m = replay.gameMode;
     final base = switch (m) {
-      GameMode.trump => 'Trumpf ⬇️',
-      GameMode.trumpUnten => 'Trumpf ⬆️',
+      GameMode.trump => tr('Trumpf ⬇️'),
+      GameMode.trumpUnten => tr('Trumpf ⬆️'),
       GameMode.oben => 'Obenabe',
       GameMode.unten => 'Undenufe',
       GameMode.slalom => 'Slalom',

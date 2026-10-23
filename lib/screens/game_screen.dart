@@ -1705,7 +1705,7 @@ class _RoundEndOverlay extends StatelessWidget {
                   child: Column(
                     children: [
                       Text(
-                        roundNum != null ? 'Runde $roundNum beendet' : tr('Runde beendet'),
+                        roundNum != null ? trp('Runde {0} beendet', [roundNum]) : tr('Runde beendet'),
                         style: const TextStyle(
                             color: AppColors.gold,
                             fontSize: 17,
@@ -1916,7 +1916,7 @@ class _RoundEndOverlay extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Text(
-                  roundNum != null ? 'Runde $roundNum beendet' : tr('Resultate'),
+                  roundNum != null ? trp('Runde {0} beendet', [roundNum]) : tr('Resultate'),
                   style: const TextStyle(
                     color: AppColors.gold,
                     fontSize: 18,
@@ -2637,8 +2637,8 @@ class _FriseurSoloGameEndOverlay extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       winner.isHuman && winner.name == 'Du'
-                          ? 'Du gewinnst!'
-                          : '${winner.name} gewinnt!',
+                          ? tr('Du gewinnst!')
+                          : trp('{0} gewinnt!', [winner.name]),
                       style: const TextStyle(
                           color: AppColors.gold,
                           fontSize: 22,
@@ -4204,16 +4204,16 @@ class _FriseurModeLabel extends StatelessWidget {
       case GameMode.trumpUnten:
         return _trumpWidget(tr('Trumpf ⬆️'), Colors.orange);
       case GameMode.oben:
-        return _text('Oben ⬇️', Colors.blue.shade300);
+        return _text(tr('Oben ⬇️'), Colors.blue.shade300);
       case GameMode.unten:
-        return _text('Unten ⬆️', Colors.orange.shade300);
+        return _text(tr('Unten ⬆️'), Colors.orange.shade300);
       case GameMode.slalom:
         final isOben = slalomStartsOben ? trickNumber % 2 == 1 : trickNumber % 2 == 0;
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             _text('Slalom ↕️', Colors.purple.shade300),
-            _text(isOben ? 'Oben ⬇️' : 'Unten ⬆️',
+            _text(isOben ? tr('Oben ⬇️') : tr('Unten ⬆️'),
                 isOben ? Colors.blue.shade300 : Colors.orange.shade300),
           ],
         );
@@ -4357,7 +4357,10 @@ class _WyssDeclarationOverlay extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '+${best.points} Punkte${entries.length > 1 ? ' (+ ${entries.length - 1} weitere)' : ''}',
+                    trp('+{0} Punkte', [best.points]) +
+                        (entries.length > 1
+                            ? trp(' (+ {0} weitere)', [entries.length - 1])
+                            : ''),
                     style: TextStyle(
                         color: Colors.amber.shade300, fontSize: 14),
                     textAlign: TextAlign.center,
