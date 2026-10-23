@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/app_colors.dart';
 import '../l10n/app_localizations.dart';
+import '../l10n/tr.dart';
 import '../models/card_model.dart';
 import '../models/game_state.dart';
 import '../models/round_replay.dart';
@@ -344,6 +345,13 @@ class _HomeScreenState extends State<HomeScreen> {
                         style: const TextStyle(color: Colors.white38, fontSize: 15)),
                   ),
                   TextButton.icon(
+                    onPressed: _startTutorial,
+                    icon: const Icon(Icons.school_outlined,
+                        color: AppColors.gold, size: 18),
+                    label: Text(tr('Spielen lernen'),
+                        style: const TextStyle(color: AppColors.gold, fontSize: 15)),
+                  ),
+                  TextButton.icon(
                     onPressed: _openReplay,
                     icon: const Icon(Icons.play_circle_outline,
                         color: Colors.white38, size: 18),
@@ -397,6 +405,17 @@ class _HomeScreenState extends State<HomeScreen> {
     } else {
       _startGame();
     }
+  }
+
+  void _startTutorial() async {
+    if (!mounted) return;
+    final provider = context.read<GameProvider>();
+    provider.startTutorialGame(cardType: _selectedCardType);
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const GameScreen()),
+    );
+    _refreshSavedGameState();
   }
 
   void _startGame() async {
