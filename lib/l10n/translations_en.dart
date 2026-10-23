@@ -164,6 +164,87 @@ const Map<String, String> kEn = {
   '{0} am Zug': "{0}'s turn",
   'Kein Weisen im Coiffeur.': 'No melds in Coiffeur.',
   'Tippen zum Weiter': 'Tap to continue',
+  // ── Tutorial (geführtes Übungsspiel) ──────────────────────────────────────
+  'Spielen lernen': 'Learn to play',
+  'Tutorial beenden': 'End tutorial',
+  'Willkommen beim Jass! 🎴': 'Welcome to Jass! 🎴',
+  'Ich führe dich durch eine Übungsrunde Schieber. '
+      'Du spielst unten (Süd), dein Partner sitzt dir gegenüber (Nord), '
+      'die beiden Gegner sind links und rechts.':
+      'I\'ll guide you through a practice round of Schieber. '
+          'You play at the bottom (South), your partner sits across from you '
+          '(North), the two opponents are on the left and right.',
+  'Los geht\'s': 'Let\'s go',
+  'Deine Karten': 'Your cards',
+  'Du hast 9 Karten. ': 'You have 9 cards. ',
+  'Trumpf ist {0}. Trumpf-Karten stechen jede andere Farbe. ':
+      'Trump is {0}. Trump cards beat every other suit. ',
+  'Am stärksten ist der Under (U{0}), dann die Nell (9{0}). ':
+      'The strongest is the Under (U{0}), then the Nell (9{0}). ',
+  'Deine Trümpfe: {0}.': 'Your trumps: {0}.',
+  'Du hast keine Trümpfe – das wird schwierig!':
+      'You have no trumps – this will be tricky!',
+  'Beim Obenabe zählt von oben: Ass ist am stärksten, dann König, '
+      'Ober, Under, 10 … Deine hohen Karten gewinnen die Stiche.':
+      'In Obenabe it counts from the top: the Ace is strongest, then King, '
+          'Ober, Under, 10 … Your high cards win the tricks.',
+  'Beim Undenufe ist es umgekehrt: die 6 ist am stärksten, dann 7, '
+      '8, 9 … Deine tiefen Karten gewinnen die Stiche.':
+      'In Undenufe it\'s reversed: the 6 is strongest, then 7, 8, 9 … '
+          'Your low cards win the tricks.',
+  'Obenabe (hoch)': 'Obenabe (high)',
+  'Undenufe (tief)': 'Undenufe (low)',
+  'Beim Slalom wechselt jede Runde zwischen hoch und tief. '
+      'Der 1. Stich geht nach {0}.':
+      'In Slalom it alternates between high and low each trick. '
+          'The 1st trick follows {0}.',
+  'Spieltyp: Trumpf {0}': 'Game type: Trump {0}',
+  'Spieltyp: Obenabe ⬇️': 'Game type: Obenabe ⬇️',
+  'Spieltyp: Undenufe ⬆️': 'Game type: Undenufe ⬆️',
+  'Spieltyp: Slalom ↕️': 'Game type: Slalom ↕️',
+  'Spieltyp': 'Game type',
+  'Das Tutorial hat diesen Spieltyp für dich gewählt. ':
+      'The tutorial picked this game type for you. ',
+  'Beim Trumpf stechen alle {0}-Karten die anderen Farben. '
+      'Du musst die angespielte Farbe bekennen, Trumpf darfst du aber '
+      'immer spielen. Du spielst als Erster aus – wähle eine Karte.':
+      'In Trump, all {0} cards beat the other suits. You must follow the led '
+          'suit, but you may always play trump. You lead first – pick a card.',
+  'Beim Obenabe gibt es keinen Trumpf. Es gewinnt die höchste '
+      'Karte der angespielten Farbe (Ass hoch). Du spielst aus – '
+      'wähle eine Karte.':
+      'In Obenabe there is no trump. The highest card of the led suit wins '
+          '(Ace high). You lead – pick a card.',
+  'Beim Undenufe gibt es keinen Trumpf und die Reihenfolge ist '
+      'umgekehrt: die 6 ist am höchsten. Du spielst aus – wähle eine '
+      'Karte.':
+      'In Undenufe there is no trump and the order is reversed: the 6 is '
+          'highest. You lead – pick a card.',
+  'Beim Slalom wechseln sich Obenabe und Undenufe Stich für Stich '
+      'ab. Achte auf den Wechsel! Du spielst aus – wähle eine Karte.':
+      'In Slalom, Obenabe and Undenufe alternate trick by trick. Watch the '
+          'switch! You lead – pick a card.',
+  'Du bist am Zug – du spielst aus. Wähle eine Karte.':
+      'Your turn – you lead. Pick a card.',
+  'Du bist am Zug: {0} wurde angespielt – bekenne {0}.':
+      'Your turn: {0} was led – follow with {0}.',
+  'Du bist am Zug: diese Farbe hast du nicht – du darfst eine '
+      'beliebige Karte spielen.':
+      'Your turn: you don\'t have this suit – you may play any card.',
+  'Verstanden': 'Got it',
+  'Runde fertig! 🎉': 'Round done! 🎉',
+  'Dein Team: {0} · Gegner: {1}.': 'Your team: {0} · Opponents: {1}.',
+  'Stark gespielt! 👏': 'Well played! 👏',
+  'Kein Problem – Übung macht den Meister.':
+      'No worries – practice makes perfect.',
+  'Spiel eine neue Runde – das Tutorial wählt dann einen anderen Spieltyp.':
+      'Play another round – the tutorial will then pick a different game type.',
+  'Neue Runde': 'New round',
+  'Stich für dich! ✅': 'Trick for you! ✅',
+  'Stich für {0}': 'Trick for {0}',
+  'Du gewinnst Stich {0} mit {1}.': 'You win trick {0} with {1}.',
+  '{0} gewinnt Stich {1} mit {2}.': '{0} wins trick {1} with {2}.',
+  'Zur Auswertung': 'To the summary',
   '🎯 Wunschkarte': '🎯 Wish card',
   'Tippen zum Schliessen': 'Tap to close',
   'Geschoben': 'Passed',
