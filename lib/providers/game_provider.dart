@@ -3133,9 +3133,7 @@ class GameProvider extends ChangeNotifier {
       // (das Overlay erklärt, wer den Stich gewonnen hat). Kein Auto-Clear.
     } else if (!showingWyssOverlay) {
       _clearTrickTimer?.cancel();
-      // Stich 5 s liegen lassen (war 2 s, wirkte zu schnell). Antippen räumt
-      // ihn jederzeit früher weg (onTap → clearTrick).
-      _clearTrickTimer = Timer(const Duration(seconds: 5), clearTrick);
+      _clearTrickTimer = Timer(const Duration(seconds: 2), clearTrick);
     }
   }
 
