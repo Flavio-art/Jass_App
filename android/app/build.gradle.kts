@@ -35,6 +35,8 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // Standard-App-Name (Release). Debug überschreibt ihn unten.
+        manifestPlaceholders["appLabel"] = "Jass"
     }
 
     signingConfigs {
@@ -49,6 +51,12 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Eigene Package-ID + Name → installiert sich getrennt neben der
+            // echten (Play-Store-)App, kein Konflikt/Crash beim Testen.
+            applicationIdSuffix = ".dev"
+            manifestPlaceholders["appLabel"] = "Jass DEV"
+        }
         release {
             // Echte Release-Signatur (Upload-Key), fällt auf Debug zurück falls
             // key.properties fehlt (z.B. CI ohne Secrets) — dann kein Store-Upload.
