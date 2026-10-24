@@ -15,7 +15,7 @@ const Map<String, String> kEn = {
   '{0} Varianten': '{0} variants',
   '≈ {0}–{1} Runden': '≈ {0}–{1} rounds',
   'Anzahl Runden': 'Number of rounds',
-  '6 gewinnt': '6 wins',
+  '6 gewinnt': 'Lowest card wins',
   'DEINE KARTEN': 'YOUR CARDS',
   '(1000–5000, einstellbar) erreicht hat.': '(1000–5000, adjustable).',
   // ── settings_screen (Lokalisierungs-Nachtrag) ─────────────────────────────
@@ -67,7 +67,7 @@ const Map<String, String> kEn = {
   'Spielübersicht': 'Game overview',
 
   // ── game_screen: Ansage / Status ──────────────────────────────────────────
-  'Wunschkarte': 'Wish card',
+  'Wunschkarte': 'Wish Card',
   'Schieben': 'Pass',
   'Spielen (erzwungen)': 'Play (forced)',
   'Spielmodus wählen': 'Choose game mode',
@@ -215,11 +215,10 @@ const Map<String, String> kEn = {
       'wähle eine Karte.':
       'In Obenabe there is no trump. The highest card of the led suit wins '
           '(Ace high). You lead – pick a card.',
-  'Beim Undenufe gibt es keinen Trumpf und die Reihenfolge ist '
-      'umgekehrt: die 6 ist am höchsten. Du spielst aus – wähle eine '
-      'Karte.':
-      'In Undenufe there is no trump and the order is reversed: the 6 is '
-          'highest. You lead – pick a card.',
+  'Beim Undenufe gibt es keinen Trumpf: die tiefste Karte gewinnt '
+      '(die 6 ist am stärksten). Du spielst aus – wähle eine Karte.':
+      'In Undenufe there is no trump: the lowest card wins '
+          '(the 6 is strongest). You lead – pick a card.',
   'Beim Slalom wechseln sich Obenabe und Undenufe Stich für Stich '
       'ab. Achte auf den Wechsel! Du spielst aus – wähle eine Karte.':
       'In Slalom, Obenabe and Undenufe alternate trick by trick. Watch the '
@@ -252,8 +251,8 @@ const Map<String, String> kEn = {
       'Trump ({0}) beats everything; otherwise low wins (6 high).',
   'Es gewinnt die höchste Karte der angespielten Farbe (Ass hoch).':
       'The highest card of the led suit wins (Ace high).',
-  'Es gewinnt die höchste Karte – aber die 6 ist am höchsten.':
-      'The highest card wins – but the 6 is highest.',
+  'Es gewinnt die tiefste Karte (die 6 ist am stärksten).':
+      'The lowest card wins (the 6 is strongest).',
   'Obenabe und Undenufe wechseln sich Stich für Stich ab.':
       'Obenabe and Undenufe alternate trick by trick.',
   'Weil Trumpf ({0}) jede andere Farbe sticht.':
@@ -262,8 +261,8 @@ const Map<String, String> kEn = {
       'Because it was the highest trump in the trick.',
   'Weil es die höchste {0}-Karte war (Ass ist am höchsten).':
       'Because it was the highest {0} card (Ace is highest).',
-  'Weil es die höchste {0}-Karte war (6 ist am höchsten).':
-      'Because it was the highest {0} card (6 is highest).',
+  'Weil es die tiefste {0}-Karte war (6 ist am stärksten).':
+      'Because it was the lowest {0} card (6 is strongest).',
   'Weil es die höchste {0}-Karte im Stich war.':
       'Because it was the highest {0} card in the trick.',
   'Übungsspiel': 'Practice game',
@@ -539,7 +538,7 @@ const Map<String, String> kEn = {
   'Trumpf Gemüse': "Trump vegetable",
   'Trumpf Rot': "Trump red",
   'Partner hat geschoben – Du wählst': "Partner passed – you choose",
-  'Ass gewinnt': "Ace wins",
+  'Ass gewinnt': "Highest card wins",
   'Oben · Unten · …': "Up · Down · …",
   '3× Oben·Unten·Trumpf': "3× Up·Down·Trump",
   'Wenigste Punkte': "Fewest points",
@@ -561,8 +560,8 @@ const Map<String, String> kEn = {
   'Trumpf Oben': "Trump Up",
   'Trumpf Unten': "Trump Down",
   'Womit beginnt der erste Stich?': "How does the first trick start?",
-  '1. Stich: Ass gewinnt': "1st trick: Ace wins",
-  '1. Stich: 6 gewinnt': "1st trick: 6 wins",
+  '1. Stich: Ass gewinnt': "1st trick: highest card wins",
+  '1. Stich: 6 gewinnt': "1st trick: lowest card wins",
   'Welche Farbe soll Trumpf sein?': "Which suit should be trump?",
   'Metall': "Metal",
   'Gemüse': "Vegetable",

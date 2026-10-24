@@ -273,11 +273,11 @@ class _SettingsScreenState extends State<SettingsScreen>
             labelPadding: const EdgeInsets.symmetric(horizontal: 4),
             labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             unselectedLabelStyle: const TextStyle(fontSize: 13),
-            tabs: const [
-              Tab(text: 'Schieber'),
-              Tab(text: 'Differenzler'),
-              Tab(text: 'Coiffeur'),
-              Tab(text: 'Wunschkarte'),
+            tabs: [
+              const Tab(text: 'Schieber'),
+              const Tab(text: 'Differenzler'),
+              const Tab(text: 'Coiffeur'),
+              Tab(text: tr('Wunschkarte')),
             ],
           ),
         ),

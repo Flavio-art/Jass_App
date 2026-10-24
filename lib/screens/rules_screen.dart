@@ -63,11 +63,11 @@ class _RulesScreenState extends State<RulesScreen>
           labelColor: AppColors.gold,
           unselectedLabelColor: Colors.white54,
           dividerColor: Colors.white12,
-          tabs: const [
-            Tab(text: 'Schieber'),
-            Tab(text: 'Differenzler'),
-            Tab(text: 'Coiffeur'),
-            Tab(text: 'Wunschkarte'),
+          tabs: [
+            const Tab(text: 'Schieber'),
+            const Tab(text: 'Differenzler'),
+            const Tab(text: 'Coiffeur'),
+            Tab(text: tr('Wunschkarte')),
           ],
         ),
       ),
