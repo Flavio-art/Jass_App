@@ -438,9 +438,8 @@ String modeExplanation(GameState state) {
               'wähle eine Karte.');
     case GameMode.unten:
       return intro +
-          tr('Beim Undenufe gibt es keinen Trumpf und die Reihenfolge ist '
-              'umgekehrt: die 6 ist am höchsten. Du spielst aus – wähle eine '
-              'Karte.');
+          tr('Beim Undenufe gibt es keinen Trumpf: die tiefste Karte gewinnt '
+              '(die 6 ist am stärksten). Du spielst aus – wähle eine Karte.');
     case GameMode.slalom:
       return intro +
           tr('Beim Slalom wechseln sich Obenabe und Undenufe Stich für Stich '
@@ -462,7 +461,7 @@ String modeRuleShort(GameState state) {
     case GameMode.oben:
       return tr('Es gewinnt die höchste Karte der angespielten Farbe (Ass hoch).');
     case GameMode.unten:
-      return tr('Es gewinnt die höchste Karte – aber die 6 ist am höchsten.');
+      return tr('Es gewinnt die tiefste Karte (die 6 ist am stärksten).');
     case GameMode.slalom:
       return tr('Obenabe und Undenufe wechseln sich Stich für Stich ab.');
     default:
@@ -504,7 +503,7 @@ String? trickWinReason(GameState state, JassCard? card, JassCard? led) {
     return trp('Weil es die höchste {0}-Karte war (Ass ist am höchsten).', [sym]);
   }
   if (mode == GameMode.unten || mode == GameMode.trumpUnten) {
-    return trp('Weil es die höchste {0}-Karte war (6 ist am höchsten).', [sym]);
+    return trp('Weil es die tiefste {0}-Karte war (6 ist am stärksten).', [sym]);
   }
   return trp('Weil es die höchste {0}-Karte im Stich war.', [sym]);
 }
