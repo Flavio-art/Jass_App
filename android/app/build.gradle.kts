@@ -3,6 +3,7 @@ import java.io.FileInputStream
 
 plugins {
     id("com.android.application")
+    // google-services-Plugin bewusst NICHT angewandt (optionsbasierte Firebase-Init).
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
@@ -25,13 +26,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
-    }
-
     defaultConfig {
         applicationId = "com.jass.jass_app"
-        minSdk = flutter.minSdkVersion
+        // Firebase (core/analytics) verlangt minSdk 23.
+        minSdk = maxOf(23, flutter.minSdkVersion)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -70,4 +68,11 @@ android {
 
 flutter {
     source = "../.."
+}
+
+// Kotlin 2.4+ : jvmTarget über die neue compilerOptions-DSL (kotlinOptions entfernt).
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+    }
 }
