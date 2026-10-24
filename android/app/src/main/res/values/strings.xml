@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Firebase-Ressourcen für das native Analytics-SDK (das `google_app_id` aus
+  den String-Ressourcen liest). Manuell gepflegt statt über das
+  google-services-Gradle-Plugin, damit der Debug-Build (applicationId .dev)
+  keinen eigenen Firebase-Client braucht. Werte aus google-services.json /
+  Firebase-Projekt jass-app-20814.
+-->
+<resources>
+    <string name="google_app_id" translatable="false">1:979631430541:android:a525dd8ec4253e7b48fbc4</string>
+    <string name="gcm_defaultSenderId" translatable="false">979631430541</string>
+    <string name="google_api_key" translatable="false">AIzaSyCMaGS1_IFr0hjqr0NczsQIxhzlE3OpVHU</string>
+    <string name="google_crash_reporting_api_key" translatable="false">AIzaSyCMaGS1_IFr0hjqr0NczsQIxhzlE3OpVHU</string>
+    <string name="google_storage_bucket" translatable="false">jass-app-20814.firebasestorage.app</string>
+    <string name="project_id" translatable="false">jass-app-20814</string>
+</resources>
