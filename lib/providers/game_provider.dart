@@ -13,6 +13,7 @@ import '../models/game_record.dart';
 import '../models/round_replay.dart';
 import '../services/stats_service.dart';
 import '../services/replay_service.dart';
+import '../services/analytics_service.dart';
 import '../utils/game_logic.dart';
 import '../utils/monte_carlo.dart';
 import '../utils/mode_selector.dart';
@@ -269,6 +270,8 @@ class GameProvider extends ChangeNotifier {
     _aiRunning = false;
     _humanWyssDecisionPending = false;
     _aiDecisionLogs.clear();
+    // Anonymes Nutzungs-Tracking: welcher Spielmodus wird gestartet (nicht im Tutorial).
+    if (!_tutorialMode) AnalyticsService.logGameStarted(gameType.name);
     // Cleanup: ungeteilte Replays vom vorherigen Spiel löschen
     _replayService.clearAll();
     final deck = Deck(cardType: cardType);

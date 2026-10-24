@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "979631430541",
+    "project_id": "jass-app-20814",
+    "storage_bucket": "jass-app-20814.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:979631430541:android:a525dd8ec4253e7b48fbc4",
+        "android_client_info": {
+          "package_name": "com.jass.jass_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCMaGS1_IFr0hjqr0NczsQIxhzlE3OpVHU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

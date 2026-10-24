@@ -1,16 +1,26 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
+import 'firebase_options.dart';
 import 'l10n/app_localizations.dart';
 import 'l10n/tr.dart';
 import 'providers/game_provider.dart';
 import 'providers/locale_provider.dart';
 import 'screens/splash_screen.dart';
+import 'services/analytics_service.dart';
 import 'utils/nn_model.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Firebase + anonymes Nutzungs-Tracking (Fehler dürfen die App nicht blockieren)
+  try {
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    await AnalyticsService.init();
+  } catch (e) {
+    debugPrint('Firebase init fehlgeschlagen: $e');
+  }
   // NN-Gewichte laden (Fallback auf Heuristik wenn Datei fehlt)
   await JassNNModel.instance.load();
   // Spielernamen vorab laden damit GameProvider ihn kennt
