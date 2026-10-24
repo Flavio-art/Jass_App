@@ -28,4 +28,12 @@ class AnalyticsService {
     if (!_ready || _fa == null) return;
     _fa!.logEvent(name: 'game_started', parameters: {'mode': mode});
   }
+
+  /// Ein Spiel wurde beendet. [points] = Endpunktzahl des menschlichen Spielers
+  /// (je nach Modus unterschiedliche Skala). Erlaubt „Ø Punkte pro Modus".
+  static void logGameFinished(String mode, int points) {
+    if (!_ready || _fa == null) return;
+    _fa!.logEvent(
+        name: 'game_finished', parameters: {'mode': mode, 'points': points});
+  }
 }
