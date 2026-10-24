@@ -291,9 +291,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                               const SizedBox(width: 10),
                               _GameTypeButton(
-                                label: 'Wunschkarte',
+                                label: tr('Wunschkarte'),
                                 subtitle: 'Champions League',
-                                details: ['Wunschkarte', l.everyoneForThemselves],
+                                details: [tr('Wunschkarte'), l.everyoneForThemselves],
                                 emoji: '🎴',
                                 selected: _selectedGameType == GameType.friseur,
                                 hasSavedGame: _savedGameTypes.contains(GameType.friseur),
