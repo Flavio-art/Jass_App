@@ -215,6 +215,9 @@ class GameProvider extends ChangeNotifier {
       playerWon = playerScore > opponentScore;
     }
 
+    // Anonymes Tracking: Modus + erreichte Endpunkte des Spielers.
+    AnalyticsService.logGameFinished(s.gameType.name, playerScore);
+
     // Runden-Details aus roundHistory extrahieren
     // pureTeamScore = reine Stichpunkte ohne Stöcke/Wyss/Match-Bonus
     // Fallback auf rawTeamScore für alte Spielstände ohne pureTeamScore
