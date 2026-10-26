@@ -14,13 +14,16 @@ import 'utils/nn_model.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Firebase + anonymes Nutzungs-Tracking (Fehler dürfen die App nicht blockieren)
+  // Firebase + anonymes Nutzungs-Tracking (Fehler dürfen die App nicht blockieren).
+  // Wichtig: Analytics-Init SEPARAT – das native SDK legt die [DEFAULT]-App schon
+  // über strings.xml an, daher kann initializeApp(options:) werfen (duplicate/mismatch),
+  // ohne dass das Tracking deshalb ausfallen darf.
   try {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-    await AnalyticsService.init();
   } catch (e) {
-    debugPrint('Firebase init fehlgeschlagen: $e');
+    debugPrint('Firebase initializeApp: $e');
   }
+  await AnalyticsService.init();
   // NN-Gewichte laden (Fallback auf Heuristik wenn Datei fehlt)
   await JassNNModel.instance.load();
   // Spielernamen vorab laden damit GameProvider ihn kennt

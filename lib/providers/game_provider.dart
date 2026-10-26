@@ -23,6 +23,8 @@ import '../utils/nn_model.dart';
 class GameProvider extends ChangeNotifier {
   GameState _state = GameState.initial(cardType: CardType.french);
   bool _aiRunning = false;
+  // Zeitpunkt des Spielstarts – für die Spieldauer im Analytics-Event.
+  DateTime? _gameStartedAt;
   Timer? _clearTrickTimer;
   // Molotof: Spieler-ID der Person die Oben/Unten bestimmt hat (gewinnt den Stich)
   String? _molotofDeterminerForTrick;
@@ -215,8 +217,22 @@ class GameProvider extends ChangeNotifier {
       playerWon = playerScore > opponentScore;
     }
 
-    // Anonymes Tracking: Modus + erreichte Endpunkte des Spielers.
-    AnalyticsService.logGameFinished(s.gameType.name, playerScore);
+    // Anonymes Tracking: Modus, eigene + Gegner-Punkte, Sieg, Dauer, Rundenzahl.
+    final durationSeconds = _gameStartedAt == null
+        ? 0
+        : DateTime.now().difference(_gameStartedAt!).inSeconds;
+    AnalyticsService.logGameFinished(
+      s.gameType.name,
+      playerScore,
+      opponentScore,
+      playerWon,
+      durationSeconds,
+      s.roundHistory.length,
+    );
+    // Pro gespielte Runde: welche Variante (Trumpf/Oben/Unten/Slalom bzw. Coiffeur).
+    for (final r in s.roundHistory) {
+      AnalyticsService.logRoundPlayed(s.gameType.name, r.variantKey);
+    }
 
     // Runden-Details aus roundHistory extrahieren
     // pureTeamScore = reine Stichpunkte ohne Stöcke/Wyss/Match-Bonus
@@ -274,6 +290,7 @@ class GameProvider extends ChangeNotifier {
     _humanWyssDecisionPending = false;
     _aiDecisionLogs.clear();
     // Anonymes Nutzungs-Tracking: welcher Spielmodus wird gestartet (nicht im Tutorial).
+    _gameStartedAt = DateTime.now();
     if (!_tutorialMode) AnalyticsService.logGameStarted(gameType.name);
     // Cleanup: ungeteilte Replays vom vorherigen Spiel löschen
     _replayService.clearAll();
@@ -715,9 +732,16 @@ class GameProvider extends ChangeNotifier {
   @visibleForTesting
   static bool friseurSoloAllAnnounced(
       GameState state, Map<String, Set<String>> announced) {
-    final vc = state.enabledVariants.length;
-    return state.players.every(
-        (p) => (announced[p.id] ?? const <String>{}).length >= vc);
+    // Jeder Spieler muss JEDE tatsächlich spielbare Variante angesagt haben
+    // (Identität, nicht Anzahl). enabledVariants.length taugt nicht als Schwelle,
+    // weil es Trumpf nach Richtung (trump_oben/unten) zählt, die angesagten Keys
+    // aber nach Farbe (trump_ss/trump_re) → sonst endet das Spiel 1 Variante zu
+    // früh (leere "—"-Zellen in der Punkte-Tabelle).
+    final all = state.allPlayableVariants;
+    return state.players.every((p) {
+      final a = announced[p.id] ?? const <String>{};
+      return all.every(a.contains);
+    });
   }
 
   void _startNewRoundFriseurSolo(GameState currentState) {
