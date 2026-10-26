@@ -58,4 +58,43 @@ void main() {
     };
     expect(GameProvider.friseurSoloAllAnnounced(state, announced), isFalse);
   });
+
+  // REPRO des Molotow-"—"-Bugs: enabledVariants zählt Trumpf nach RICHTUNG
+  // (trump_oben/trump_unten), spielbar sind aber beide FARBEN (trump_ss/trump_re).
+  // Mit nur einer aktivierten Richtung ist enabledVariants.length um 1 kleiner als
+  // die Zahl der spielbaren Keys → die alte Anzahl-Prüfung beendete 1 Variante zu früh.
+  GameState makeTrump(Set<String> enabled) => GameState(
+        cardType: CardType.french,
+        gameType: GameType.friseur,
+        players: [
+          Player(id: 'p1', name: 'Fabi', position: PlayerPosition.south, hand: [c(Suit.hearts, CardValue.six)]),
+          Player(id: 'p2', name: 'Freund 1', position: PlayerPosition.east, hand: [c(Suit.hearts, CardValue.seven)]),
+          Player(id: 'p3', name: 'Freund 2', position: PlayerPosition.north, hand: [c(Suit.hearts, CardValue.eight)]),
+          Player(id: 'p4', name: 'Freund 3', position: PlayerPosition.west, hand: [c(Suit.hearts, CardValue.nine)]),
+        ],
+        enabledVariants: enabled,
+      );
+
+  test('Trumpf-Mismatch: nur 1 Richtung aktiv → beide Farben müssen angesagt sein', () {
+    // enabledVariants.length = 3, aber spielbar: trump_ss, trump_re, oben, elefant = 4.
+    final state = makeTrump(const {'trump_oben', 'oben', 'elefant'});
+    expect(state.allPlayableVariants.toSet(),
+        {'trump_ss', 'trump_re', 'oben', 'elefant'},
+        reason: 'beide Trumpffarben bleiben spielbar, auch bei nur 1 Richtung');
+
+    // Jeder hat trump_ss + oben + elefant (=3 → alte Anzahl-Prüfung "fertig"),
+    // aber trump_re fehlt überall → darf NICHT enden.
+    final announced = <String, Set<String>>{
+      for (final p in state.players) p.id: {'trump_ss', 'oben', 'elefant'},
+    };
+    expect(GameProvider.friseurSoloAllAnnounced(state, announced), isFalse,
+        reason: 'trump_re (rote Farbe) fehlt – kein vorzeitiges Ende');
+
+    // Mit trump_re ergänzt → fertig.
+    final done = <String, Set<String>>{
+      for (final p in state.players)
+        p.id: {'trump_ss', 'trump_re', 'oben', 'elefant'},
+    };
+    expect(GameProvider.friseurSoloAllAnnounced(state, done), isTrue);
+  });
 }
