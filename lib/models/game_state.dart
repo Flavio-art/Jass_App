@@ -481,6 +481,11 @@ class GameState {
     return result;
   }
 
+  /// Tatsächlich spielbare Varianten-Keys (Trumpf nach FARBE: trump_ss/trump_re,
+  /// nicht nach Richtung). Massgeblich fürs Friseur-Solo-Spielende – NICHT
+  /// enabledVariants.length verwenden (zählt Trumpf nach Richtung → Mismatch).
+  List<String> get allPlayableVariants => _allVariants();
+
   /// Schieber: nur Trump, Oben, Unten, Slalom erlaubt.
   static const _schieberVariants = {
     'trump_ss', 'trump_re', 'oben', 'unten', 'slalom',
