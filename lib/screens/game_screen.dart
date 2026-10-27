@@ -521,6 +521,10 @@ class _GameScreenState extends State<GameScreen> {
                                                   roundNumber: state.roundNumber,
                                                   isFriseurSolo:
                                                       state.gameType == GameType.friseur,
+                                                  maxRounds: state.gameType ==
+                                                          GameType.differenzler
+                                                      ? state.differenzlerMaxRounds
+                                                      : null,
                                                 );
                                               },
                                             ),

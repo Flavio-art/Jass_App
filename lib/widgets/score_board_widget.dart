@@ -6,12 +6,15 @@ class ScoreBoardWidget extends StatelessWidget {
   final Map<String, int> teamScores;
   final int roundNumber;
   final bool isFriseurSolo;
+  /// Gesamtrundenzahl (z. B. Differenzler) → zeigt „Runde X / Y". null = nur „Runde X".
+  final int? maxRounds;
 
   const ScoreBoardWidget({
     super.key,
     required this.teamScores,
     required this.roundNumber,
     this.isFriseurSolo = false,
+    this.maxRounds,
   });
 
   @override
@@ -32,7 +35,9 @@ class ScoreBoardWidget extends StatelessWidget {
             _teamScore(label1, teamScores['team1'] ?? 0, AppColors.gold),
             const SizedBox(width: 16),
             Text(
-              trp('Runde {0}', [roundNumber]),
+              maxRounds != null
+                  ? trp('Runde {0} / {1}', [roundNumber, maxRounds])
+                  : trp('Runde {0}', [roundNumber]),
               style: const TextStyle(color: Colors.white54, fontSize: 12),
             ),
             const SizedBox(width: 16),

@@ -23,10 +23,10 @@ const Map<String, String> kEn = {
   'Dein Name': 'Your Name',
   'Alle zurücksetzen': 'Reset All',
   // ── Richtungs-/Trumpf-Labels + Spielfluss (Nachtrag) ─────────────────────
-  'Oben ⬇️': 'Up ⬇️',
-  'Unten ⬆️': 'Down ⬆️',
-  'Oben': 'Up',
-  'Unten': 'Down',
+  'Oben ⬇️': 'Highest card wins ⬇️',
+  'Unten ⬆️': 'Lowest card wins ⬆️',
+  'Oben': 'Highest card wins',
+  'Unten': 'Lowest card wins',
   '⬇️ Trumpf': '⬇️ Trump',
   '⬆️ Trumpf': '⬆️ Trump',
   'Trumpf offen…': 'Trump open…',
@@ -285,6 +285,8 @@ const Map<String, String> kEn = {
           '• Slalom – high/low alternate',
   'Tippe unten auf „{0}".': 'Tap „{0}" below.',
   'Stich fertig – tippe „Weiter".': 'Trick done – tap „Continue".',
+  '{0}  →  {1} Pkt': '{0}  →  {1} pts',
+  'Runde {0} / {1}': 'Round {0} / {1}',
   'Du hast {0} gewählt – genau wie ein Computer es getan hätte. '
       'Gute Wahl! 👏':
       'You chose {0} – exactly what a computer would have done. Good choice! 👏',
@@ -293,6 +295,23 @@ const Map<String, String> kEn = {
       'dafür.':
       'You chose {0}.\n\nA computer would have chosen {1}. Both are perfectly '
           'fine – you\'ll get a feel for it over time.',
+  'Du hast geschoben – genau wie ein Computer es getan hätte. '
+      'Bei schwacher Hand ist das clever! 👏':
+      'You passed – exactly what a computer would have done. With a weak hand '
+          'that\'s clever! 👏',
+  'Du hast {0} angesagt.\n\nEin Computer hätte hier eher '
+      'geschoben – die Wahl dem Partner überlassen, weil die Hand eher '
+      'schwach ist. Schieben ist oft klug, wenn du keinen starken Trumpf '
+      'hast.':
+      'You announced {0}.\n\nA computer would rather have passed here – left '
+          'the choice to the partner, because the hand is fairly weak. Passing '
+          'is often smart when you don\'t have a strong trump.',
+  'Du hast geschoben.\n\nEin Computer hätte {0} angesagt – die '
+      'Hand war dafür stark genug. Beides ist ok; mit der Zeit bekommst du '
+      'ein Gefühl dafür.':
+      'You passed.\n\nA computer would have announced {0} – the hand was '
+          'strong enough for that. Both are fine; you\'ll get a feel for it '
+          'over time.',
   '🎯 Wunschkarte': '🎯 Wish card',
   'Tippen zum Schliessen': 'Tap to close',
   'Geschoben': 'Passed',
