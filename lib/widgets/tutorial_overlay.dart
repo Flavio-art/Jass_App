@@ -6,6 +6,7 @@ import '../models/card_model.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
 import '../providers/game_provider.dart';
+import '../utils/game_logic.dart';
 
 /// Overlay für das geführte Übungsspiel (nur Schieber).
 ///
@@ -92,9 +93,14 @@ class TutorialOverlay extends StatelessWidget {
       final sentence = youWon
           ? trp('Du gewinnst Stich {0} mit {1}.', [n, cardStr])
           : trp('{0} gewinnt Stich {1} mit {2}.', [winner.name, n, cardStr]);
+      final breakdown = trickValueBreakdown(state, trick);
+      final body = [
+        reason != null ? '$sentence\n$reason' : sentence,
+        breakdown,
+      ].join('\n\n');
       return _Bubble(
         title: youWon ? tr('Stich für dich! ✅') : trp('Stich für {0}', [winner.name]),
-        body: reason != null ? '$sentence\n$reason' : sentence,
+        body: body,
         primaryLabel: n >= 9 ? tr('Zur Auswertung') : tr('Weiter'),
         primaryAction: () => provider.clearTrick(),
         // Nicht abdunkeln – die 4 Karten des Stichs sollen sichtbar bleiben.
@@ -195,8 +201,30 @@ class TutorialOverlay extends StatelessWidget {
   }
 
   String _resolutionBody(GameProvider p, GameState s) {
+    final playerSchoben = s.roundGeschoben;
+    final aiSchieben = p.tutorialAiWouldSchieben;
     final playerLabel = modeLabel(s.gameMode, s.trumpSuit);
     final aiLabel = modeLabel(p.tutorialAiMode ?? s.gameMode, p.tutorialAiTrump);
+
+    // Beide würden schieben
+    if (playerSchoben && aiSchieben) {
+      return tr('Du hast geschoben – genau wie ein Computer es getan hätte. '
+          'Bei schwacher Hand ist das clever! 👏');
+    }
+    // Mensch sagt an, Computer hätte geschoben
+    if (!playerSchoben && aiSchieben) {
+      return trp('Du hast {0} angesagt.\n\nEin Computer hätte hier eher '
+          'geschoben – die Wahl dem Partner überlassen, weil die Hand eher '
+          'schwach ist. Schieben ist oft klug, wenn du keinen starken Trumpf '
+          'hast.', [playerLabel]);
+    }
+    // Mensch hat geschoben, Computer hätte angesagt
+    if (playerSchoben && !aiSchieben) {
+      return trp('Du hast geschoben.\n\nEin Computer hätte {0} angesagt – die '
+          'Hand war dafür stark genug. Beides ist ok; mit der Zeit bekommst du '
+          'ein Gefühl dafür.', [aiLabel]);
+    }
+    // Beide sagen einen Modus an
     final sameMode = p.tutorialAiMode == s.gameMode &&
         (s.gameMode != GameMode.trump || p.tutorialAiTrump == s.trumpSuit);
     if (sameMode) {
@@ -485,6 +513,21 @@ String modeLabel(GameMode mode, Suit? trumpSuit) {
     default:
       return mode.name;
   }
+}
+
+/// Auflistung der Kartenwerte eines Stichs (Lernmodus), z. B.
+/// „A♥ 11 · 10♦ 10 · K♠ 4 · 6♣ 0  →  25 Pkt". Punkte je nach Spielmodus.
+String trickValueBreakdown(GameState state, Trick trick) {
+  final mode = state.gameMode;
+  final trump = state.trumpSuit;
+  var total = 0;
+  final parts = <String>[];
+  for (final card in trick.cards.values) {
+    final pts = GameLogic.cardPoints(card, mode, trump);
+    total += pts;
+    parts.add('${card.displayValue}${card.displaySuit} $pts');
+  }
+  return trp('{0}  →  {1} Pkt', [parts.join(' · '), total]);
 }
 
 /// Warum gewinnt [card] den Stich? (angespielte Karte [led], je nach Modus)

@@ -53,6 +53,10 @@ class GameProvider extends ChangeNotifier {
   Suit? _tutorialAiTrump;
   GameMode? get tutorialAiMode => _tutorialAiMode;
   Suit? get tutorialAiTrump => _tutorialAiTrump;
+  /// true, wenn ein Computer mit dem Blatt des Menschen GESCHOBEN hätte
+  /// (schwache Hand) statt anzusagen – für die Auflösung.
+  bool _tutorialAiWouldSchieben = false;
+  bool get tutorialAiWouldSchieben => _tutorialAiWouldSchieben;
   /// true, solange die Auflösung „Computer hätte … gewählt" noch aussteht.
   bool tutorialResolutionPending = false;
   /// Wer sagt diese Tutorial-Runde an (0=Mensch, 1/3=Gegner, 2=Partner).
@@ -415,6 +419,14 @@ class GameProvider extends ChangeNotifier {
     );
     _tutorialAiMode = suggestion.mode;
     _tutorialAiTrump = suggestion.trumpSuit;
+    // Hätte ein Computer mit diesem Blatt geschoben? (gleiche Schwelle wie
+    // _autoSelectMode: Score < 105 → schieben, sofern kein Sicher-Gewinn.)
+    final aiScore = ModeSelectorAI.bestHeuristicScore(
+      hand: human.hand,
+      state: _state,
+      available: const ['trump_ss', 'trump_re', 'oben', 'unten', 'slalom'],
+    );
+    _tutorialAiWouldSchieben = aiScore < 105.0;
 
     if (!humanIsAnsager) {
       // Partner oder Gegner sagt an → KI wählt den Modus; das Overlay erklärt es.
