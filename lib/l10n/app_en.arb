@@ -33,6 +33,8 @@
   "languageSystem": "System",
   "languageGerman": "Deutsch",
   "languageEnglish": "English",
+  "languageFrench": "Français",
+  "languageItalian": "Italiano",
 
   "builtByFlavio": "Built by Flavio",
   "splashWith": "with ",
