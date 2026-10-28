@@ -425,11 +425,13 @@ class _SettingsScreenState extends State<SettingsScreen>
   Widget _buildLanguageSelector() {
     final l = AppLocalizations.of(context)!;
     final lp = context.watch<LocaleProvider>();
-    final current = lp.selection; // 'system' | 'de' | 'en'
+    final current = lp.selection; // 'system' | 'de' | 'en' | 'fr' | 'it'
     final options = <(String, String)>[
       ('system', l.languageSystem),
       ('de', l.languageGerman),
       ('en', l.languageEnglish),
+      ('fr', l.languageFrench),
+      ('it', l.languageItalian),
     ];
     return IntrinsicHeight(
       child: Row(

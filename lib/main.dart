@@ -66,7 +66,8 @@ class JassApp extends StatelessWidget {
           // Laufzeit-Übersetzer (tr/trp) an die effektive Sprache koppeln.
           final code = lp.locale?.languageCode ??
               WidgetsBinding.instance.platformDispatcher.locale.languageCode;
-          L10n.lang = code == 'en' ? 'en' : 'de';
+          L10n.lang =
+              (code == 'en' || code == 'fr' || code == 'it') ? code : 'de';
           return MaterialApp(
           title: 'Jass',
           debugShowCheckedModeBanner: false,
