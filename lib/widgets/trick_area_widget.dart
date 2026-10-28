@@ -56,11 +56,12 @@ class TrickAreaWidget extends StatelessWidget {
         child: Stack(
           alignment: Alignment.center,
           children: [
-            // Modus-Indikator oben rechts (ausgeblendet wenn extern angezeigt)
+            // Modus-Indikator oben LINKS (einheitliche Position über alle Spielarten;
+            // ausgeblendet wenn extern angezeigt)
             if (!hideModeIndicator)
             Positioned(
               top: 6,
-              right: 8,
+              left: 8,
               child: _ModeIndicator(
                 gameMode: gameMode,
                 molotofSubMode: molotofSubMode,
@@ -243,20 +244,30 @@ class _ModeIndicator extends StatelessWidget {
         ],
       );
 
+  // Trumpf als Mini-Kärtchen (Karten-Seitenverhältnis, wie die Wunschkarte),
+  // Herz/Karo in Rot statt Schwarz.
   Widget _suitBox() => Container(
-        width: 32,
-        height: 32,
+        width: 34,
+        height: 46,
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(5),
+          boxShadow: const [
+            BoxShadow(color: Colors.black26, blurRadius: 3, offset: Offset(0, 1)),
+          ],
         ),
         child: Center(
           child: cardType == CardType.german
               ? Image.asset('assets/suit_icons/${trumpSuit!.name}.png',
-                  width: 24, height: 24)
+                  width: 26, height: 26)
               : Text(
                   trumpSuit!.symbol,
-                  style: const TextStyle(fontSize: 20, color: Colors.black),
+                  style: TextStyle(
+                    fontSize: 24,
+                    color: (trumpSuit == Suit.hearts || trumpSuit == Suit.diamonds)
+                        ? const Color(0xFFD32F2F)
+                        : Colors.black,
+                  ),
                 ),
         ),
       );
