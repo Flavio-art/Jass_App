@@ -1,23 +1,32 @@
 import 'translations_en.dart';
+import 'translations_fr.dart';
+import 'translations_it.dart';
 
 /// Leichtgewichtiger Laufzeit-Übersetzer für die grossen Screens
 /// (game_screen, rules_screen, stats, …).
 ///
-/// Quelle ist der deutsche Text selbst — `tr('Neues Spiel')` liefert bei
-/// englischer Sprache den Eintrag aus [kEn], sonst den deutschen Originaltext.
-/// So bleibt der Code lesbar und die Übersetzungen liegen zentral in
-/// translations_en.dart.
+/// Quelle ist der deutsche Text selbst — `tr('Neues Spiel')` liefert je nach
+/// Sprache den Eintrag aus [kEn]/[kFr]/[kIt], sonst den deutschen Originaltext.
+/// Fehlende Keys fallen automatisch auf Deutsch zurück.
 ///
 /// [L10n.lang] wird vom LocaleProvider gesetzt (siehe main.dart / LocaleProvider)
-/// und ist immer 'de' oder 'en'.
+/// und ist 'de', 'en', 'fr' oder 'it'.
 class L10n {
   static String lang = 'de';
 }
 
 /// Übersetzt [de] gemäss aktueller Sprache.
 String tr(String de) {
-  if (L10n.lang == 'en') return kEn[de] ?? de;
-  return de;
+  switch (L10n.lang) {
+    case 'en':
+      return kEn[de] ?? de;
+    case 'fr':
+      return kFr[de] ?? de;
+    case 'it':
+      return kIt[de] ?? de;
+    default:
+      return de;
+  }
 }
 
 /// Wie [tr], aber mit Platzhalter-Ersetzung. Platzhalter im Quelltext als

@@ -20,17 +20,17 @@ class LocaleProvider extends ChangeNotifier {
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     final code = prefs.getString(_prefsKey);
-    if (code == 'de' || code == 'en') {
+    if (code == 'de' || code == 'en' || code == 'fr' || code == 'it') {
       _locale = Locale(code!);
     } else {
       _locale = null; // System
     }
   }
 
-  /// Setzt die Sprache. [code] = 'de', 'en' oder 'system'.
+  /// Setzt die Sprache. [code] = 'de', 'en', 'fr', 'it' oder 'system'.
   Future<void> setLanguage(String code) async {
     final prefs = await SharedPreferences.getInstance();
-    if (code == 'de' || code == 'en') {
+    if (code == 'de' || code == 'en' || code == 'fr' || code == 'it') {
       _locale = Locale(code);
       await prefs.setString(_prefsKey, code);
     } else {
