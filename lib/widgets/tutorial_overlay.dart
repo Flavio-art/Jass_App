@@ -521,13 +521,14 @@ String trickValueBreakdown(GameState state, Trick trick) {
   final mode = state.gameMode;
   final trump = state.trumpSuit;
   var total = 0;
-  final parts = <String>[];
+  final lines = <String>[];
   for (final card in trick.cards.values) {
     final pts = GameLogic.cardPoints(card, mode, trump);
     total += pts;
-    parts.add('${card.displayValue}${card.displaySuit} $pts');
+    lines.add('${card.displayValue}${card.displaySuit}  =  $pts');
   }
-  return trp('{0}  →  {1} Pkt', [parts.join(' · '), total]);
+  lines.add(trp('Summe: {0} Pkt', [total]));
+  return lines.join('\n');
 }
 
 /// Warum gewinnt [card] den Stich? (angespielte Karte [led], je nach Modus)

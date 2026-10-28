@@ -286,6 +286,7 @@ const Map<String, String> kEn = {
   'Tippe unten auf „{0}".': 'Tap „{0}" below.',
   'Stich fertig – tippe „Weiter".': 'Trick done – tap „Continue".',
   '{0}  →  {1} Pkt': '{0}  →  {1} pts',
+  'Summe: {0} Pkt': 'Total: {0} pts',
   'Runde {0} / {1}': 'Round {0} / {1}',
   'Du hast {0} gewählt – genau wie ein Computer es getan hätte. '
       'Gute Wahl! 👏':
