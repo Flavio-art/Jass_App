@@ -32,9 +32,32 @@ class AnalyticsService {
   }
 
   /// Ein Spiel wurde gestartet. [mode] = GameType.name
-  /// (schieber / differenzler / friseurTeam / friseur).
-  static void logGameStarted(String mode) {
-    _log('game_started', {'mode': mode});
+  /// (schieber / differenzler / friseurTeam / friseur). Zusätzlich
+  /// Kartendeck + (je nach Modus) eingestellte Spiellänge.
+  static void logGameStarted(String mode,
+      {required String cardType, int? schieberTarget, int? differenzlerRounds}) {
+    final p = <String, Object>{'mode': mode, 'card_type': cardType};
+    if (schieberTarget != null) p['schieber_target'] = schieberTarget;
+    if (differenzlerRounds != null) p['differenzler_rounds'] = differenzlerRounds;
+    _log('game_started', p);
+  }
+
+  /// Lernmodus geöffnet (nur beim ersten Öffnen, nicht bei „neue Runde").
+  static void logTutorialStarted() => _log('tutorial_started', const <String, Object>{});
+
+  /// Übungsrunde im Lernmodus durchgespielt (9 Stiche).
+  static void logTutorialCompleted() =>
+      _log('tutorial_completed', const <String, Object>{});
+
+  /// Ein Mensch hat bei der Trumpfwahl einen Spieltyp gewählt.
+  /// [variant] = variantKey (trump_ss/trump_re/oben/unten/slalom/…).
+  static void logTrumpSelected(String variant) =>
+      _log('trump_selected', {'variant': variant});
+
+  /// App-Sprache als User-Property (de / en / system).
+  static void setLanguage(String lang) {
+    if (!_ready || _fa == null) return;
+    _fa!.setUserProperty(name: 'app_language', value: lang);
   }
 
   /// Ein Spiel wurde beendet. Erfasst eigene + Gegner-Punkte, Sieg,
