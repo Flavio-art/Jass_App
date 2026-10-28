@@ -31,6 +31,7 @@ void main() async {
   // Sprachwahl laden bevor die App gebaut wird
   final localeProvider = LocaleProvider();
   await localeProvider.load();
+  AnalyticsService.setLanguage(localeProvider.selection);
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
