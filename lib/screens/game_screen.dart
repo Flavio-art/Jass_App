@@ -4281,19 +4281,29 @@ class _FriseurModeLabel extends StatelessWidget {
           if (trumpSuit != null)
             Padding(
               padding: const EdgeInsets.only(top: 2),
+              // Mini-Kärtchen-Look (wie Wunschkarte), Herz/Karo rot.
               child: Container(
-                width: 26,
-                height: 26,
+                width: 30,
+                height: 40,
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(5),
+                  boxShadow: const [
+                    BoxShadow(color: Colors.black26, blurRadius: 3, offset: Offset(0, 1)),
+                  ],
                 ),
                 child: Center(
                   child: cardType == CardType.german
                       ? Image.asset('assets/suit_icons/${trumpSuit!.name}.png',
-                          width: 20, height: 20)
+                          width: 22, height: 22)
                       : Text(trumpSuit!.symbol,
-                          style: const TextStyle(fontSize: 16, color: Colors.black)),
+                          style: TextStyle(
+                            fontSize: 20,
+                            color: (trumpSuit == Suit.hearts ||
+                                    trumpSuit == Suit.diamonds)
+                                ? const Color(0xFFD32F2F)
+                                : Colors.black,
+                          )),
                 ),
               ),
             ),
