@@ -296,9 +296,17 @@ class GameProvider extends ChangeNotifier {
     _aiRunning = false;
     _humanWyssDecisionPending = false;
     _aiDecisionLogs.clear();
-    // Anonymes Nutzungs-Tracking: welcher Spielmodus wird gestartet (nicht im Tutorial).
+    // Anonymes Nutzungs-Tracking: Modus + Kartendeck + eingestellte Spiellänge.
     _gameStartedAt = DateTime.now();
-    if (!_tutorialMode) AnalyticsService.logGameStarted(gameType.name);
+    if (!_tutorialMode) {
+      AnalyticsService.logGameStarted(
+        gameType.name,
+        cardType: cardType.name,
+        schieberTarget: gameType == GameType.schieber ? schieberWinTarget : null,
+        differenzlerRounds:
+            gameType == GameType.differenzler ? differenzlerMaxRounds : null,
+      );
+    }
     // Cleanup: ungeteilte Replays vom vorherigen Spiel löschen
     _replayService.clearAll();
     final deck = Deck(cardType: cardType);
@@ -393,6 +401,8 @@ class GameProvider extends ChangeNotifier {
   /// gegenüber der letzten Runde variiert (Trumpf/Obenabe/Undenufe/Slalom).
   /// Weisen sind deaktiviert; Tutorial-Runden landen nicht in Statistik/Save.
   void startTutorialGame({CardType cardType = CardType.french}) {
+    // Nur beim ERSTEN Öffnen tracken (nicht bei „neue Runde" innerhalb des Tutorials).
+    if (!_tutorialMode) AnalyticsService.logTutorialStarted();
     _tutorialMode = true;
     tutorialIntroStep = 0;
     tutorialResolutionPending = false;
@@ -2324,6 +2334,11 @@ class GameProvider extends ChangeNotifier {
 
   void selectGameMode(GameMode mode,
       {Suit? trumpSuit, bool slalomStartsOben = true, JassCard? wishCard}) {
+    // Menschliche Spieltyp-Wahl tracken (echtes Spiel, nicht Tutorial).
+    if (!_tutorialMode && _state.currentTrumpSelector.isHuman) {
+      AnalyticsService.logTrumpSelected(
+          _state.variantKey(mode, trumpSuit: trumpSuit));
+    }
     // Friseur Solo: wenn ein anderer Spieler die Ansage übernimmt (Schieben),
     // wird derjenige zum Ansager für diese Runde.
     final effectiveAnsagerIndex = (_state.gameType == GameType.friseur &&
@@ -2880,6 +2895,8 @@ class GameProvider extends ChangeNotifier {
       soloSchiebungComment: postRoundComment,
     );
     if (skipRoundEnd) _archiveGame();
+    // Lernmodus: Übungsrunde durchgespielt (9 Stiche).
+    if (roundOver && _tutorialMode) AnalyticsService.logTutorialCompleted();
     notifyListeners();
 
     if (!roundOver) {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/analytics_service.dart';
 
 /// Verwaltet die App-Sprache (Deutsch / Englisch / Systemvorgabe) und
 /// persistiert die Wahl in SharedPreferences.
@@ -36,6 +37,7 @@ class LocaleProvider extends ChangeNotifier {
       _locale = null;
       await prefs.remove(_prefsKey);
     }
+    AnalyticsService.setLanguage(selection);
     notifyListeners();
   }
 }
