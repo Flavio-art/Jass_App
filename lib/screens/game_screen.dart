@@ -4272,6 +4272,7 @@ class _FriseurModeLabel extends StatelessWidget {
   }
 
   Widget _text(String text, Color color) => Text(text,
+      textAlign: TextAlign.center,
       style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold));
 
   Widget _trumpWidget(String label, Color color) => Column(
