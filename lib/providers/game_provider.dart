@@ -165,6 +165,9 @@ class GameProvider extends ChangeNotifier {
   void _archiveGame() {
     if (_tutorialMode) return; // Tutorial-Spiele nicht in die Statistik aufnehmen
     final s = _state;
+    // Leere/abgebrochene Spiele nicht archivieren: ohne gespielte Runde entstünde
+    // sonst ein spurioses game_finished mit 0:0 (verfälscht Statistik + Analytics).
+    if (s.roundHistory.isEmpty) return;
 
     // Spieler-Punkte / Gegner-Punkte bestimmen
     int playerScore;
