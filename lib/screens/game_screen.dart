@@ -570,12 +570,11 @@ class _GameScreenState extends State<GameScreen> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          // Links: Angesagtes Spiel (Friseur Solo + Schieber)
+                          // Links: Angesagtes Spiel – EINHEITLICH für alle Spielformen.
                           SizedBox(
                             width: 88,
-                            child: (state.gameType == GameType.friseur ||
-                                    state.gameType == GameType.schieber) &&
-                                    (state.phase == GamePhase.playing || state.phase == GamePhase.trickClearPending)
+                            child: (state.phase == GamePhase.playing ||
+                                    state.phase == GamePhase.trickClearPending)
                                 ? _FriseurModeLabel(
                                     gameMode: state.gameMode,
                                     molotofSubMode: state.molotofSubMode,
@@ -584,7 +583,11 @@ class _GameScreenState extends State<GameScreen> {
                                     slalomStartsOben: state.slalomStartsOben,
                                     cardType: state.cardType,
                                     geschoben: state.roundGeschoben,
-                                    announcerName: state.currentAnsager.name,
+                                    // Differenzler hat keinen Ansager → kein Name.
+                                    announcerName:
+                                        state.gameType == GameType.differenzler
+                                            ? ''
+                                            : state.currentAnsager.name,
                                   )
                                 : const SizedBox.shrink(),
                           ),
@@ -749,7 +752,8 @@ class _GameScreenState extends State<GameScreen> {
                                 gameType: state.gameType,
                                 cardType: state.cardType,
                                 geschoben: state.roundGeschoben,
-                                hideModeIndicator: state.gameType == GameType.friseur || state.gameType == GameType.schieber,
+                                // Modus jetzt für ALLE Spielformen extern oben links.
+                                hideModeIndicator: true,
                               ),
                             ),
                           ),
@@ -4206,9 +4210,11 @@ class _FriseurModeLabel extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(announcerName,
-              style: const TextStyle(color: Colors.amber, fontSize: 8, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 2),
+          if (announcerName.isNotEmpty) ...[
+            Text(announcerName,
+                style: const TextStyle(color: Colors.amber, fontSize: 8, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 2),
+          ],
           _buildMode(),
           if (geschoben)
             Text(tr('Geschoben'),
