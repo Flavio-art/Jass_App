@@ -42,6 +42,10 @@ class MonteCarloAI {
   /// NUR für Benchmarks (MC-pur vs. MC+Overrides). Default false = Produktivpfad.
   static bool bypassOverrides = false;
 
+  /// Schaltet die neuen Jasser-Anspiel-Konventionen (Rule 1/6/8/10) ein/aus.
+  /// Nur zum Isolieren ihres Beitrags im Benchmark. Default true = aktiv.
+  static bool jasserConventions = true;
+
   /// ISMCTS (Information-Set Monte-Carlo-Tree-Search) statt flachem MC im
   /// Fallthrough. Default AN: schlägt im Benchmark das flache MC (ØVerlust
   /// 1.70 → 1.63, Overrides bleiben davor). [ismctsIterations] = Anzahl
@@ -140,6 +144,50 @@ class MonteCarloAI {
       return ismcts
           ? _ismctsCard(playable, aiPlayer, state)
           : _mcCard(playable, aiPlayer, state);
+    }
+
+    // ── Schieber-Regel (Nutzer): Ansager-Team führt den HÖCHSTEN Trumpf an ──
+    // Nach gewählter/geschobener Trumpffarbe zieht das Ansager-Team Trumpf,
+    // solange die Gegner noch Trumpf halten — stets die STÄRKSTE Trumpfkarte
+    // (Buur zuerst; sichert hohe Trumpf-Punkte, der Team-Buur deckt ab).
+    // Ohne Trumpf: tiefe, punktarme Nebenfarbe (eigene Böcke aufsparen).
+    // VORRANG vor den älteren Trumpf-Lead-Overrides (auto_L734/744), die sonst
+    // ein Seiten-Ass cashen, das abgestochen werden kann.
+    if (jasserConventions &&
+        state.gameType == GameType.schieber &&
+        state.currentTrickCards.isEmpty &&
+        (state.gameMode == GameMode.trump ||
+            state.gameMode == GameMode.trumpUnten) &&
+        state.trumpSuit != null &&
+        _sameTeamFor(aiPlayer, state.players[state.ansagerIndex], state)) {
+      final trump = state.trumpSuit!;
+      final effMode = state.effectiveMode;
+      final myTrumps = playable.where((c) => c.suit == trump).toList();
+      final oppHaveTrump = state.players
+          .where((p) => !_sameTeamFor(aiPlayer, p, state))
+          .expand((p) => p.hand)
+          .any((c) => c.suit == trump);
+
+      if (myTrumps.isNotEmpty && oppHaveTrump) {
+        // Variante A: immer die höchste Trumpfkarte anführen.
+        return _pick('Schieber_Ansager_HoechsterTrumpf',
+            _strongest(myTrumps, effMode, trump));
+      }
+      if (myTrumps.isEmpty) {
+        // Kein Trumpf → tiefste punktarme Nebenfarbe, eigene Böcke schonen.
+        final nonTrump = playable.where((c) => c.suit != trump).toList();
+        if (nonTrump.isNotEmpty) {
+          final nonBock = nonTrump
+              .where((c) => !_isHighestRemaining(c, state))
+              .toList();
+          final pool = nonBock.isNotEmpty ? nonBock : nonTrump;
+          pool.sort((a, b) => GameLogic.cardPoints(a, effMode, trump)
+              .compareTo(GameLogic.cardPoints(b, effMode, trump)));
+          return _pick('Schieber_Ansager_KeinTrumpf_Tief', pool.first);
+        }
+      }
+      // Trumpf vorhanden, aber Gegner trumpflos → durchfallen zu Rule 10
+      // (sichere Seiten-Böcke cashen, Boss-Trumpf via Rule 8 fürs Ende).
     }
 
     // ── HARD-OVERRIDE: Friseur Solo — gewünschten Trumpf-Nell cashen ───────
@@ -241,6 +289,32 @@ class MonteCarloAI {
           if (withoutBuur.isNotEmpty) {
             playable = withoutBuur;
           }
+        }
+      }
+    }
+
+    // ── Rule 8: Boss-Trumpf für den letzten Stich aufsparen ────────────────
+    // Sind die Gegner trumpflos, holt der höchste verbleibende Trumpf garantiert
+    // jeden Stich — am wertvollsten ist der letzte (+5). Solange noch >1 Karte
+    // auf der Hand ist und es Alternativen gibt, den Boss-Trumpf zurückhalten
+    // (schränkt `playable` ein; im letzten Stich greift OnlyOne davor).
+    if (jasserConventions &&
+        (state.gameMode == GameMode.trump ||
+            state.gameMode == GameMode.trumpUnten) &&
+        state.trumpSuit != null &&
+        aiPlayer.hand.length >= 2) {
+      final bossSuit = state.trumpSuit!;
+      final oppTrumpLeft = state.players
+          .where((p) => !_sameTeamFor(aiPlayer, p, state))
+          .expand((p) => p.hand)
+          .any((c) => c.suit == bossSuit);
+      if (!oppTrumpLeft) {
+        final nonBoss = playable
+            .where((c) =>
+                !(c.suit == bossSuit && _isHighestRemaining(c, state)))
+            .toList();
+        if (nonBoss.isNotEmpty && nonBoss.length < playable.length) {
+          playable = nonBoss;
         }
       }
     }
@@ -2960,6 +3034,79 @@ class MonteCarloAI {
         return _pick('auto_L2356', suitCards.first);
       }
       return _pick('auto_L2358', _smartDiscard(playable, state, effectMode, trump));
+    }
+
+    // ── Rule 6: Oben/Unten — Partner-abgedeckte Böcke anführen ─────────────
+    // "Zu zweit abdecken": König (Oben) / 7 (Unten) ist sicher, sobald der
+    // Partner die einzige höhere Karte (Ass / 6) hält bzw. sie schon weg ist.
+    // Dann die punktreichste gegner-sichere Karte cashen statt zu horten.
+    if (jasserConventions &&
+        state.currentTrickCards.isEmpty &&
+        (state.effectiveMode == GameMode.oben ||
+            state.effectiveMode == GameMode.unten)) {
+      final effMode6 = state.effectiveMode;
+      final safeWinners = playable
+          .where((c) => _isHighestRemainingVsOpponents(c, aiPlayer, state))
+          .toList();
+      if (safeWinners.isNotEmpty) {
+        safeWinners.sort((a, b) => GameLogic.cardPoints(b, effMode6, null)
+            .compareTo(GameLogic.cardPoints(a, effMode6, null)));
+        return _pick('ObenUnten_PartnerAbgedeckt_Cashen', safeWinners.first);
+      }
+    }
+
+    // ── Rule 1/10: Schieber-Trumpfspiel — Anspiel-Konvention ───────────────
+    // 1:  Solange die Gegner Trumpf halten, den stärksten eigenen Trumpf
+    //     anführen (Trümpfe ziehen — gilt auch nach dem Schieben). Habe ich
+    //     keinen Trumpf, eine punktarme, sichere Nebenfarbe anspielen.
+    // 10: Sind die Gegner trumpflos, Nebenfarben-Böcke cashen; der Boss-Trumpf
+    //     bleibt via Rule 8 fürs Ende.
+    if (jasserConventions &&
+        state.currentTrickCards.isEmpty &&
+        (state.gameMode == GameMode.trump ||
+            state.gameMode == GameMode.trumpUnten) &&
+        state.trumpSuit != null) {
+      final trumpS = state.trumpSuit!;
+      final effMode1 = state.effectiveMode;
+      final myTrumps = playable.where((c) => c.suit == trumpS).toList();
+      final oppHaveTrump = state.players
+          .where((p) => !_sameTeamFor(aiPlayer, p, state))
+          .expand((p) => p.hand)
+          .any((c) => c.suit == trumpS);
+
+      // Rule 1a: Gegner + ich haben Trumpf → stärksten Trumpf ziehen.
+      if (oppHaveTrump && myTrumps.isNotEmpty) {
+        return _pick('Schieber_Trumpf_Ziehen_Anspiel',
+            _strongest(myTrumps, effMode1, trumpS));
+      }
+      // Rule 10: Gegner trumpflos → sichere Nebenfarben-Böcke cashen.
+      if (!oppHaveTrump) {
+        final sideBocks = playable
+            .where((c) => c.suit != trumpS && _isHighestRemaining(c, state))
+            .toList();
+        if (sideBocks.isNotEmpty) {
+          sideBocks.sort((a, b) => GameLogic.cardPoints(b, effMode1, trumpS)
+              .compareTo(GameLogic.cardPoints(a, effMode1, trumpS)));
+          return _pick('Schieber_GegnerTrumpflos_BockCashen', sideBocks.first);
+        }
+      }
+      // Rule 1b: punktarme Nebenfarbe anführen (eigene Böcke/Boss-Trumpf schonen).
+      final lowPool = playable
+          .where((c) => c.suit != trumpS && !_isHighestRemaining(c, state))
+          .toList();
+      final pool = lowPool.isNotEmpty
+          ? lowPool
+          : playable.where((c) => c.suit != trumpS).toList();
+      if (pool.isNotEmpty) {
+        pool.sort((a, b) => GameLogic.cardPoints(a, effMode1, trumpS)
+            .compareTo(GameLogic.cardPoints(b, effMode1, trumpS)));
+        return _pick('Schieber_SicheresAnspiel', pool.first);
+      }
+      // Nur Trümpfe übrig → schwächsten anführen (Boss bleibt fürs Ende).
+      if (myTrumps.isNotEmpty) {
+        return _pick('Schieber_NurTrumpf_Schwach',
+            _weakest(myTrumps, effMode1, trumpS));
+      }
     }
 
     // ── Obenabe/Undenufe Anführen: Greedy statt MC ─────────────────────────

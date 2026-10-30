@@ -2423,7 +2423,7 @@ class _WishCardOverlayState extends State<_WishCardOverlay> {
       GameMode.schafkopf => 'Schafkopf',
       GameMode.molotof => 'Molotow',
     };
-    return Text(label, style: style, textAlign: TextAlign.center);
+    return Text(tr(label), style: style, textAlign: TextAlign.center);
   }
 
   @override
@@ -4265,9 +4265,9 @@ class _FriseurModeLabel extends StatelessWidget {
           children: [
             _text('Molotow 💣', Colors.deepOrange.shade300),
             if (molotofSubMode == GameMode.oben)
-              _text('Obenabe ⬇️', Colors.blue.shade300)
+              _text(tr('Obenabe ⬇️'), Colors.blue.shade300)
             else if (molotofSubMode == GameMode.unten)
-              _text('Undenufe ⬆️', Colors.orange.shade300)
+              _text(tr('Undenufe ⬆️'), Colors.orange.shade300)
             else if (molotofSubMode == GameMode.trump)
               _trumpWidget(tr('Trumpf'), Colors.amber),
           ],

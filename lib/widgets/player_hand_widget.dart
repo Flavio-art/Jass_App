@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../models/card_model.dart';
 import '../models/player.dart';
@@ -54,7 +55,9 @@ class _PlayerHandWidgetState extends State<PlayerHandWidget> {
       // Karte war schon >2s ausgewählt → sofort spielen (100ms)
       final waitedLong = _selectedAt != null &&
           DateTime.now().difference(_selectedAt!).inMilliseconds > 2000;
-      final delay = waitedLong ? 100 : 1500;
+      // Erste 2 Stiche (volle Hand): mehr Zeit zum Korrigieren von Fehlgriffen.
+      final base = widget.player.hand.length >= 8 ? 3500 : 1500;
+      final delay = waitedLong ? 100 : base;
       _startAutoPlay(_selectedCard!, delayMs: delay);
     }
     // Letzte Karte auf der Hand → automatisch nach 500ms spielen (keine Wahl)
@@ -163,21 +166,50 @@ class _PlayerHandWidgetState extends State<PlayerHandWidget> {
             GestureDetector(
               behavior: HitTestBehavior.translucent,
               onTapUp: (details) {
-                // Tap ausserhalb der Karten → nächste Karte finden
                 final tapX = details.localPosition.dx;
+                final tapY = details.localPosition.dy;
+                const boxHeight = 228.0;
+                final cardHeight = cardWidth * cardAspect;
                 final margin = (constraints.maxWidth - totalWidth) / 2;
-                final relX = tapX - margin;
+
+                // Geometrie-genau: oberste Karte unter dem Finger wählen.
+                // Stapel: höherer Index liegt oben → von rechts (n-1) nach
+                // links prüfen, erste Treffer-Karte gewinnt. Jede Karte ist um
+                // ihren Unterkanten-Mittelpunkt gedreht → Tap zurückdrehen und
+                // gegen das ungedrehte Rechteck testen.
+                int? hit;
+                for (int i = n - 1; i >= 0; i--) {
+                  final leftI = margin + i * overlap;
+                  final pivotX = leftI + cardWidth / 2;
+                  const pivotY = boxHeight; // bottom:0 → Unterkante
+                  final theta = -maxHalfAngle + i * angleStep;
+                  final dx = tapX - pivotX;
+                  final dy = tapY - pivotY;
+                  final cosT = math.cos(theta);
+                  final sinT = math.sin(theta);
+                  final localX = pivotX + (cosT * dx + sinT * dy);
+                  final localY = pivotY + (-sinT * dx + cosT * dy);
+                  if (localX >= leftI &&
+                      localX <= leftI + cardWidth &&
+                      localY >= boxHeight - cardHeight &&
+                      localY <= boxHeight) {
+                    hit = i;
+                    break;
+                  }
+                }
+
                 int idx;
-                if (relX <= 0) {
-                  idx = 0; // links aussen → erste Karte
-                } else if (relX >= totalWidth) {
-                  idx = n - 1; // rechts aussen → letzte Karte
+                if (hit != null) {
+                  idx = hit;
                 } else {
-                  // Karte unter dem Tap (von rechts nach links, da obere überdecken)
-                  idx = ((relX) / overlap).floor().clamp(0, n - 1);
-                  // Rechte Karten liegen oben → bevorzuge höheren Index
-                  if (idx < n - 1 && relX > (idx + 1) * overlap) {
-                    idx = (idx + 1).clamp(0, n - 1);
+                  // Fallback: Tap neben/über dem Fächer → nächste Karte horizontal.
+                  final relX = tapX - margin;
+                  if (relX <= 0) {
+                    idx = 0;
+                  } else if (relX >= totalWidth) {
+                    idx = n - 1;
+                  } else {
+                    idx = (relX / overlap).floor().clamp(0, n - 1);
                   }
                 }
                 _onCardTap(cards[idx]);
@@ -284,9 +316,11 @@ class _PlayerHandWidgetState extends State<PlayerHandWidget> {
         _selectedCard = card;
         _selectedAt = DateTime.now();
       });
-      // Auto-Play nur wenn Spieler schon dran ist
+      // Auto-Play nur wenn Spieler schon dran ist.
+      // Erste 2 Stiche (volle Hand): 3.5s statt 3s zum Korrigieren.
       if (widget.isActive) {
-        _startAutoPlay(card);
+        _startAutoPlay(card,
+            delayMs: widget.player.hand.length >= 8 ? 3500 : 3000);
       }
     }
   }

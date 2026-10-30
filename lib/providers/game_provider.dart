@@ -317,9 +317,9 @@ class GameProvider extends ChangeNotifier {
     final hasTeams = gameType == GameType.schieber || gameType == GameType.friseurTeam;
     final players = [
       Player(id: 'p1', name: _cachedPlayerName,             position: PlayerPosition.south, hand: hands[0]),
-      Player(id: 'p2', name: hasTeams ? 'Gegner 1' : 'Freund 1', position: PlayerPosition.east,  hand: hands[1]),
-      Player(id: 'p3', name: hasTeams ? 'Partner'  : 'Freund 2', position: PlayerPosition.north, hand: hands[2]),
-      Player(id: 'p4', name: hasTeams ? 'Gegner 2' : 'Freund 3', position: PlayerPosition.west,  hand: hands[3]),
+      Player(id: 'p2', name: hasTeams ? tr('Gegner 1') : tr('Freund 1'), position: PlayerPosition.east,  hand: hands[1]),
+      Player(id: 'p3', name: hasTeams ? tr('Partner')  : tr('Freund 2'), position: PlayerPosition.north, hand: hands[2]),
+      Player(id: 'p4', name: hasTeams ? tr('Gegner 2') : tr('Freund 3'), position: PlayerPosition.west,  hand: hands[3]),
     ];
     for (final p in players) { p.sortHand(); }
 
