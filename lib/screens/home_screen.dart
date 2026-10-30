@@ -625,7 +625,7 @@ class _GameTypeButton extends StatelessWidget {
               Text(emoji!, style: const TextStyle(fontSize: 22)),
             const SizedBox(height: 4),
             Text(
-              label,
+              tr(label),
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,

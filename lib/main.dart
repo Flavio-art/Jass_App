@@ -90,13 +90,31 @@ class JassApp extends StatelessWidget {
             // jedes Gerät skaliert → gleiches Layout auf allen Bildschirmen.
             // Faktor sanft begrenzt (Mini-/Tablet-Extreme abfedern).
             const refW = 393.0;
-            final scale = (mq.size.width / refW).clamp(0.85, 1.35);
-            final cw = mq.size.width / scale;
-            final ch = mq.size.height / scale;
+            final fullW = mq.size.width;
+            final fullH = mq.size.height;
+            // Tablets (iPad): Inhalt auf phone-artige Breite begrenzen und
+            // zentrieren (dunkler Rand), damit die Proportionen stimmen statt
+            // aufgebläht/vertikal gestaucht zu wirken. Phones unverändert.
+            final isTablet = mq.size.shortestSide >= 600;
+            // iPad/Tablet: volle Breite nutzen, aber auf grossen iPads (13")
+            // sanft deckeln (B), damit es nicht zu weit auseinanderzieht.
+            // Höherer Skalierungs-Deckel → grössere Spielanzeige.
+            const maxTabletW = 900.0;
+            final contentW = isTablet
+                ? (fullW < maxTabletW ? fullW : maxTabletW)
+                : fullW;
+            // Grösste Skalierung, bei der die virtuelle Höhe NICHT unter die
+            // vom Layout benötigte Mindesthöhe fällt (sonst Bottom-Overflow).
+            // → so gross wie möglich auf dem iPad, aber ohne Abschneiden.
+            const minVirtualH = 765.0;
+            final maxScale = isTablet ? (fullH / minVirtualH).clamp(1.35, 1.7) : 1.35;
+            final scale = (contentW / refW).clamp(0.85, maxScale);
+            final cw = contentW / scale;
+            final ch = fullH / scale;
             EdgeInsets sc(EdgeInsets e) => EdgeInsets.fromLTRB(
                 e.left / scale, e.top / scale, e.right / scale, e.bottom / scale);
             final vp = sc(mq.viewPadding);
-            return FittedBox(
+            final scaled = FittedBox(
               fit: BoxFit.fill,
               child: SizedBox(
                 width: cw,
@@ -110,6 +128,15 @@ class JassApp extends StatelessWidget {
                   ),
                   child: child!,
                 ),
+              ),
+            );
+            // Volle Breite → direkt; nur bei gedeckelter Breite (grosse iPads)
+            // zentriert mit dunklem Rand links/rechts.
+            if (contentW >= fullW) return scaled;
+            return ColoredBox(
+              color: const Color(0xFF0C1A12),
+              child: Center(
+                child: SizedBox(width: contentW, height: fullH, child: scaled),
               ),
             );
           },

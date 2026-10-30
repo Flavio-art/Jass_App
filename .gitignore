@@ -51,3 +51,7 @@ Bilder/
 /android/app/release
 android/app/keystore.jks
 android/key.properties
+scripts/
+*.apk
+*.aab
+android/build/

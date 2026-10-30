@@ -27,6 +27,12 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   const deals = int.fromEnvironment('BENCH_DEALS', defaultValue: 20);
+  // Toggle für die neuen Jasser-Konventionen (Rule 1/6/8/10) — zum Isolieren.
+  MonteCarloAI.jasserConventions =
+      const bool.fromEnvironment('JASSER_CONV', defaultValue: true);
+  // Deterministisches MC für sauberes A/B: gleiche Deals ⇒ Unterschied = Regeln.
+  MonteCarloAI.deterministicSeed =
+      const bool.fromEnvironment('DET_SEED', defaultValue: false);
 
   final modes = <(String, GameMode, Suit?)>[
     ('Trumpf ♥', GameMode.trump, Suit.hearts),

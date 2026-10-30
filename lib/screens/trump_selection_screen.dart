@@ -1140,7 +1140,7 @@ class _ModeButton extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(label,
+                          Text(tr(label),
                               style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
