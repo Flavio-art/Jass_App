@@ -74,9 +74,11 @@ class AnalyticsService {
     int opponentPoints,
     bool won,
     int durationSeconds,
-    int rounds,
-  ) {
-    _log('game_finished', {
+    int rounds, {
+    int? placement,
+    String? results,
+  }) {
+    final p = <String, Object>{
       'mode': mode,
       'game_id': gameId,
       'player_points': playerPoints,
@@ -84,7 +86,11 @@ class AnalyticsService {
       'won': won ? 1 : 0,
       'duration_seconds': durationSeconds,
       'rounds': rounds,
-    });
+    };
+    // Einzelspiele (Differenzler/Wunschkarte): Rang + alle 4 Resultate.
+    if (placement != null) p['placement'] = placement;
+    if (results != null) p['results'] = results;
+    _log('game_finished', p);
   }
 
   /// Eine einzelne Runde wurde gespielt. [variant] = variantKey
