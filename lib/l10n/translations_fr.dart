@@ -13,6 +13,8 @@ const Map<String, String> kFr = {
   'Weiter': 'Continuer',
   'Verstanden': 'Compris',
   'Los geht\'s': 'C\'est parti',
+  'Welche Spielformen möchtest du spielen?': 'Quelles formes de jeu veux-tu jouer ?',
+  'Alle sind vorausgewählt – du kannst Formen abwählen und das jederzeit in den Einstellungen ändern.': 'Toutes sont présélectionnées – tu peux en désélectionner et le modifier à tout moment dans les réglages.',
   'Zur Auswertung': 'Vers le résultat',
   'Ergebnis': 'Résultat',
   'Resultate': 'Résultats',
