@@ -175,6 +175,7 @@ class GameProvider extends ChangeNotifier {
     int opponentScore;
     bool playerWon;
     int? playerPlacement;
+    String? results; // alle 4 Einzelresultate "p1:p2:p3:p4" (Differenzler/Wunschkarte)
 
     if (s.gameType == GameType.differenzler) {
       // Differenzler: niedrigste Strafe gewinnt; Spieler = p1
@@ -186,6 +187,9 @@ class GameProvider extends ChangeNotifier {
       // Platzierung berechnen
       final sorted = s.differenzlerPenalties.values.toList()..sort();
       playerPlacement = sorted.indexOf(myPenalty) + 1;
+      results = ['p1', 'p2', 'p3', 'p4']
+          .map((pid) => s.differenzlerPenalties[pid] ?? 0)
+          .join(':');
     } else if (s.gameType == GameType.friseur) {
       // Friseur Solo: Durchschnitt pro Variante summieren (wie Game-End-Overlay)
       final allVariants = ['trump_ss', 'trump_re', 'oben', 'unten', 'slalom',
@@ -218,6 +222,9 @@ class GameProvider extends ChangeNotifier {
       // Platzierung berechnen (hoechste Punkte = 1.)
       final sorted = playerTotals.values.toList()..sort((a, b) => b.compareTo(a));
       playerPlacement = sorted.indexOf(myTotal) + 1;
+      results = ['p1', 'p2', 'p3', 'p4']
+          .map((pid) => playerTotals[pid] ?? 0)
+          .join(':');
     } else {
       // Team-Spiele (Schieber, Friseur Team): Team 1 = Spieler
       playerScore = s.totalTeamScores['team1'] ?? 0;
@@ -237,6 +244,8 @@ class GameProvider extends ChangeNotifier {
       playerWon,
       durationSeconds,
       s.roundHistory.length,
+      placement: playerPlacement,
+      results: results,
     );
     // Pro gespielte Runde: welche Variante (Trumpf/Oben/Unten/Slalom bzw. Coiffeur).
     for (final r in s.roundHistory) {
