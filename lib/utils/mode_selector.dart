@@ -644,6 +644,22 @@ class ModeSelectorAI {
         if (skQueens == 0) score *= 0.4;
       }
 
+      // Elefant: die ersten 6 Stiche sind 3× Oben + 3× Unten. Nur ansagen,
+      // wenn man die plausibel selbst macht (≥3 sichere Oben UND ≥3 sichere
+      // Unten). Ausnahme: im Loch (erzwungene Restansage) → kein Abzug, damit
+      // Elefant als letzte verbleibende Form wählbar bleibt.
+      if (cand.mode == GameMode.elefant && !state.roundWasImLoch) {
+        final suits = cardType == CardType.french
+            ? const [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
+            : const [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
+        int sOben = 0, sUnten = 0;
+        for (final s in suits) {
+          sOben += _safeTricksOben(hand, s);
+          sUnten += _safeTricksUnten(hand, s);
+        }
+        if (sOben < 3 || sUnten < 3) score *= 0.2; // ersten 6 Stiche unrealistisch
+      }
+
       // Slalom-Richtung bestimmen: sichere Stiche zählen
       var slalomOben = true;
       if (cand.mode == GameMode.slalom) {
@@ -739,7 +755,9 @@ class ModeSelectorAI {
       case GameMode.slalom:
         return (_scoreOben(hand) + _scoreUnten(hand)) / 2;
       case GameMode.elefant:
-        return (_scoreOben(hand) + _scoreUnten(hand)) / 2 + 5;
+        // Ehrlicher Score (erste 6 Stiche = Oben+Unten). Kein pauschaler +5
+        // mehr — die Macht-die-ersten-6-Stiche-Hürde oben regelt die Ansage.
+        return (_scoreOben(hand) + _scoreUnten(hand)) / 2;
       case GameMode.misere:
         return _scoreMisere(hand);
       case GameMode.allesTrumpf:
