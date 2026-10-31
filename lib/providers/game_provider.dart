@@ -25,6 +25,7 @@ class GameProvider extends ChangeNotifier {
   bool _aiRunning = false;
   // Zeitpunkt des Spielstarts – für die Spieldauer im Analytics-Event.
   DateTime? _gameStartedAt;
+  String? _currentGameId; // eindeutige ID pro Spiel (Analytics: 1 Zeile/Spiel)
   Timer? _clearTrickTimer;
   // Molotof: Spieler-ID der Person die Oben/Unten bestimmt hat (gewinnt den Stich)
   String? _molotofDeterminerForTrick;
@@ -230,6 +231,7 @@ class GameProvider extends ChangeNotifier {
         : DateTime.now().difference(_gameStartedAt!).inSeconds;
     AnalyticsService.logGameFinished(
       s.gameType.name,
+      _currentGameId ?? '',
       playerScore,
       opponentScore,
       playerWon,
@@ -298,10 +300,12 @@ class GameProvider extends ChangeNotifier {
     _aiDecisionLogs.clear();
     // Anonymes Nutzungs-Tracking: Modus + Kartendeck + eingestellte Spiellänge.
     _gameStartedAt = DateTime.now();
+    _currentGameId = _gameStartedAt!.millisecondsSinceEpoch.toString();
     if (!_tutorialMode) {
       AnalyticsService.logGameStarted(
         gameType.name,
         cardType: cardType.name,
+        gameId: _currentGameId!,
         schieberTarget: gameType == GameType.schieber ? schieberWinTarget : null,
         differenzlerRounds:
             gameType == GameType.differenzler ? differenzlerMaxRounds : null,

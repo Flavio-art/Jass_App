@@ -35,8 +35,13 @@ class AnalyticsService {
   /// (schieber / differenzler / friseurTeam / friseur). Zusätzlich
   /// Kartendeck + (je nach Modus) eingestellte Spiellänge.
   static void logGameStarted(String mode,
-      {required String cardType, int? schieberTarget, int? differenzlerRounds}) {
-    final p = <String, Object>{'mode': mode, 'card_type': cardType};
+      {required String cardType, required String gameId,
+      int? schieberTarget, int? differenzlerRounds}) {
+    final p = <String, Object>{
+      'mode': mode,
+      'card_type': cardType,
+      'game_id': gameId,
+    };
     if (schieberTarget != null) p['schieber_target'] = schieberTarget;
     if (differenzlerRounds != null) p['differenzler_rounds'] = differenzlerRounds;
     _log('game_started', p);
@@ -64,6 +69,7 @@ class AnalyticsService {
   /// Spieldauer (Sekunden) und Rundenzahl.
   static void logGameFinished(
     String mode,
+    String gameId,
     int playerPoints,
     int opponentPoints,
     bool won,
@@ -72,6 +78,7 @@ class AnalyticsService {
   ) {
     _log('game_finished', {
       'mode': mode,
+      'game_id': gameId,
       'player_points': playerPoints,
       'opponent_points': opponentPoints,
       'won': won ? 1 : 0,
