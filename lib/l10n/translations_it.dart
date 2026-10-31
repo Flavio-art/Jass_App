@@ -13,6 +13,8 @@ const Map<String, String> kIt = {
   'Weiter': 'Continua',
   'Verstanden': 'Capito',
   'Los geht\'s': 'Si parte',
+  'Welche Spielformen möchtest du spielen?': 'Quali modalità vuoi giocare?',
+  'Alle sind vorausgewählt – du kannst Formen abwählen und das jederzeit in den Einstellungen ändern.': 'Tutte sono preselezionate – puoi deselezionarne e cambiarlo in qualsiasi momento nelle impostazioni.',
   'Zur Auswertung': 'Al risultato',
   'Ergebnis': 'Risultato',
   'Resultate': 'Risultati',
