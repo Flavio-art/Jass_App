@@ -54,12 +54,113 @@ class _HomeScreenState extends State<HomeScreen> {
     'elefant': 1, 'misere': 1, 'allesTrumpf': 1, 'schafkopf': 1, 'molotof': 1,
   };
 
+  bool _friseurOnboardingDone = false; // Coiffeur/Wunschkarte-Erstabfrage erledigt?
+
   bool get _hasCurrentSavedGame => _savedGameTypes.contains(_selectedGameType);
 
   @override
   void initState() {
     super.initState();
     _loadPreferences();
+  }
+
+  /// Coiffeur/Wunschkarte gewählt. Beim allerersten Mal fragen, welche
+  /// Spielformen gespielt werden sollen (Default: alle an), danach merken.
+  void _selectFriseurType(GameType type) {
+    setState(() => _selectedGameType = type);
+    if (!_friseurOnboardingDone) {
+      // Erst NACH dem aktuellen Frame öffnen, sonst schliesst der Tap/Rebuild
+      // das Sheet sofort wieder ("flasht" nur kurz auf).
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_friseurOnboardingDone) _showFriseurOnboarding();
+      });
+    }
+  }
+
+  Future<void> _showFriseurOnboarding() async {
+    const keys = ['trump_oben', 'trump_unten', 'oben', 'unten', 'slalom',
+        'elefant', 'misere', 'allesTrumpf', 'schafkopf', 'molotof'];
+    const names = ['Trumpf Oben', 'Trumpf Unten', 'Obenabe', 'Undenufe',
+        'Slalom', 'Elefant', 'Misere', 'Tutti', 'Schafkopf', 'Molotow'];
+    const gold = Color(0xFFFFD54F);
+    final sel = Set<String>.from(_enabledVariants); // Default: alle an
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF14532D),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => SafeArea(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(tr('Welche Spielformen möchtest du spielen?'),
+                      style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white)),
+                  const SizedBox(height: 4),
+                  Text(tr('Alle sind vorausgewählt – du kannst Formen abwählen und das jederzeit in den Einstellungen ändern.'),
+                      style: const TextStyle(fontSize: 13, color: Colors.white60)),
+                  const SizedBox(height: 10),
+                  ...List.generate(keys.length, (i) {
+                    final on = sel.contains(keys[i]);
+                    return CheckboxListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      activeColor: gold,
+                      checkColor: Colors.black,
+                      title: Text(tr(names[i]),
+                          style: const TextStyle(color: Colors.white)),
+                      value: on,
+                      onChanged: (v) => setSheet(() {
+                        if (v == true) {
+                          sel.add(keys[i]);
+                        } else {
+                          sel.remove(keys[i]);
+                        }
+                      }),
+                    );
+                  }),
+                  const SizedBox(height: 8),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: gold,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    onPressed:
+                        sel.isEmpty ? null : () => Navigator.pop(ctx),
+                    child: Text(tr('Los geht\'s'),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 15)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    // Auswahl speichern (bei leerer Auswahl/Abbruch bleiben die bisherigen an).
+    final prefs = await SharedPreferences.getInstance();
+    if (sel.isNotEmpty) {
+      setState(() {
+        _enabledVariants
+          ..clear()
+          ..addAll(sel);
+      });
+      await prefs.setStringList('enabled_variants', sel.toList());
+    }
+    await prefs.setBool('friseur_onboarding_done', true);
+    _friseurOnboardingDone = true;
   }
 
   Future<void> _loadPreferences() async {
@@ -96,6 +197,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ..clear()
           ..addAll(variants);
       }
+      _friseurOnboardingDone =
+          prefs.getBool('friseur_onboarding_done') ?? false;
       final coiffeurJson = prefs.getString('coiffeur_multipliers');
       if (coiffeurJson != null) {
         final decoded = jsonDecode(coiffeurJson) as Map<String, dynamic>;
@@ -287,7 +390,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 emoji: '✂️',
                                 selected: _selectedGameType == GameType.friseurTeam,
                                 hasSavedGame: _savedGameTypes.contains(GameType.friseurTeam),
-                                onTap: () => setState(() => _selectedGameType = GameType.friseurTeam),
+                                onTap: () => _selectFriseurType(GameType.friseurTeam),
                               ),
                               const SizedBox(width: 10),
                               _GameTypeButton(
@@ -297,7 +400,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 emoji: '🎴',
                                 selected: _selectedGameType == GameType.friseur,
                                 hasSavedGame: _savedGameTypes.contains(GameType.friseur),
-                                onTap: () => setState(() => _selectedGameType = GameType.friseur),
+                                onTap: () => _selectFriseurType(GameType.friseur),
                               ),
                             ],
                           ),
