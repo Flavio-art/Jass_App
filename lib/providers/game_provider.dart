@@ -14,6 +14,7 @@ import '../models/round_replay.dart';
 import '../services/stats_service.dart';
 import '../services/replay_service.dart';
 import '../services/analytics_service.dart';
+import '../services/review_service.dart';
 import '../utils/game_logic.dart';
 import '../utils/monte_carlo.dart';
 import '../utils/mode_selector.dart';
@@ -251,6 +252,9 @@ class GameProvider extends ChangeNotifier {
     for (final r in s.roundHistory) {
       AnalyticsService.logRoundPlayed(s.gameType.name, r.variantKey);
     }
+    // Zufriedene, eingespielte Spieler EINMAL um eine Bewertung bitten
+    // (ab 5. beendetem Spiel + letztes Spiel gewonnen).
+    ReviewService.onGameFinished(won: playerWon);
 
     // Runden-Details aus roundHistory extrahieren
     // pureTeamScore = reine Stichpunkte ohne Stöcke/Wyss/Match-Bonus
