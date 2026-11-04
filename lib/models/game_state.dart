@@ -277,7 +277,7 @@ class GameState {
   // ─── Schieber ──────────────────────────────────────────────────────────────
   /// Zielpunktzahl (z. B. 1500, 2500, 3500) – das erste Team das diesen Wert erreicht gewinnt.
   final int schieberWinTarget;
-  /// Multiplikatoren pro Variante: {'trump_ss':1, 'trump_re':2, 'oben':3, 'unten':3, 'slalom':4}
+  /// Multiplikatoren pro Variante: {'trump_ss':1, 'trump_re':2, 'oben':3, 'unten':3, 'slalom':3}
   final Map<String, int> schieberMultipliers;
 
   // ─── Coiffeur ──────────────────────────────────────────────────────────────
@@ -658,7 +658,7 @@ class GameState {
       stockeComment: j['stockeComment'] as String?,
       playerScores: Map<String, int>.from(j['playerScores'] as Map? ?? {}),
       schieberWinTarget: j['schieberWinTarget'] as int? ?? 1500,
-      schieberMultipliers: Map<String, int>.from(j['schieberMultipliers'] as Map? ?? {'trump_ss': 1, 'trump_re': 2, 'oben': 3, 'unten': 3, 'slalom': 4}),
+      schieberMultipliers: Map<String, int>.from(j['schieberMultipliers'] as Map? ?? {'trump_ss': 1, 'trump_re': 2, 'oben': 3, 'unten': 3, 'slalom': 3}),
       coiffeurMultipliers: Map<String, int>.from(j['coiffeurMultipliers'] as Map? ?? {'trump_ss': 1, 'trump_re': 1, 'oben': 1, 'unten': 1, 'slalom': 1, 'elefant': 1, 'misere': 1, 'allesTrumpf': 1, 'schafkopf': 1, 'molotof': 1}),
       stockeRoundPoints: Map<String, int>.from(j['stockeRoundPoints'] as Map? ?? {'team1': 0, 'team2': 0}),
       schieberLimitReachedBy: j['schieberLimitReachedBy'] as String?,

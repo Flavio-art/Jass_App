@@ -3459,7 +3459,7 @@ int _schieberMultiplier(GameState state) {
   final m = state.schieberMultipliers;
   final mode = state.gameMode;
   final trumpSuit = state.trumpSuit;
-  if (mode == GameMode.slalom) return m['slalom'] ?? 4;
+  if (mode == GameMode.slalom) return m['slalom'] ?? 3;
   if (mode == GameMode.oben) return m['oben'] ?? 3;
   if (mode == GameMode.unten) return m['unten'] ?? 3;
   if (mode == GameMode.trump && trumpSuit != null) {
