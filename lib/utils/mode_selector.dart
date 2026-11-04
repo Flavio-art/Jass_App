@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:meta/meta.dart';
 
 import '../models/card_model.dart';
@@ -12,6 +14,35 @@ import 'nn_tuning.dart';
 /// Wenn das trainierte Neural Network geladen ist, wird es zur Modusauswahl
 /// verwendet. Andernfalls fällt die KI auf die regelbasierte Heuristik zurück.
 class ModeSelectorAI {
+  /// Schieber-Moduswahl-Gewicht einer Variante, abhängig vom vom Spieler
+  /// EINGESTELLTEN Multiplikator (mild gedämpft): base × (actualMult/ref)^k.
+  /// Trumpf-Ref = 1× → die eigentliche 1×/2×-Einstellung bestimmt, welche
+  /// Trumpffarbe bevorzugt wird. Flachmodi-Ref = 3× → Default unverändert.
+  static double _schieberModeWeight(
+      String vk, GameState state, bool partnerHatGeschoben) {
+    final base = switch (vk) {
+      'trump_ss' || 'trump_re' => NNTuning.schieberMultTrump,
+      'oben' => NNTuning.schieberMultOben,
+      'unten' => NNTuning.schieberMultUnten,
+      'slalom' => NNTuning.schieberMultSlalom,
+      'misere' => NNTuning.schieberMultMisere,
+      'molotof' => NNTuning.schieberMultMolotof,
+      _ => 1.0,
+    };
+    final ref = switch (vk) {
+      'trump_ss' || 'trump_re' => 1.0,
+      'oben' || 'unten' || 'slalom' => 3.0,
+      _ => 1.0,
+    };
+    final actual = (state.schieberMultipliers[vk] ?? ref.round()).toDouble();
+    var m = base *
+        math.pow(actual / ref, NNTuning.schieberMultDependenceK).toDouble();
+    if (vk == 'slalom' && partnerHatGeschoben) {
+      m *= NNTuning.schiebenSlalomPenalty;
+    }
+    return m;
+  }
+
   /// Gibt den besten Spielmodus + Trumpffarbe + Slalom-Richtung für [player] zurück.
   /// Bei Friseur Solo wird zusätzlich die ideale [wishCard] bestimmt.
   static ({GameMode mode, Suit? trumpSuit, bool slalomStartsOben, JassCard? wishCard}) selectMode({
@@ -67,18 +98,7 @@ class ModeSelectorAI {
         return cm.toDouble();
       }
       if (!isSchieber) return 1.0;
-      var m = switch (vk) {
-        'trump_ss'   => NNTuning.schieberMultTrump,
-        'trump_re'   => NNTuning.schieberMultTrump,
-        'oben'       => NNTuning.schieberMultOben,
-        'unten'      => NNTuning.schieberMultUnten,
-        'slalom'     => NNTuning.schieberMultSlalom,
-        'misere'     => NNTuning.schieberMultMisere,
-        'molotof'    => NNTuning.schieberMultMolotof,
-        _            => 1.0,
-      };
-      if (vk == 'slalom' && partnerHatGeschoben) m *= NNTuning.schiebenSlalomPenalty;
-      return m;
+      return _schieberModeWeight(vk, state, partnerHatGeschoben);
     }
 
     // ── Schritt 1: Alle Raw-Scores sammeln ──────────────────────────────
@@ -235,18 +255,7 @@ class ModeSelectorAI {
         return cm.toDouble();
       }
       if (!isSchieber) return 1.0;
-      var m = switch (vk) {
-        'trump_ss'   => NNTuning.schieberMultTrump,
-        'trump_re'   => NNTuning.schieberMultTrump,
-        'oben'       => NNTuning.schieberMultOben,
-        'unten'      => NNTuning.schieberMultUnten,
-        'slalom'     => NNTuning.schieberMultSlalom, // Score=(Oben+Unten)/2 braucht Boost
-        'misere'     => NNTuning.schieberMultMisere,
-        'molotof'    => NNTuning.schieberMultMolotof,
-        _            => 1.0,
-      };
-      if (vk == 'slalom' && partnerHatGeschoben) m *= NNTuning.schiebenSlalomPenalty;
-      return m;
+      return _schieberModeWeight(vk, state, partnerHatGeschoben);
     }
 
     // Friseur Solo: bisherige Punkte → Molotow/Misère Boost
