@@ -34,9 +34,14 @@ class ModeSelectorAI {
       'oben' || 'unten' || 'slalom' => 3.0,
       _ => 1.0,
     };
+    // Flachmodi (3×) reagieren nur SCHWACH auf Custom-Multiplikatoren,
+    // Trumpf-Farben stärker (dort entsteht die Rot/Schwarz-Präferenz).
+    final k = switch (vk) {
+      'oben' || 'unten' || 'slalom' => NNTuning.schieberMultDependenceKFlach,
+      _ => NNTuning.schieberMultDependenceK,
+    };
     final actual = (state.schieberMultipliers[vk] ?? ref.round()).toDouble();
-    var m = base *
-        math.pow(actual / ref, NNTuning.schieberMultDependenceK).toDouble();
+    var m = base * math.pow(actual / ref, k).toDouble();
     if (vk == 'slalom' && partnerHatGeschoben) {
       m *= NNTuning.schiebenSlalomPenalty;
     }
