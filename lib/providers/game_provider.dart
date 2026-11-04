@@ -303,7 +303,7 @@ class GameProvider extends ChangeNotifier {
     required CardType cardType,
     GameType gameType = GameType.friseurTeam,
     int schieberWinTarget = 1500,
-    Map<String, int> schieberMultipliers = const {'trump_ss': 1, 'trump_re': 2, 'oben': 3, 'unten': 3, 'slalom': 4},
+    Map<String, int> schieberMultipliers = const {'trump_ss': 1, 'trump_re': 2, 'oben': 3, 'unten': 3, 'slalom': 3},
     Map<String, int> coiffeurMultipliers = const {'trump_ss': 1, 'trump_re': 1, 'oben': 1, 'unten': 1, 'slalom': 1, 'elefant': 1, 'misere': 1, 'allesTrumpf': 1, 'schafkopf': 1, 'molotof': 1},
     Set<String>? enabledVariants,
     int differenzlerMaxRounds = 4,
@@ -529,7 +529,7 @@ class GameProvider extends ChangeNotifier {
 
   int _schieberMultiplier(GameMode mode, Suit? trumpSuit) {
     final m = _state.schieberMultipliers;
-    if (mode == GameMode.slalom) return m['slalom'] ?? 4;
+    if (mode == GameMode.slalom) return m['slalom'] ?? 3;
     if (mode == GameMode.oben) return m['oben'] ?? 3;
     if (mode == GameMode.unten) return m['unten'] ?? 3;
     if (mode == GameMode.trump && trumpSuit != null) {
@@ -3043,8 +3043,10 @@ class GameProvider extends ChangeNotifier {
       );
     }
 
-    // Stöcke: König + Dame von Trumpffarbe (nur im Schieber und nur in Trumpf-Spielen)
+    // Stöcke: König + Dame von Trumpffarbe (nur im Schieber und nur in Trumpf-Spielen).
+    // Im Lernmodus zählen weder Weisen noch Stöcke → Tutorial ausnehmen.
     if (_state.gameType == GameType.schieber &&
+        !_tutorialMode &&
         _state.trumpSuit != null &&
         card.suit == _state.trumpSuit &&
         (card.value == CardValue.king || card.value == CardValue.queen) &&
