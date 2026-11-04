@@ -33,12 +33,17 @@ class NNTuning {
   static const bool slalomFromObenUnten = true; // Index 10 = (8+9)/2
 
   // ── Schieber Moduswahl-Multiplikatoren ─────────────────
-  // Flavio-v3 aktiv (2026-08-05): v3-Weights, Mults auf Flavio-Ansagestil
-  // kalibriert (46 Experten-Ansagen). Schieber v3-kalibriert.
-  static const double schieberMultTrump = 0.75;
-  static const double schieberMultOben = 1.43;
-  static const double schieberMultUnten = 1.23;
-  static const double schieberMultSlalom = 1.64;
+  // Flavio-v3 (2026-08-05) kalibriert. 2026-11: mehr Trumpf / weniger
+  // Slalom+Oben+Unten. Farb-Präferenz (Schwarz/Rot) kommt NICHT mehr fix aus
+  // dem Code, sondern aus dem vom Spieler EINGESTELLTEN Multiplikator
+  // (state.schieberMultipliers): base × (actualMult/ref)^k. Trumpf-Ref = 1×
+  // (→ Default Rot 2× wird bevorzugt; stellt der Spieler Schwarz auf 2×, kippt
+  // die Präferenz), Flachmodi-Ref = 3× (→ Default unverändert). k dämpft.
+  static const double schieberMultTrump = 0.70;        // Basis Trumpf (farb-neutral)
+  static const double schieberMultOben = 1.35;
+  static const double schieberMultUnten = 1.15;
+  static const double schieberMultSlalom = 1.52;
+  static const double schieberMultDependenceK = 0.35;  // Dämpfung der Multiplikator-Abhängigkeit
   static const double schiebenSlalomPenalty = 0.85;
   static const double schieberMultMisere = 0.7;    // Misere im Schieber ~10%
   static const double schieberMultMolotof = 0.7;   // Molotof im Schieber ~10%

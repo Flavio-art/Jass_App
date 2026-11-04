@@ -1401,6 +1401,82 @@ class MonteCarloAI {
       }
     }
 
+    // ── Slalom Ansager: Wunschfarbe übergeben wenn Gegen-Richtung kippt ──
+    // Wenn AI = Ansager + aktuelle Richtung = Wunsch-Richtung (z.B. Unten +
+    // Wunsch ♦6) und nach JETZT-Verbrauch keine sichere Karte mehr in der
+    // Gegen-Richtung übrig wäre → JETZT übergeben (schwächste Wunschfarbe
+    // anspielen), damit Partner mit Wunschkarte sticht und AI ihre wertvolle
+    // Karte für die richtige Phase aufspart.
+    if (state.currentTrickCards.isEmpty &&
+        state.gameMode == GameMode.slalom &&
+        state.gameType == GameType.friseur &&
+        aiPlayer.id == state.players[state.ansagerIndex].id &&
+        state.wishCard != null) {
+      final trickNumS = state.currentTrickNumber;
+      final isObenTrick = state.slalomStartsOben
+          ? (trickNumS % 2 == 1) : (trickNumS % 2 == 0);
+      final dirModeS = isObenTrick ? GameMode.oben : GameMode.unten;
+      final oppModeS = isObenTrick ? GameMode.unten : GameMode.oben;
+      final wishS = state.wishCard!;
+      final wishMatchesDir =
+          (wishS.value == CardValue.six && !isObenTrick) ||
+          (wishS.value == CardValue.ace && isObenTrick);
+      if (wishMatchesDir) {
+        // Verbleibende Gegen-Richtung-Stiche (nach diesem Stich)
+        int remainingOpp = 0;
+        for (int t = trickNumS + 1; t <= 9; t++) {
+          final tOben = state.slalomStartsOben ? (t % 2 == 1) : (t % 2 == 0);
+          if (tOben != isObenTrick) remainingOpp++;
+        }
+        // Sichere Karten in beiden Richtungen zählen
+        int safePureDir = 0, safePureOpp = 0, safeJoker = 0;
+        for (final c in aiPlayer.hand) {
+          final myStrDir = GameLogic.cardPlayStrength(c, dirModeS, null);
+          final myStrOpp = GameLogic.cardPlayStrength(c, oppModeS, null);
+          final anyHigherDir = state.players
+              .where((p) => p.id != aiPlayer.id)
+              .expand((p) => p.hand)
+              .any((o) =>
+                  o.suit == c.suit &&
+                  GameLogic.cardPlayStrength(o, dirModeS, null) > myStrDir);
+          final anyHigherOpp = state.players
+              .where((p) => p.id != aiPlayer.id)
+              .expand((p) => p.hand)
+              .any((o) =>
+                  o.suit == c.suit &&
+                  GameLogic.cardPlayStrength(o, oppModeS, null) > myStrOpp);
+          final safeInDir = !anyHigherDir;
+          final safeInOpp = !anyHigherOpp;
+          if (safeInDir && safeInOpp) {
+            safeJoker++;
+          } else if (safeInDir) {
+            safePureDir++;
+          } else if (safeInOpp) {
+            safePureOpp++;
+          }
+        }
+        final safeDir = safePureDir + safeJoker;
+        final safeOpp = safePureOpp + safeJoker;
+        // Würde AI Joker verbrauchen (= keine pure-dir Karte vorhanden)?
+        final usesJoker = safePureDir == 0;
+        final safeOppAfter = usesJoker ? safeOpp - 1 : safeOpp;
+        // Wunschfarben-Karten zum Anspielen
+        final wishSuitCards = playable
+            .where((c) => c.suit == wishS.suit)
+            .toList();
+        final mustHandoff = (safeDir == 0) ||
+            (safeOppAfter < 1 && remainingOpp >= 1);
+        if (mustHandoff && wishSuitCards.isNotEmpty) {
+          // Schwächste Wunschfarbe-Karte in dieser Richtung (Partner sticht)
+          wishSuitCards.sort((a, b) =>
+              GameLogic.cardPlayStrength(a, dirModeS, null)
+                  .compareTo(GameLogic.cardPlayStrength(b, dirModeS, null)));
+          return _pick('Slalom_Ansager_Wunschfarbe_Uebergabe',
+              wishSuitCards.first);
+        }
+      }
+    }
+
     // ── Farb-Monopol: nur eigenes Team hat eine Farbe → garantierte Stiche ──
     // Wenn beide Gegner in einer Farbe void sind (aus Void-Tracking),
     // sind alle Karten dieser Farbe sichere Stiche.
@@ -1685,82 +1761,6 @@ class MonteCarloAI {
           return countB.compareTo(countA);
         });
         return _pick('auto_L1153', safeLeads.first);
-      }
-    }
-
-    // ── Slalom Ansager: Wunschfarbe übergeben wenn Gegen-Richtung kippt ──
-    // Wenn AI = Ansager + aktuelle Richtung = Wunsch-Richtung (z.B. Unten +
-    // Wunsch ♦6) und nach JETZT-Verbrauch keine sichere Karte mehr in der
-    // Gegen-Richtung übrig wäre → JETZT übergeben (schwächste Wunschfarbe
-    // anspielen), damit Partner mit Wunschkarte sticht und AI ihre wertvolle
-    // Karte für die richtige Phase aufspart.
-    if (state.currentTrickCards.isEmpty &&
-        state.gameMode == GameMode.slalom &&
-        state.gameType == GameType.friseur &&
-        aiPlayer.id == state.players[state.ansagerIndex].id &&
-        state.wishCard != null) {
-      final trickNumS = state.currentTrickNumber;
-      final isObenTrick = state.slalomStartsOben
-          ? (trickNumS % 2 == 1) : (trickNumS % 2 == 0);
-      final dirModeS = isObenTrick ? GameMode.oben : GameMode.unten;
-      final oppModeS = isObenTrick ? GameMode.unten : GameMode.oben;
-      final wishS = state.wishCard!;
-      final wishMatchesDir =
-          (wishS.value == CardValue.six && !isObenTrick) ||
-          (wishS.value == CardValue.ace && isObenTrick);
-      if (wishMatchesDir) {
-        // Verbleibende Gegen-Richtung-Stiche (nach diesem Stich)
-        int remainingOpp = 0;
-        for (int t = trickNumS + 1; t <= 9; t++) {
-          final tOben = state.slalomStartsOben ? (t % 2 == 1) : (t % 2 == 0);
-          if (tOben != isObenTrick) remainingOpp++;
-        }
-        // Sichere Karten in beiden Richtungen zählen
-        int safePureDir = 0, safePureOpp = 0, safeJoker = 0;
-        for (final c in aiPlayer.hand) {
-          final myStrDir = GameLogic.cardPlayStrength(c, dirModeS, null);
-          final myStrOpp = GameLogic.cardPlayStrength(c, oppModeS, null);
-          final anyHigherDir = state.players
-              .where((p) => p.id != aiPlayer.id)
-              .expand((p) => p.hand)
-              .any((o) =>
-                  o.suit == c.suit &&
-                  GameLogic.cardPlayStrength(o, dirModeS, null) > myStrDir);
-          final anyHigherOpp = state.players
-              .where((p) => p.id != aiPlayer.id)
-              .expand((p) => p.hand)
-              .any((o) =>
-                  o.suit == c.suit &&
-                  GameLogic.cardPlayStrength(o, oppModeS, null) > myStrOpp);
-          final safeInDir = !anyHigherDir;
-          final safeInOpp = !anyHigherOpp;
-          if (safeInDir && safeInOpp) {
-            safeJoker++;
-          } else if (safeInDir) {
-            safePureDir++;
-          } else if (safeInOpp) {
-            safePureOpp++;
-          }
-        }
-        final safeDir = safePureDir + safeJoker;
-        final safeOpp = safePureOpp + safeJoker;
-        // Würde AI Joker verbrauchen (= keine pure-dir Karte vorhanden)?
-        final usesJoker = safePureDir == 0;
-        final safeOppAfter = usesJoker ? safeOpp - 1 : safeOpp;
-        // Wunschfarben-Karten zum Anspielen
-        final wishSuitCards = playable
-            .where((c) => c.suit == wishS.suit)
-            .toList();
-        final mustHandoff = (safeDir == 0) ||
-            (safeOppAfter < 1 && remainingOpp >= 1);
-        if (mustHandoff && wishSuitCards.isNotEmpty) {
-          // Schwächste Wunschfarbe-Karte in dieser Richtung (Partner sticht)
-          wishSuitCards.sort((a, b) =>
-              GameLogic.cardPlayStrength(a, dirModeS, null)
-                  .compareTo(GameLogic.cardPlayStrength(b, dirModeS, null)));
-          return _pick('Slalom_Ansager_Wunschfarbe_Uebergabe',
-              wishSuitCards.first);
-        }
       }
     }
 
