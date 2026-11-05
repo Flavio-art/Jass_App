@@ -40,7 +40,11 @@ class ModeSelectorAI {
       'oben' || 'unten' || 'slalom' => NNTuning.schieberMultDependenceKFlach,
       _ => NNTuning.schieberMultDependenceK,
     };
-    final actual = (state.schieberMultipliers[vk] ?? ref.round()).toDouble();
+    var actual = (state.schieberMultipliers[vk] ?? ref.round()).toDouble();
+    // Trumpf-Farben nur bis 3× hochstufen – darüber bleibt die Ansage flach.
+    if (vk == 'trump_ss' || vk == 'trump_re') {
+      actual = actual.clamp(0.0, 3.0);
+    }
     var m = base * math.pow(actual / ref, k).toDouble();
     if (vk == 'slalom' && partnerHatGeschoben) {
       m *= NNTuning.schiebenSlalomPenalty;
