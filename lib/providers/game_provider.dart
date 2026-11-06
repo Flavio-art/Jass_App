@@ -1876,6 +1876,10 @@ class GameProvider extends ChangeNotifier {
         ansagerIndex: next,
         trumpSelectorIndex: null,
         currentPlayerIndex: next,
+        // Friseur Solo: Ansager == Loch-Spieler als Invariante erhalten,
+        // sonst driften Loch-Banner und erzwungener Spieler auseinander.
+        lochPlayerIndex:
+            _state.gameType == GameType.friseur ? next : _state.lochPlayerIndex,
       );
       available = _availableVariantsForSelector();
       guard++;
