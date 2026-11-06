@@ -119,12 +119,22 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   /// Ob der menschliche Spieler aktuell schieben darf.
+  /// Friseur Solo: Ist der aktuelle Zustand "im Loch erzwungen"? NUR wahr für
+  /// den ECHTEN Loch-Spieler (Ansager == Loch). Sonst würde bei inkonsistentem
+  /// Zustand (Ansager ≠ Loch) der falsche Spieler gezwungen und könnte nicht
+  /// schieben (gemeldeter Bug: Monika konnte nicht schieben, obwohl Freund 1
+  /// im Loch war).
+  bool _isForcedLochSolo(GameState state) {
+    return state.gameType == GameType.friseur &&
+        state.soloSchiebungRounds >= 2 &&
+        state.trumpSelectorIndex == null &&
+        state.ansagerIndex == state.lochPlayerIndex;
+  }
+
   bool _canSchieben(GameState state) {
     final hasSchieben = state.trumpSelectorIndex != null;
     final isFriseurSolo = state.gameType == GameType.friseur;
-    final forcedTrump = isFriseurSolo &&
-        state.soloSchiebungRounds >= 2 &&
-        !hasSchieben;
+    final forcedTrump = _isForcedLochSolo(state);
     // Schieber: nur Ansager kann schieben (einmalig, zum Partner)
     final canSchiebenSchieber =
         state.gameType == GameType.schieber && !hasSchieben;
@@ -391,11 +401,10 @@ class _GameScreenState extends State<GameScreen> {
                 ? state.players[state.lochPlayerIndex].id
                 : null;
 
-            // Im-Loch-Banner: nur während trumpSelection wenn 2× geschoben
-            final showImLochBanner = state.gameType == GameType.friseur &&
-                state.phase == GamePhase.trumpSelection &&
-                state.soloSchiebungRounds >= 2 &&
-                state.trumpSelectorIndex == null;
+            // Im-Loch-Banner: nur während trumpSelection wenn der echte
+            // Loch-Spieler erzwungen ist (Ansager == Loch).
+            final showImLochBanner = state.phase == GamePhase.trumpSelection &&
+                _isForcedLochSolo(state);
 
             // Ansager-Indikator: zeigt wer den Trumpf angesagt hat / ansagen kann
             final ansagerId = (state.phase == GamePhase.trumpSelection ||
@@ -1045,8 +1054,7 @@ class _GameScreenState extends State<GameScreen> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 28, vertical: 14),
                           decoration: BoxDecoration(
-                            color: state.soloSchiebungRounds >= 2 &&
-                                    state.gameType == GameType.friseur
+                            color: _isForcedLochSolo(state)
                                 ? Colors.red.shade700
                                 : const Color(0xFF2E7D32),
                             borderRadius: BorderRadius.circular(30),
@@ -1061,16 +1069,14 @@ class _GameScreenState extends State<GameScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
-                                state.soloSchiebungRounds >= 2 &&
-                                        state.gameType == GameType.friseur
+                                _isForcedLochSolo(state)
                                     ? Icons.warning_amber
                                     : Icons.casino,
                                 color: Colors.white,
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                state.soloSchiebungRounds >= 2 &&
-                                        state.gameType == GameType.friseur
+                                _isForcedLochSolo(state)
                                     ? tr('Spielen (erzwungen)')
                                     : tr('Spielmodus wählen'),
                                 style: const TextStyle(
