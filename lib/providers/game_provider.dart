@@ -716,8 +716,19 @@ class GameProvider extends ChangeNotifier {
       return;
     }
 
-    // Ansager rotiert: South→East→North→West→...
-    final newAnsagerIndex = (currentState.ansagerIndex + 1) % 4;
+    // Ansager rotiert: South→East→North→West→... ABER Teams, die bereits ALLE
+    // Varianten gespielt haben, überspringen – sonst bekommt _autoSelectMode
+    // ein leeres availableVariants und das Spiel friert zwischen den Runden ein.
+    // (Durch team-übergreifendes Schieben kann ein Team früher fertig sein.)
+    bool teamDone(int idx) {
+      final isT1 = currentState.players[idx].position == PlayerPosition.south ||
+          currentState.players[idx].position == PlayerPosition.north;
+      return (isT1 ? newUsed1 : newUsed2).length >= variantCount;
+    }
+    int newAnsagerIndex = (currentState.ansagerIndex + 1) % 4;
+    for (int t = 0; t < 4 && teamDone(newAnsagerIndex); t++) {
+      newAnsagerIndex = (newAnsagerIndex + 1) % 4;
+    }
 
     // Neue Karten austeilen
     final deck = Deck(cardType: currentState.cardType);
@@ -1839,20 +1850,45 @@ class GameProvider extends ChangeNotifier {
     print('═══════════════════════════════════════════════════════════════');
   }
 
-  void _autoSelectMode() {
+  /// Verfügbare Ansage-Varianten für den aktuellen Ansager/Selector,
+  /// abhängig vom Spieltyp.
+  List<String> _availableVariantsForSelector() {
     final selector = _state.currentTrumpSelector;
-
-    // Für Friseur Solo: Varianten pro Spieler; nach 2× Schieben alle Varianten erlaubt
-    final List<String> available;
     if (_state.gameType == GameType.friseur) {
-      available = _state.availableVariantsForPlayer(selector.id);
+      return _state.availableVariantsForPlayer(selector.id);
     } else if (_state.gameType == GameType.schieber) {
-      // Schieber: nur Trumpf Oben (4 Farben), Obenabe, Undenufe, Slalom
-      available = const ['trump_ss', 'trump_re', 'oben', 'unten', 'slalom'];
-    } else {
-      available = _state.availableVariants(_state.isTeam1Ansager);
+      return const ['trump_ss', 'trump_re', 'oben', 'unten', 'slalom'];
     }
-    if (available.isEmpty) return;
+    return _state.availableVariants(_state.isTeam1Ansager); // Coiffeur: Team
+  }
+
+  void _autoSelectMode() {
+    // Universeller Hänger-Schutz: Hat der aktuelle Ansager KEINE Varianten mehr
+    // (z.B. sein Team/er selbst ist fertig, die anderen aber nicht), zum nächsten
+    // Spieler mit verfügbaren Varianten rotieren – sonst friert das Spiel
+    // zwischen den Runden ein ("… überlegt" für immer). Kann NIEMAND mehr
+    // ansagen → Spiel sauber beenden.
+    var available = _availableVariantsForSelector();
+    int guard = 0;
+    while (available.isEmpty && guard < 4) {
+      final next = (_state.ansagerIndex + 1) % 4;
+      _state = _state.copyWith(
+        ansagerIndex: next,
+        trumpSelectorIndex: null,
+        currentPlayerIndex: next,
+      );
+      available = _availableVariantsForSelector();
+      guard++;
+    }
+    if (available.isEmpty) {
+      if (_state.phase != GamePhase.gameEnd) {
+        _state = _state.copyWith(phase: GamePhase.gameEnd);
+        _archiveGame();
+        notifyListeners();
+      }
+      return;
+    }
+    final selector = _state.currentTrumpSelector;
 
     // Überprüfe ob irgendein Modus einen sehr hohen Score hat (7+ sichere Stiche).
     // Falls ja → NIEMALS schieben, sofort ansagen.
@@ -3312,6 +3348,21 @@ class GameProvider extends ChangeNotifier {
     _runAiLoop();
   }
 
+  /// Legale Karten für [aiPlayer] (Hand + Farbzwang). Für Validierung des
+  /// KI-Zugs und als garantiert legaler Fallback (Spiel hängt nie).
+  List<JassCard> _legalCardsFor(Player aiPlayer) {
+    return GameLogic.getPlayableCards(
+      aiPlayer.hand, _state.currentTrickCards,
+      mode: _state.effectiveMode,
+      trumpSuit: (_state.effectiveMode == GameMode.trump ||
+              _state.effectiveMode == GameMode.trumpUnten ||
+              _state.effectiveMode == GameMode.schafkopf)
+          ? _state.trumpSuit
+          : null,
+      isMolotow: _state.gameMode == GameMode.molotof,
+    );
+  }
+
   Future<void> _runAiLoop() async {
     _aiRunning = true;
     try {
@@ -3323,21 +3374,39 @@ class GameProvider extends ChangeNotifier {
         final aiPlayer = _state.currentPlayer;
         final playerIdx = _state.currentPlayerIndex;
 
-        final result = await compute(
-          MonteCarloAI.computeEntryWithLog,
-          (aiPlayer.id, _state),
-        );
-        final card = result.card;
-        final path = result.path;
+        // Legale Karten des KI-Spielers (für Validierung + Fallback).
+        final legal = _legalCardsFor(aiPlayer);
+        final fallback = legal.isNotEmpty
+            ? legal.first
+            : _state.players[playerIdx].hand.first;
+
+        // KI-Zug berechnen – mit Timeout, damit ein langsamer/hängender
+        // Rollout das Spiel NICHT einfrieren lässt (sonst "… überlegt" ewig).
+        JassCard card;
+        String path;
+        try {
+          final result = await compute(
+            MonteCarloAI.computeEntryWithLog,
+            (aiPlayer.id, _state),
+          ).timeout(const Duration(seconds: 12));
+          card = result.card;
+          path = result.path;
+        } catch (e) {
+          debugPrint('AI compute Fehler/Timeout: $e → Fallback-Karte');
+          card = fallback;
+          path = 'FALLBACK_TIMEOUT';
+        }
 
         if (_state.phase != GamePhase.playing) break;
         if (_state.currentPlayerIndex != playerIdx) break;
 
-        // Defensive: prüfen ob Karte in aktueller Hand des AI-Spielers ist
+        // Karte muss LEGAL sein (in Hand + Farbzwang) – sonst sichere legale
+        // Karte spielen statt break (break → finally re-triggert → Endlosschleife!).
         final currentHand = _state.players[playerIdx].hand;
-        if (!currentHand.contains(card)) {
-          debugPrint('❌ AI-BUG: ${aiPlayer.name} soll ${card.suit.symbol}${card.displayValue} spielen, hat aber nur: ${currentHand.map((c) => '${c.suit.symbol}${c.displayValue}').join(' ')}');
-          break;
+        if (!legal.contains(card)) {
+          debugPrint('❌ AI-BUG: ${aiPlayer.name} soll ${card.suit.symbol}${card.displayValue} spielen (nicht legal). Hand: ${currentHand.map((c) => '${c.suit.symbol}${c.displayValue}').join(' ')} → Fallback');
+          card = fallback;
+          path = 'FALLBACK_INVALID';
         }
 
         // Log: KI-Entscheidung pro Stich speichern
