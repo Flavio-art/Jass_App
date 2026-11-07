@@ -136,11 +136,35 @@ class GameProvider extends ChangeNotifier {
         _clearTrickTimer = Timer(const Duration(milliseconds: 500), clearTrick);
       } else if (_state.phase == GamePhase.playing) {
         _triggerAiIfNeeded();
+      } else if (_state.phase == GamePhase.trumpSelection) {
+        // Gespeichert mitten in der Ansage: ist ein Computer am Zug, muss er
+        // wieder angestossen werden – sonst steht das Spiel still.
+        _resumeAnnouncementIfAi();
       }
       return true;
     } catch (_) {
       await clearSavedGame(type);
       return false;
+    }
+  }
+
+  /// Nach dem Fortsetzen in der Ansage-Phase: den Computer, der am Zug ist,
+  /// denselben Schritt machen lassen wie im normalen Ablauf.
+  void _resumeAnnouncementIfAi() {
+    if (_state.currentTrumpSelector.isHuman) return;
+    final hasSelector = _state.trumpSelectorIndex != null;
+    switch (_state.gameType) {
+      case GameType.friseur:
+        // Ansager/Loch-Spieler: _autoSelectMode (schieben, spielen oder im
+        // Loch erzwungen). Mitspieler nach Schieben: spielen oder weiterschieben.
+        hasSelector ? _kiDecideSchieben() : _autoSelectMode();
+      case GameType.friseurTeam:
+        hasSelector ? _coiffeurKiDecideSchieben() : _autoSelectMode();
+      case GameType.schieber:
+        // Ansager (darf schieben) oder Partner nach Schieben (muss ansagen).
+        _autoSelectMode();
+      default:
+        break;
     }
   }
 
@@ -856,7 +880,6 @@ class GameProvider extends ChangeNotifier {
     }
 
     // Spielende: alle Spieler haben alle aktivierten Varianten angesagt
-    final variantCount = currentState.enabledVariants.length;
     final allDone = friseurSoloAllAnnounced(currentState, newAnnounced);
 
     if (allDone) {
@@ -876,7 +899,12 @@ class GameProvider extends ChangeNotifier {
     String? fertigComment;
     for (int i = 0; i < 4; i++) {
       final pid = currentState.players[newLochIndex].id;
-      if ((newAnnounced[pid] ?? {}).length < variantCount) break;
+      // Fertig = JEDE spielbare Variante abgehakt (Identität, nicht Anzahl –
+      // wie Spielende und Schieben). Mit Anzahl galt bei genau einer
+      // deaktivierten Trumpf-Richtung ein Spieler mit 1 offener Variante als
+      // fertig und wurde nie Loch-Spieler.
+      final done = newAnnounced[pid] ?? const <String>{};
+      if (!currentState.allPlayableVariants.every(done.contains)) break;
       // Fertiger Spieler übersprungen
       if (!currentState.players[newLochIndex].isHuman && Random().nextDouble() < 0.30) {
         fertigComment = _fertigComment(currentState.players[newLochIndex].name);
