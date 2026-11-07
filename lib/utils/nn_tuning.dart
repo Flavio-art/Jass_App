@@ -77,19 +77,21 @@ class NNTuning {
   // NN-Score auf Original-Hand (ohne Wunschkarte).
   // Dynamisch: Schwelle = min + (max − min) × (offeneVarianten / 10)
   // Mehr Varianten offen → wählerischer (aufsparen lohnt sich)
-  // Neu kalibriert 2026-11-07 auf den Wert, der tatsächlich verglichen wird:
-  // friseurBestAvailableScore (NN inkl. idealer Wunschkarte). Die alten Werte
-  // 0.72/0.84 stammten vom ROHEN NN-Wert → seit #27 (18.09.) spielte der erste
-  // Ansager in Runde 1 in ~78% statt ~17% der Fälle.
-  // Schwelle JE ANZAHL offener Varianten (Index 0 = 1 offen … 9 = 10 offen),
-  // so dass die Spiel-Quote gleichmässig von ~20% (10 offen) auf ~47% (1 offen)
-  // steigt. (Linear interpoliert ergab sich in der Mitte ~70%.)
-  static const List<double> friseurPlayThresholdByOpen = [
-    0.586, 0.717, 0.787, 0.830, 0.859, 0.885, 0.905, 0.925, 0.940, 0.956,
+  // Wunschkarte, kalibriert 2026-11-07 auf den GEWICHTETEN Wert
+  // (Rohwert inkl. idealer Wunschkarte × Spielform-Multiplikator) – derselbe
+  // Wert wählt auch die Spielform. Trumpf (kleinster Multiplikator) wird so
+  // eher aufgespart. Je Anzahl offener Varianten (Index 0 = 1 offen … 9 = 10).
+  // Loch-Spieler (entscheidet zuerst): ~20% (10 offen) → ~47% (1 offen).
+  // Mitspieler nach Schieben: halb so oft, ~10% → ~24%.
+  static const List<double> friseurPlayThresholdLoch = [
+    0.904, 1.012, 1.070, 1.115, 1.142, 1.163, 1.185, 1.203, 1.220, 1.237,
   ];
-  // Endpunkte (für ältere Analyse-Tests, die noch linear rechnen)
-  static const double friseurSchiebenNNMin = 0.586;  // 1 offen → ~47% spielen
-  static const double friseurSchiebenNNMax = 0.956;  // 10 offen → ~20% spielen
+  static const List<double> friseurPlayThresholdOther = [
+    1.026, 1.110, 1.148, 1.185, 1.209, 1.221, 1.237, 1.254, 1.269, 1.284,
+  ];
+  // Endpunkte (nur noch für ältere Analyse-Tests, die linear rechnen)
+  static const double friseurSchiebenNNMin = 0.586;
+  static const double friseurSchiebenNNMax = 0.956;
   static const double friseurSchiebenHeuMin = 95.0;   // letzte Variante
   static const double friseurSchiebenHeuMax = 130.0;  // alle Varianten offen
 

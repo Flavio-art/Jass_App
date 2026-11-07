@@ -525,21 +525,10 @@ class ModeSelectorAI {
       return (mode: GameMode.oben, trumpSuit: null, slalomStartsOben: true, wishCard: null);
     }
 
-    // Ausserhalb des Lochs nur Spielformen, die die Spiel-Schwelle SELBST
-    // schaffen. Sonst gewinnt über den Multiplikator z.B. eine Obenabe mit einem
-    // Ass (roh 0.73 × 1.52) gegen einen starken Trumpf (roh 0.88 × 1.15), obwohl
-    // die KI wegen des Trumpfs überhaupt spielt. Im Loch (erzwungen): alle.
-    var pool = rawEntries;
-    if (JassNNModel.instance.isLoaded && state.soloSchiebungRounds < 2) {
-      final thr = friseurPlayThreshold(available.length,
-          schiebungRounds: state.soloSchiebungRounds);
-      final ok = rawEntries.where((e) => e.raw >= thr).toList();
-      if (ok.isNotEmpty) pool = ok;
-    }
-
     // ── Pass 2: Direkte Multiplikation und besten Kandidaten wählen ───
-    // adjusted = raw × mult
-    for (final e in pool) {
+    // adjusted = raw × mult. Derselbe Wert entscheidet auch über Spielen/
+    // Schieben (friseurBestAdjusted) → Ansage und Entscheidung sind stimmig.
+    for (final e in rawEntries) {
       final adjusted = e.raw * e.mult;
       if (adjusted > bestScore) {
         bestScore = adjusted;
@@ -574,10 +563,36 @@ class ModeSelectorAI {
   /// für [availableCount] offene Varianten (linear: 10 offen streng, 1 offen
   /// locker); in der 2. Schieberunde leicht gesenkt. Gemeinsame Quelle für die
   /// Spielen/Schieben-Entscheidung und die Ansage-Auswahl.
-  static double friseurPlayThreshold(int availableCount, {int schiebungRounds = 0}) {
-    const table = NNTuning.friseurPlayThresholdByOpen;
+  static double friseurPlayThreshold(int availableCount,
+      {bool loch = true, int schiebungRounds = 0}) {
+    const lochT = NNTuning.friseurPlayThresholdLoch;
+    const otherT = NNTuning.friseurPlayThresholdOther;
+    final table = loch ? lochT : otherT;
     final t = table[availableCount.clamp(1, table.length) - 1];
     return schiebungRounds >= 1 ? t * NNTuning.friseurSchiebenRound2Factor : t;
+  }
+
+  /// Wunschkarte: bester GEWICHTETER Score (Rohwert × Spielform-Multiplikator)
+  /// über die offenen Varianten und die Spielform, die ihn liefert. Gleicher
+  /// Wert wie bei der Ansage-Auswahl. Trumpf hat den kleinsten Multiplikator →
+  /// wird eher aufgespart (lässt sich auch später noch gut spielen).
+  static ({double score, String label}) friseurBestAdjusted(
+      Player player, GameState state, List<String> available) {
+    if (available.isEmpty) return (score: 0.0, label: '-');
+    final isTeam1 = player.position == PlayerPosition.south ||
+        player.position == PlayerPosition.north;
+    final entries =
+        _friseurRawEntries(player.hand, state, available, isTeam1, state.cardType);
+    if (entries.isEmpty) return (score: 0.0, label: '-');
+    var best = entries.first;
+    for (final e in entries) {
+      if (e.raw * e.mult > best.raw * best.mult) best = e;
+    }
+    return (
+      score: best.raw * best.mult,
+      label: '${best.mode.name}${best.trump != null ? " ${best.trump!.name}" : ""} '
+          '(roh ${best.raw.toStringAsFixed(2)})',
+    );
   }
 
   /// Bester (strafbewusster, verfügbar-gefilterter) Friseur-Score der Hand über

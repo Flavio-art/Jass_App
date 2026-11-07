@@ -1276,16 +1276,12 @@ class GameProvider extends ChangeNotifier {
       // Strafen (wie die tatsächliche Ansage-Wahl). Vorher: rohes Maximum über
       // ALLE Varianten → die KI hielt eine schwache Resthand (z.B. nur schlechtes
       // Schafkopf mit 2 tiefen Trümpfen) für gut und sagte an, statt zu schieben.
-      final best = ModeSelectorAI.friseurBestAvailableScore(player, _state, available);
-      String bestVar = '?';
-      double bv = double.negativeInfinity;
-      for (final v in available) {
-        final sv = ModeSelectorAI.friseurBestAvailableScore(player, _state, [v]);
-        if (sv > bv) { bv = sv; bestVar = v; }
-      }
-      final play = best >= nnPlayThreshold;
-      _announceLog.add('${player.name}: Spielen-Check NN ${best.toStringAsFixed(2)} '
-          '($bestVar) vs Schwelle ${nnPlayThreshold.toStringAsFixed(2)} '
+      // Gewichteter Wert (Rohwert × Spielform-Multiplikator) – derselbe, der
+      // die Spielform wählt. Trumpf zählt so weniger und wird aufgespart.
+      final best = ModeSelectorAI.friseurBestAdjusted(player, _state, available);
+      final play = best.score >= nnPlayThreshold;
+      _announceLog.add('${player.name}: Spielen-Check gewichtet ${best.score.toStringAsFixed(2)} '
+          '(${best.label}) vs Schwelle ${nnPlayThreshold.toStringAsFixed(2)} '
           '→ ${play ? "spielen" : "schieben"} (${available.length} Varianten offen)');
       return play;
     }
@@ -1320,8 +1316,8 @@ class GameProvider extends ChangeNotifier {
   }
 
   /// Dynamischer NN-Schwellenwert für Schieben im Friseur Solo.
-  double _friseurNNThreshold(List<String> available) =>
-      ModeSelectorAI.friseurPlayThreshold(available.length);
+  double _friseurNNThreshold(List<String> available, {required bool loch}) =>
+      ModeSelectorAI.friseurPlayThreshold(available.length, loch: loch);
 
   /// Coiffeur: Heuristik-Schwelle zum Spielen je Anzahl offener Varianten des
   /// Teams (10 offen ~35% spielen, 1 offen ~50%, gleichmässig dazwischen).
@@ -1357,7 +1353,11 @@ class GameProvider extends ChangeNotifier {
       // 2. Runde: Schwelle leicht senken → ~5-10% sagen trotzdem an
       final r2 = _state.soloSchiebungRounds >= 1
           ? NNTuning.friseurSchiebenRound2Factor : 1.0;
-      final nnThreshold = _friseurNNThreshold(available) * r2;
+      // Loch-Spieler (Schieben ist zu ihm zurückgekommen) vs. Mitspieler:
+      // Mitspieler übernehmen nur mit sehr starken Karten.
+      final isLoch = _state.trumpSelectorIndex == null &&
+          _state.players.indexOf(selector) == _state.lochPlayerIndex;
+      final nnThreshold = _friseurNNThreshold(available, loch: isLoch) * r2;
       final play = _shouldPlay(
         player: selector,
         available: available,
@@ -2051,7 +2051,7 @@ class GameProvider extends ChangeNotifier {
       // 2. Runde: Schwelle leicht senken → ~5-10% sagen trotzdem an
       final r2 = _state.soloSchiebungRounds >= 1
           ? NNTuning.friseurSchiebenRound2Factor : 1.0;
-      final nnThreshold = _friseurNNThreshold(available) * r2;
+      final nnThreshold = _friseurNNThreshold(available, loch: true) * r2;
       final shouldPlay = _shouldPlay(
         player: selector,
         available: available,
