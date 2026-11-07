@@ -1153,14 +1153,18 @@ class GameProvider extends ChangeNotifier {
       if (gen != _flowGen) return;
       if (!_state.players.contains(selector)) return;
       // KI prüft ob die Hand gut genug ist zum Ansagen
-      final play = _shouldPlay(
-        player: selector,
-        available: _state.availableVariants(
-            selector.position == PlayerPosition.south ||
-            selector.position == PlayerPosition.north),
-        nnPlayThreshold: NNTuning.friseurSchiebenNNMin,
-        heuristicThreshold: NNTuning.friseurSchiebenHeuMin,
-      );
+      // Gleiche Schwelle wie für den Coiffeur-Ansager (Heuristik über die
+      // offenen Varianten des eigenen Teams, abgestuft nach Anzahl).
+      final avail = _state.availableVariants(
+          selector.position == PlayerPosition.south ||
+          selector.position == PlayerPosition.north);
+      final hs = ModeSelectorAI.bestHeuristicScore(
+          hand: selector.hand, state: _state, available: avail);
+      final thr = _coiffeurHeuThreshold(avail.length);
+      final play = hs >= thr;
+      _announceLog.add('${selector.name}: Spielen-Check Heuristik '
+          '${hs.toStringAsFixed(0)} vs Schwelle ${thr.toStringAsFixed(0)} '
+          '→ ${play ? "spielen" : "schieben"} (${avail.length} Varianten offen)');
       if (play) {
         _autoSelectMode();
       } else {
@@ -1316,11 +1320,14 @@ class GameProvider extends ChangeNotifier {
   }
 
   /// Dynamischer NN-Schwellenwert für Schieben im Friseur Solo.
-  double _friseurNNThreshold(List<String> available) {
-    const maxVariants = 10;
-    final ratio = (available.length / maxVariants).clamp(0.0, 1.0);
-    return NNTuning.friseurSchiebenNNMin +
-        (NNTuning.friseurSchiebenNNMax - NNTuning.friseurSchiebenNNMin) * ratio;
+  double _friseurNNThreshold(List<String> available) =>
+      ModeSelectorAI.friseurPlayThreshold(available.length);
+
+  /// Coiffeur: Heuristik-Schwelle zum Spielen je Anzahl offener Varianten des
+  /// Teams (10 offen ~35% spielen, 1 offen ~50%, gleichmässig dazwischen).
+  double _coiffeurHeuThreshold(int availableCount) {
+    const table = NNTuning.coiffeurPlayThresholdByOpen;
+    return table[availableCount.clamp(1, table.length) - 1];
   }
 
   /// Dynamischer Heuristik-Schwellenwert für Schieben im Friseur Solo.
@@ -1999,14 +2006,17 @@ class GameProvider extends ChangeNotifier {
     }
 
     // Überprüfe ob irgendein Modus einen sehr hohen Score hat (7+ sichere Stiche).
-    // Falls ja → NIEMALS schieben, sofort ansagen.
+    // Falls ja → NIEMALS schieben, sofort ansagen. Nur im Schieber (5 Spielformen):
+    // in Coiffeur/Wunschkarte lag schon der Median über 10 Spielformen bei ~122,
+    // die Abkürzung griff dort bei ~31% der Hände und hebelte das Schieben aus.
     const neverSchiebenScore = 140.0;
     final highScore = ModeSelectorAI.bestHeuristicScore(
       hand: selector.hand,
       state: _state,
       available: available,
     );
-    final hasGuaranteedWin = highScore >= neverSchiebenScore;
+    final hasGuaranteedWin = _state.gameType == GameType.schieber &&
+        highScore >= neverSchiebenScore;
     if (hasGuaranteedWin) {
       _announceLog.add('${selector.name}: Heuristik ${highScore.toStringAsFixed(0)} '
           '≥ ${neverSchiebenScore.toStringAsFixed(0)} → sofort ansagen (kein Schieben)');
@@ -2019,8 +2029,14 @@ class GameProvider extends ChangeNotifier {
         !_tutorialMode &&
         (_state.gameType == GameType.schieber || _state.gameType == GameType.friseurTeam) &&
         _state.trumpSelectorIndex == null) {
-      const schiebenThreshold = 105.0;
-      if (highScore < schiebenThreshold) {
+      final schiebenThreshold = _state.gameType == GameType.friseurTeam
+          ? _coiffeurHeuThreshold(available.length)
+          : 105.0;
+      final play = highScore >= schiebenThreshold;
+      _announceLog.add('${selector.name}: Spielen-Check Heuristik '
+          '${highScore.toStringAsFixed(0)} vs Schwelle ${schiebenThreshold.toStringAsFixed(0)} '
+          '→ ${play ? "spielen" : "schieben"} (${available.length} Varianten offen)');
+      if (!play) {
         schieben();
         return;
       }

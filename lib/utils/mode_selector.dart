@@ -525,9 +525,21 @@ class ModeSelectorAI {
       return (mode: GameMode.oben, trumpSuit: null, slalomStartsOben: true, wishCard: null);
     }
 
+    // Ausserhalb des Lochs nur Spielformen, die die Spiel-Schwelle SELBST
+    // schaffen. Sonst gewinnt über den Multiplikator z.B. eine Obenabe mit einem
+    // Ass (roh 0.73 × 1.52) gegen einen starken Trumpf (roh 0.88 × 1.15), obwohl
+    // die KI wegen des Trumpfs überhaupt spielt. Im Loch (erzwungen): alle.
+    var pool = rawEntries;
+    if (JassNNModel.instance.isLoaded && state.soloSchiebungRounds < 2) {
+      final thr = friseurPlayThreshold(available.length,
+          schiebungRounds: state.soloSchiebungRounds);
+      final ok = rawEntries.where((e) => e.raw >= thr).toList();
+      if (ok.isNotEmpty) pool = ok;
+    }
+
     // ── Pass 2: Direkte Multiplikation und besten Kandidaten wählen ───
     // adjusted = raw × mult
-    for (final e in rawEntries) {
+    for (final e in pool) {
       final adjusted = e.raw * e.mult;
       if (adjusted > bestScore) {
         bestScore = adjusted;
@@ -556,6 +568,16 @@ class ModeSelectorAI {
       if (cur == null || e.raw > cur) byFamily[e.mode] = e.raw;
     }
     return byFamily;
+  }
+
+  /// Wunschkarte: Spiel-Schwelle auf der Skala von [friseurBestAvailableScore]
+  /// für [availableCount] offene Varianten (linear: 10 offen streng, 1 offen
+  /// locker); in der 2. Schieberunde leicht gesenkt. Gemeinsame Quelle für die
+  /// Spielen/Schieben-Entscheidung und die Ansage-Auswahl.
+  static double friseurPlayThreshold(int availableCount, {int schiebungRounds = 0}) {
+    const table = NNTuning.friseurPlayThresholdByOpen;
+    final t = table[availableCount.clamp(1, table.length) - 1];
+    return schiebungRounds >= 1 ? t * NNTuning.friseurSchiebenRound2Factor : t;
   }
 
   /// Bester (strafbewusster, verfügbar-gefilterter) Friseur-Score der Hand über

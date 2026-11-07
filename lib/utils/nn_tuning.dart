@@ -77,8 +77,28 @@ class NNTuning {
   // NN-Score auf Original-Hand (ohne Wunschkarte).
   // Dynamisch: Schwelle = min + (max − min) × (offeneVarianten / 10)
   // Mehr Varianten offen → wählerischer (aufsparen lohnt sich)
-  static const double friseurSchiebenNNMin = 0.72;   // letzter Modus übrig → ~47% Ansage
-  static const double friseurSchiebenNNMax = 0.84;   // alle Modi offen → ~17% Ansage (sehr restriktiv)
+  // Neu kalibriert 2026-11-07 auf den Wert, der tatsächlich verglichen wird:
+  // friseurBestAvailableScore (NN inkl. idealer Wunschkarte). Die alten Werte
+  // 0.72/0.84 stammten vom ROHEN NN-Wert → seit #27 (18.09.) spielte der erste
+  // Ansager in Runde 1 in ~78% statt ~17% der Fälle.
+  // Schwelle JE ANZAHL offener Varianten (Index 0 = 1 offen … 9 = 10 offen),
+  // so dass die Spiel-Quote gleichmässig von ~20% (10 offen) auf ~47% (1 offen)
+  // steigt. (Linear interpoliert ergab sich in der Mitte ~70%.)
+  static const List<double> friseurPlayThresholdByOpen = [
+    0.586, 0.717, 0.787, 0.830, 0.859, 0.885, 0.905, 0.925, 0.940, 0.956,
+  ];
+  // Endpunkte (für ältere Analyse-Tests, die noch linear rechnen)
+  static const double friseurSchiebenNNMin = 0.586;  // 1 offen → ~47% spielen
+  static const double friseurSchiebenNNMax = 0.956;  // 10 offen → ~20% spielen
   static const double friseurSchiebenHeuMin = 95.0;   // letzte Variante
   static const double friseurSchiebenHeuMax = 130.0;  // alle Varianten offen
+
+  // Coiffeur: Spielen/Schieben über die Heuristik (bestHeuristicScore über die
+  // noch offenen Varianten des Teams). Vorher galt die Schieber-Schwelle 105 –
+  // bei 10 statt 5 Spielformen spielte der erste Ansager so in ~75% der Fälle.
+  // Kalibriert 2026-11-07 je Anzahl offen (Index 0 = 1 offen … 9 = 10 offen):
+  // Spiel-Quote steigt gleichmässig von ~35% (10 offen) auf ~50% (1 offen).
+  static const List<double> coiffeurPlayThresholdByOpen = [
+    64.0, 82.0, 94.0, 102.0, 110.0, 117.0, 121.0, 124.0, 131.0, 134.0,
+  ];
 }
