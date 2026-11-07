@@ -33,6 +33,15 @@ class RoundReplay {
   /// Jeder Eintrag: "<Spielername>: <Pfad> → <Karte>".
   final Map<String, List<String>> aiDecisionLogs;
 
+  /// Zustand VOR der Ansage (Runde, aktivierte Spielformen, Multiplikatoren,
+  /// Loch-Spieler, Schieberunden, bereits gespielte Varianten je Spieler/Team).
+  /// Damit lässt sich eine Ansage-Entscheidung exakt nachstellen.
+  final Map<String, dynamic> context;
+
+  /// Ablauf der Ansage: wer geschoben/angesagt hat und mit welchem Score
+  /// gegen welche Schwelle die KI entschieden hat.
+  final List<String> announceLog;
+
   const RoundReplay({
     required this.roundId,
     required this.savedAt,
@@ -55,6 +64,8 @@ class RoundReplay {
     required this.opponentTeamScore,
     this.comment,
     this.aiDecisionLogs = const {},
+    this.context = const {},
+    this.announceLog = const [],
   });
 
   RoundReplay copyWith({String? comment}) => RoundReplay(
@@ -79,10 +90,12 @@ class RoundReplay {
         opponentTeamScore: opponentTeamScore,
         comment: comment ?? this.comment,
         aiDecisionLogs: aiDecisionLogs,
+        context: context,
+        announceLog: announceLog,
       );
 
   Map<String, dynamic> toJson() => {
-        'version': 1,
+        'version': 2,
         'roundId': roundId,
         'savedAt': savedAt.toIso8601String(),
         'cardType': cardType.name,
@@ -105,6 +118,8 @@ class RoundReplay {
         'opponentTeamScore': opponentTeamScore,
         if (comment != null) 'comment': comment,
         if (aiDecisionLogs.isNotEmpty) 'aiDecisionLogs': aiDecisionLogs,
+        if (context.isNotEmpty) 'context': context,
+        if (announceLog.isNotEmpty) 'announceLog': announceLog,
       };
 
   static RoundReplay fromJson(Map<String, dynamic> j) => RoundReplay(
@@ -151,5 +166,11 @@ class RoundReplay {
                 (k, v) => MapEntry(
                     k, (v as List).map((e) => e as String).toList()))
             : const {},
+        context: j['context'] != null
+            ? Map<String, dynamic>.from(j['context'] as Map)
+            : const {},
+        announceLog: j['announceLog'] != null
+            ? (j['announceLog'] as List).map((e) => e as String).toList()
+            : const [],
       );
 }

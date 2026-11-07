@@ -40,6 +40,15 @@ class GameProvider extends ChangeNotifier {
   /// Wird zu Beginn jeder neuen Runde geleert und ins Replay übernommen.
   final Map<int, List<String>> _aiDecisionLogs = {};
 
+  /// Ansage-Ablauf der aktuellen Runde (schieben/ansagen + KI-Scores) und
+  /// Zustand vor der Ansage – beides geht ins Replay (Nachstellbarkeit).
+  final List<String> _announceLog = [];
+  Map<String, dynamic> _roundContext = {};
+  @visibleForTesting
+  List<String> get debugAnnounceLog => List.unmodifiable(_announceLog);
+  @visibleForTesting
+  Map<String, dynamic> get debugRoundContext => Map.unmodifiable(_roundContext);
+
   // ─── Tutorial (geführtes Übungsspiel, nur Schieber) ─────────────────────────
   bool _tutorialMode = false;
   bool get tutorialActive => _tutorialMode;
@@ -311,6 +320,8 @@ class GameProvider extends ChangeNotifier {
     _aiRunning = false;
     _humanWyssDecisionPending = false;
     _aiDecisionLogs.clear();
+    _announceLog.clear();
+    _roundContext = {};
     // Anonymes Nutzungs-Tracking: Modus + Kartendeck + eingestellte Spiellänge.
     _gameStartedAt = DateTime.now();
     _currentGameId = _gameStartedAt!.millisecondsSinceEpoch.toString();
@@ -655,6 +666,8 @@ class GameProvider extends ChangeNotifier {
   void startNewRound() {
     _aiRunning = false;
     _aiDecisionLogs.clear();
+    _announceLog.clear();
+    _roundContext = {};
     final currentState = _state;
 
     if (currentState.gameType == GameType.friseur) {
@@ -1046,6 +1059,9 @@ class GameProvider extends ChangeNotifier {
 
   void schieben() {
     if (_state.phase != GamePhase.trumpSelection) return;
+    if (_state.gameType != GameType.friseur) {
+      _announceLog.add('${_state.currentTrumpSelector.name}: schiebt');
+    }
 
     if (_state.gameType == GameType.schieber) {
       // Schieber: nur Ansager kann schieben (genau einmal, zum Partner)
@@ -1103,6 +1119,8 @@ class GameProvider extends ChangeNotifier {
   /// soloSchiebungRounds hochgezählt.
   void _schiebenSolo({String? comment}) {
     final state = _state;
+    _announceLog.add('${state.currentTrumpSelector.name}: schiebt '
+        '(Schieberunde ${state.soloSchiebungRounds + 1})');
 
     final currentSelectorIndex =
         state.trumpSelectorIndex ?? state.ansagerIndex;
@@ -1197,7 +1215,17 @@ class GameProvider extends ChangeNotifier {
       // ALLE Varianten → die KI hielt eine schwache Resthand (z.B. nur schlechtes
       // Schafkopf mit 2 tiefen Trümpfen) für gut und sagte an, statt zu schieben.
       final best = ModeSelectorAI.friseurBestAvailableScore(player, _state, available);
-      return best >= nnPlayThreshold;
+      String bestVar = '?';
+      double bv = double.negativeInfinity;
+      for (final v in available) {
+        final sv = ModeSelectorAI.friseurBestAvailableScore(player, _state, [v]);
+        if (sv > bv) { bv = sv; bestVar = v; }
+      }
+      final play = best >= nnPlayThreshold;
+      _announceLog.add('${player.name}: Spielen-Check NN ${best.toStringAsFixed(2)} '
+          '($bestVar) vs Schwelle ${nnPlayThreshold.toStringAsFixed(2)} '
+          '→ ${play ? "spielen" : "schieben"} (${available.length} Varianten offen)');
+      return play;
     }
     // Heuristik: normale und Spezialvarianten getrennt bewerten
     const specialVariants = {'elefant', 'misere', 'schafkopf', 'molotof'};
@@ -1208,14 +1236,24 @@ class GameProvider extends ChangeNotifier {
       final score = ModeSelectorAI.bestHeuristicScore(
         hand: player.hand, state: _state, available: normalAvail,
       );
-      if (score >= heuristicThreshold) return true;
+      if (score >= heuristicThreshold) {
+        _announceLog.add('${player.name}: Spielen-Check Heuristik ${score.toStringAsFixed(0)} '
+            '≥ ${heuristicThreshold.toStringAsFixed(0)} → spielen');
+        return true;
+      }
     }
     if (specialAvail.isNotEmpty) {
       final score = ModeSelectorAI.bestHeuristicScore(
         hand: player.hand, state: _state, available: specialAvail,
       );
-      if (score >= heuristicThreshold * 0.80) return true;
+      if (score >= heuristicThreshold * 0.80) {
+        _announceLog.add('${player.name}: Spielen-Check Heuristik (Spezial) '
+            '${score.toStringAsFixed(0)} ≥ ${(heuristicThreshold * 0.8).toStringAsFixed(0)} → spielen');
+        return true;
+      }
     }
+    _announceLog.add('${player.name}: Spielen-Check Heuristik unter Schwelle '
+        '${heuristicThreshold.toStringAsFixed(0)} → schieben');
     return false;
   }
 
@@ -1903,6 +1941,10 @@ class GameProvider extends ChangeNotifier {
       available: available,
     );
     final hasGuaranteedWin = highScore >= neverSchiebenScore;
+    if (hasGuaranteedWin) {
+      _announceLog.add('${selector.name}: Heuristik ${highScore.toStringAsFixed(0)} '
+          '≥ ${neverSchiebenScore.toStringAsFixed(0)} → sofort ansagen (kein Schieben)');
+    }
 
     // Schieber / Friseur Team: KI kann einmal zum Partner schieben
     // (im Tutorial nicht – der KI-Ansager sagt direkt an, sonst landet die
@@ -2391,6 +2433,11 @@ class GameProvider extends ChangeNotifier {
 
   void selectGameMode(GameMode mode,
       {Suit? trumpSuit, bool slalomStartsOben = true, JassCard? wishCard}) {
+    _roundContext = _snapshotRoundContext();
+    _announceLog.add('${_state.currentTrumpSelector.name}: sagt an → '
+        '${_state.variantKey(mode, trumpSuit: trumpSuit)}'
+        '${mode == GameMode.trump || mode == GameMode.trumpUnten ? " ${trumpSuit?.name ?? ""}" : ""}'
+        '${wishCard != null ? " (Wunsch ${wishCard.displayValue}${wishCard.displaySuit})" : ""}');
     // Menschliche Spieltyp-Wahl tracken (echtes Spiel, nicht Tutorial).
     if (!_tutorialMode && _state.currentTrumpSelector.isHuman) {
       AnalyticsService.logTrumpSelected(
@@ -3498,6 +3545,33 @@ class GameProvider extends ChangeNotifier {
 
   // ─── Replay-Aufnahme ─────────────────────────────────────────────────────
 
+  /// Zustand unmittelbar VOR der Ansage (für das Replay).
+  Map<String, dynamic> _snapshotRoundContext() {
+    final s = _state;
+    String pid(int i) => s.players[i].id;
+    return {
+      'roundNumber': s.roundNumber,
+      // War das neuronale Netz geladen? Sonst entscheidet die Heuristik.
+      'nnLoaded': JassNNModel.instance.isLoaded,
+      'enabledVariants': s.enabledVariants.toList(),
+      'ansagerId': pid(s.ansagerIndex),
+      if (s.trumpSelectorIndex != null) 'selectorId': pid(s.trumpSelectorIndex!),
+      if (s.gameType == GameType.schieber)
+        'schieberMultipliers': Map<String, int>.from(s.schieberMultipliers),
+      if (s.gameType == GameType.friseurTeam) ...{
+        'coiffeurMultipliers': Map<String, int>.from(s.coiffeurMultipliers),
+        'usedVariantsTeam1': s.usedVariantsTeam1.toList(),
+        'usedVariantsTeam2': s.usedVariantsTeam2.toList(),
+      },
+      if (s.gameType == GameType.friseur) ...{
+        'lochPlayerId': pid(s.lochPlayerIndex),
+        'soloSchiebungRounds': s.soloSchiebungRounds,
+        'announcedVariants': s.friseurAnnouncedVariants
+            .map((k, v) => MapEntry(k, v.toList())),
+      },
+    };
+  }
+
   final ReplayService _replayService = ReplayService();
   ReplayService get replayService => _replayService;
 
@@ -3560,6 +3634,10 @@ class GameProvider extends ChangeNotifier {
       aiDecisionLogs: _aiDecisionLogs.map(
         (k, v) => MapEntry('trick_$k', List<String>.from(v)),
       ),
+      context: _roundContext.isNotEmpty
+          ? Map<String, dynamic>.from(_roundContext)
+          : {'roundNumber': _state.roundNumber},
+      announceLog: List<String>.from(_announceLog),
     );
   }
 }
