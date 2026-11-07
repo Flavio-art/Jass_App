@@ -43,6 +43,14 @@ class GameProvider extends ChangeNotifier {
   /// Ansage-Ablauf der aktuellen Runde (schieben/ansagen + KI-Scores) und
   /// Zustand vor der Ansage – beides geht ins Replay (Nachstellbarkeit).
   final List<String> _announceLog = [];
+
+  /// Erhöht sich bei neuem Spiel, Fortsetzen und Zurück-ins-Menü. Verzögerte
+  /// KI-Schritte merken sich den Wert und brechen ab, wenn er nicht mehr
+  /// passt – sonst handeln sie nach dem Verlassen im falschen Spiel weiter.
+  int _flowGen = 0;
+
+  /// Schutz gegen doppeltes Archivieren desselben Spiels (Statistik/Analytics).
+  bool _gameArchived = false;
   Map<String, dynamic> _roundContext = {};
   @visibleForTesting
   List<String> get debugAnnounceLog => List.unmodifiable(_announceLog);
@@ -115,6 +123,8 @@ class GameProvider extends ChangeNotifier {
     final jsonStr = prefs.getString(_saveKey(type));
     if (jsonStr == null) return false;
     try {
+      _flowGen++;
+      _gameArchived = false;
       _aiRunning = false;
       _humanWyssDecisionPending = false;
       _clearTrickTimer?.cancel();
@@ -203,6 +213,9 @@ class GameProvider extends ChangeNotifier {
     // Leere/abgebrochene Spiele nicht archivieren: ohne gespielte Runde entstünde
     // sonst ein spurioses game_finished mit 0:0 (verfälscht Statistik + Analytics).
     if (s.roundHistory.isEmpty) return;
+    // Jedes Spiel nur einmal archivieren (mehrere Spielende-Pfade möglich).
+    if (_gameArchived) return;
+    _gameArchived = true;
 
     // Spieler-Punkte / Gegner-Punkte bestimmen
     int playerScore;
@@ -341,6 +354,10 @@ class GameProvider extends ChangeNotifier {
     Set<String>? enabledVariants,
     int differenzlerMaxRounds = 4,
   }) {
+    _flowGen++;
+    _gameArchived = false;
+    _clearTrickTimer?.cancel();
+    _clearTrickTimer = null;
     _aiRunning = false;
     _humanWyssDecisionPending = false;
     _aiDecisionLogs.clear();
@@ -624,6 +641,8 @@ class GameProvider extends ChangeNotifier {
   /// Berechnet die Endpunkte und geht zu gameEnd.
   void endGameFromSchieberLimit() {
     if (_state.schieberLimitReachedBy == null) return;
+    // Runde schon fertig gespielt und Spiel beendet → nichts doppelt zählen.
+    if (_state.phase == GamePhase.gameEnd) return;
     final mult = _schieberMultiplier(_state.gameMode, _state.trumpSuit);
     final raw1 = _state.teamScores['team1'] ?? 0;
     final raw2 = _state.teamScores['team2'] ?? 0;
@@ -705,6 +724,13 @@ class GameProvider extends ChangeNotifier {
     }
   }
 
+  /// Coiffeur: hat ein Team alle spielbaren Varianten gespielt? Identität statt
+  /// Anzahl – enabledVariants zählt Trumpf nach Richtung, gespielt wird nach
+  /// Farbe. Mit Anzahl endete das Spiel bei genau einer deaktivierten
+  /// Trumpf-Richtung, obwohl noch eine Variante offen war.
+  static bool _coiffeurTeamDone(GameState s, Set<String> used) =>
+      s.allPlayableVariants.every(used.contains);
+
   void _startNewRoundFriseurTeam(GameState currentState) {
     _aiRunning = false;
     // Kumulierte Punkte aus letztem RoundResult (binäre Auswertung)
@@ -739,9 +765,9 @@ class GameProvider extends ChangeNotifier {
       }
     }
 
-    // Spielende prüfen (jedes Team hat alle aktivierten Varianten gespielt)
-    final variantCount = currentState.enabledVariants.length;
-    if (newUsed1.length >= variantCount && newUsed2.length >= variantCount) {
+    // Spielende prüfen (jedes Team hat alle spielbaren Varianten gespielt)
+    if (_coiffeurTeamDone(currentState, newUsed1) &&
+        _coiffeurTeamDone(currentState, newUsed2)) {
       _state = _state.copyWith(
         totalTeamScores: newTotal,
         usedVariantsTeam1: newUsed1,
@@ -760,7 +786,7 @@ class GameProvider extends ChangeNotifier {
     bool teamDone(int idx) {
       final isT1 = currentState.players[idx].position == PlayerPosition.south ||
           currentState.players[idx].position == PlayerPosition.north;
-      return (isT1 ? newUsed1 : newUsed2).length >= variantCount;
+      return _coiffeurTeamDone(currentState, isT1 ? newUsed1 : newUsed2);
     }
     int newAnsagerIndex = (currentState.ansagerIndex + 1) % 4;
     for (int t = 0; t < 4 && teamDone(newAnsagerIndex); t++) {
@@ -1122,7 +1148,9 @@ class GameProvider extends ChangeNotifier {
   /// Coiffeur: KI entscheidet ob schieben oder ansagen.
   void _coiffeurKiDecideSchieben() {
     final selector = _state.currentTrumpSelector;
+    final gen = _flowGen;
     Future.delayed(const Duration(milliseconds: 700), () {
+      if (gen != _flowGen) return;
       if (!_state.players.contains(selector)) return;
       // KI prüft ob die Hand gut genug ist zum Ansagen
       final play = _shouldPlay(
@@ -1188,7 +1216,9 @@ class GameProvider extends ChangeNotifier {
         : const Duration(milliseconds: 0);
     final nextPlayer = _state.currentTrumpSelector;
     if (!nextPlayer.isHuman) {
+      final gen = _flowGen;
       Future.delayed(delay, () {
+        if (gen != _flowGen) return;
         if (newRounds >= 2 && newTrumpSelectorIndex == null) {
           // Loch-Spieler (KI) ist erzwungen – muss Trumpf wählen
           _autoSelectMode();
@@ -1305,8 +1335,10 @@ class GameProvider extends ChangeNotifier {
   /// Friseur Solo: dynamischer Schwellenwert nach Anzahl verfügbarer Varianten.
   void _kiDecideSchieben() {
     final selector = _state.currentTrumpSelector;
+    final gen = _flowGen;
 
     Future.delayed(const Duration(milliseconds: 700), () {
+      if (gen != _flowGen) return;
       if (!_state.players.contains(selector)) return; // State verändert
 
       final available = _state.availableVariantsForPlayer(selector.id);
@@ -1887,6 +1919,7 @@ class GameProvider extends ChangeNotifier {
   /// Debug: gibt für ALLE Spieler Hand + bevorzugten Modus aus.
   /// Wird aufgerufen sobald die Mode-Auswahl-Phase startet (Mensch oder Bot).
   void _debugLogModePicks() {
+    if (!kDebugMode) return;
     print('═══════════════════════════════════════════════════════════════');
     print('🎯 Mode-Auswahl Runde ${_state.roundNumber} | Ansager: ${_state.currentTrumpSelector.name}');
     for (final p in _state.players) {
@@ -1959,6 +1992,11 @@ class GameProvider extends ChangeNotifier {
       return;
     }
     final selector = _state.currentTrumpSelector;
+    // Nie für einen Menschen ansagen: der wählt selbst im Ansage-Dialog.
+    if (selector.isHuman) {
+      notifyListeners();
+      return;
+    }
 
     // Überprüfe ob irgendein Modus einen sehr hohen Score hat (7+ sichere Stiche).
     // Falls ja → NIEMALS schieben, sofort ansagen.
@@ -2005,7 +2043,9 @@ class GameProvider extends ChangeNotifier {
         heuristicThreshold: _friseurHeuristicThreshold(available) * r2,
       );
       if (!shouldPlay) {
+        final gen = _flowGen;
         Future.delayed(const Duration(milliseconds: 700), () {
+          if (gen != _flowGen) return;
           _schiebenSolo();
         });
         return;
@@ -2019,7 +2059,9 @@ class GameProvider extends ChangeNotifier {
       }
     }
 
+    final gen = _flowGen;
     Future.delayed(const Duration(milliseconds: 800), () {
+      if (gen != _flowGen) return;
       try {
         final result = ModeSelectorAI.selectMode(
           player: selector,
@@ -2480,7 +2522,7 @@ class GameProvider extends ChangeNotifier {
 
     // DEBUG: Ansage loggen
     final ansagerName = _state.players[effectiveAnsagerIndex].name;
-    print('📢 $ansagerName sagt ${mode.name} ${trumpSuit?.symbol ?? ""} an (Wunsch: $wishCard)');
+    if (kDebugMode) print('📢 $ansagerName sagt ${mode.name} ${trumpSuit?.symbol ?? ""} an (Wunsch: $wishCard)');
 
     // ── Friseur Solo: Wunschkarte GARANTIEREN ─────────────────────────────
     // Menschlicher Ansager → WishCardSelection-Phase (wählt manuell)
@@ -2973,12 +3015,12 @@ class GameProvider extends ChangeNotifier {
       }
       // Friseur Team: letzte Variante gespielt (aktuelle Runde + bisherige)
       if (_state.gameType == GameType.friseurTeam) {
-        final vc = _state.enabledVariants.length;
-        final u1 = _state.usedVariantsTeam1.length +
-            (_state.isTeam1Ansager ? 1 : 0);
-        final u2 = _state.usedVariantsTeam2.length +
-            (_state.isTeam1Ansager ? 0 : 1);
-        if (u1 >= vc && u2 >= vc) skipRoundEnd = true;
+        final key = _state.variantKey(_state.gameMode, trumpSuit: _state.trumpSuit);
+        final u1 = {..._state.usedVariantsTeam1, if (_state.isTeam1Ansager) key};
+        final u2 = {..._state.usedVariantsTeam2, if (!_state.isTeam1Ansager) key};
+        if (_coiffeurTeamDone(_state, u1) && _coiffeurTeamDone(_state, u2)) {
+          skipRoundEnd = true;
+        }
       }
       // Friseur Solo: alle Spieler haben alle Varianten angesagt.
       // WICHTIG: autoritativ über die pro-Spieler ANGESAGTEN Varianten prüfen
@@ -3067,7 +3109,7 @@ class GameProvider extends ChangeNotifier {
     final trickNum = _state.completedTricks.length + 1;
     final cardInTrick = _state.currentTrickCards.length + 1;
     final hand = _state.players[playerIdx].hand.map((c) => '${c.suit.symbol}${c.displayValue}').join(' ');
-    print('🎴 Stich $trickNum/$cardInTrick: $playerName spielt ${card.suit.symbol}${card.displayValue} | Rest: $hand');
+    if (kDebugMode) print('🎴 Stich $trickNum/$cardInTrick: $playerName spielt ${card.suit.symbol}${card.displayValue} | Rest: $hand');
 
     final updatedPlayers = List<Player>.from(_state.players);
     updatedPlayers[playerIdx] = _state.players[playerIdx].copyWith(
@@ -3267,7 +3309,7 @@ class GameProvider extends ChangeNotifier {
         : GameLogic.trickPoints(trickCards, scoringMode, _state.trumpSuit);
 
     final winnerPlayer = updatedPlayers.firstWhere((p) => p.id == winnerId);
-    print('🏆 Stich ${_state.completedTricks.length + 1}: ${winnerPlayer.name} gewinnt ($points Pkt)');
+    if (kDebugMode) print('🏆 Stich ${_state.completedTricks.length + 1}: ${winnerPlayer.name} gewinnt ($points Pkt)');
     final isAnnouncingTeam = _isAnnouncingTeam(winnerPlayer);
 
     final newScores = Map<String, int>.from(_state.teamScores);
@@ -3444,11 +3486,12 @@ class GameProvider extends ChangeNotifier {
 
   Future<void> _runAiLoop() async {
     _aiRunning = true;
+    final gen = _flowGen;
     try {
       while (_state.phase == GamePhase.playing && !_state.currentPlayer.isHuman) {
         // Tutorial: langsamer, damit man die KI-Züge nachvollziehen kann.
         await Future.delayed(Duration(milliseconds: _tutorialMode ? 1100 : 500));
-        if (_state.phase != GamePhase.playing) break;
+        if (gen != _flowGen || _state.phase != GamePhase.playing) break;
 
         final aiPlayer = _state.currentPlayer;
         final playerIdx = _state.currentPlayerIndex;
@@ -3476,6 +3519,7 @@ class GameProvider extends ChangeNotifier {
           path = 'FALLBACK_TIMEOUT';
         }
 
+        if (gen != _flowGen) break;
         if (_state.phase != GamePhase.playing) break;
         if (_state.currentPlayerIndex != playerIdx) break;
 
@@ -3504,21 +3548,26 @@ class GameProvider extends ChangeNotifier {
     } catch (e, st) {
       debugPrint('AI loop error: $e\n$st');
     } finally {
-      _aiRunning = false;
-      if (_state.phase == GamePhase.playing) {
-        if (!_state.currentPlayer.isHuman) {
-          // Noch ein AI-Spieler dran → erneut starten
-          _triggerAiIfNeeded();
-        } else if (_humanWyssDecisionPending) {
-          // Human ist dran und muss über Weisen entscheiden
-          _triggerAiIfNeeded();
+      // Gehört diese Schleife zu einem verlassenen Spiel, nichts mehr anfassen
+      // (das neue Spiel verwaltet _aiRunning selbst).
+      if (gen == _flowGen) {
+        _aiRunning = false;
+        if (_state.phase == GamePhase.playing) {
+          if (!_state.currentPlayer.isHuman) {
+            // Noch ein AI-Spieler dran → erneut starten
+            _triggerAiIfNeeded();
+          } else if (_humanWyssDecisionPending) {
+            // Human ist dran und muss über Weisen entscheiden
+            _triggerAiIfNeeded();
+          }
         }
+        notifyListeners();
       }
-      notifyListeners();
     }
   }
 
   void resetToSetup() {
+    _flowGen++;
     _clearTrickTimer?.cancel();
     _clearTrickTimer = null;
     _aiRunning = false;
