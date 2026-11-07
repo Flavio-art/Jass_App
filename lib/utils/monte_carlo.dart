@@ -5289,14 +5289,19 @@ class MonteCarloAI {
             GameLogic.cardPlayStrength(b, GameMode.unten, null),
           );
           if (aMax != bMax) return aMax.compareTo(bMax);
+          final aP = GameLogic.cardPoints(a, GameMode.oben, trump) + GameLogic.cardPoints(a, GameMode.unten, trump);
+          final bP = GameLogic.cardPoints(b, GameMode.oben, trump) + GameLogic.cardPoints(b, GameMode.unten, trump);
+          return aP.compareTo(bP);
         }
-        final aP = isMultiMode
-            ? GameLogic.cardPoints(a, GameMode.oben, trump) + GameLogic.cardPoints(a, GameMode.unten, trump)
-            : GameLogic.cardPoints(a, effectMode, trump);
-        final bP = isMultiMode
-            ? GameLogic.cardPoints(b, GameMode.oben, trump) + GameLogic.cardPoints(b, GameMode.unten, trump)
-            : GameLogic.cardPoints(b, effectMode, trump);
-        return aP.compareTo(bP);
+        // Nicht-Multi (inkl. Oben/Unten): keepValue = Spielstärke(3×) + Punkte,
+        // wie der normale Pfad. Sonst würde z.B. in Unten die tiefe 7 (0 Pkt,
+        // aber potenzieller Spätgewinner) vor einer hohen Dame (3 Pkt, wertlos)
+        // abgeworfen → verschenkt den letzten Stich.
+        final aKeep = GameLogic.cardPlayStrength(a, effectMode, trump) * 3 +
+            GameLogic.cardPoints(a, effectMode, trump);
+        final bKeep = GameLogic.cardPlayStrength(b, effectMode, trump) * 3 +
+            GameLogic.cardPoints(b, effectMode, trump);
+        return aKeep.compareTo(bKeep); // niedrigster keepValue → zuerst abwerfen
       });
       return fallback.first;
     }
