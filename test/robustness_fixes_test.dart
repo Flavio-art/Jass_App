@@ -69,7 +69,8 @@ void main() {
         currentPlayerIndex: 0, usedVariantsTeam1: all.toSet(),
         usedVariantsTeam2: all.where((v) => v != 'molotof').toSet()));
     p.startNewRound();
-    await tester.pump(const Duration(seconds: 1));
+    // Direkt nach dem Rundenwechsel prüfen – danach darf der Computer schon
+    // ansagen (die Phase wechselt dann auf playing).
     expect(p.state.phase, GamePhase.trumpSelection);
     expect(p.state.players[p.state.ansagerIndex].id, 'p2');
     await tester.pump(const Duration(minutes: 3));
