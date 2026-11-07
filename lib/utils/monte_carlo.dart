@@ -2538,7 +2538,17 @@ class MonteCarloAI {
                 final eights = winners.where((c) => c.value == CardValue.eight).toList();
                 if (eights.isNotEmpty) return eights.first;
               }
-              // Andere Modi: schwächste gewinnende Karte (stärkere aufsparen)
+              // Andere Modi: günstigste Karte, die den Stich GEGEN DIE GEGNER
+              // sichert (z.B. Nell, wenn ein Gegner hinten noch das Ass hat).
+              // Eine "gewinnende" Karte, die danach überstochen wird, sichert
+              // nichts und verschenkt Punkte.
+              final secure = winners
+                  .where((c) => _isHighestRemainingVsOpponents(c, aiPlayer, state))
+                  .toList();
+              if (secure.isNotEmpty) {
+                return _pick('auto_L1891_secure', _weakest(secure, effectMode, trump));
+              }
+              // Sonst: schwächste gewinnende Karte (stärkere aufsparen)
               return _pick('auto_L1891', _weakest(winners, effectMode, trump));
             }
             // Kann nicht absichern → schmieren wie üblich (fall through)
