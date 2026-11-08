@@ -5435,18 +5435,22 @@ class MonteCarloAI {
     // Begleiter schützen: pro Farbe dürfen nur die ÜBERZÄHLIGEN Karten weg
     // (punktärmste zuerst), damit die geschützte Karte ihre Länge behält.
     // Bsp. Tutti ♥A ♥7 ♥6: beide Begleiter bleiben, die tote ♠10 geht.
-    guardNeed.forEach((suit, need) {
-      final suitCards = cards.where((h) => h.suit == suit).toList();
-      final free = suitCards
-          .where((h) => !safeWinners.contains(h) && !valuable.contains(h))
-          .toList()
-        ..sort((a, b) => GameLogic.cardPoints(a, effectMode, trump)
-            .compareTo(GameLogic.cardPoints(b, effectMode, trump)));
-      final excess = math.max(0, suitCards.length - need);
-      for (final h in free.skip(excess)) {
-        valuable.add(h);
-      }
-    });
+    // NICHT im Slalom: die Richtung wechselt jeden Stich, der Schutz beider
+    // Richtungen hält dort zu viele Karten fest (Benchmark: −2 Pkt EDGE).
+    if (gm != GameMode.slalom) {
+      guardNeed.forEach((suit, need) {
+        final suitCards = cards.where((h) => h.suit == suit).toList();
+        final free = suitCards
+            .where((h) => !safeWinners.contains(h) && !valuable.contains(h))
+            .toList()
+          ..sort((a, b) => GameLogic.cardPoints(a, effectMode, trump)
+              .compareTo(GameLogic.cardPoints(b, effectMode, trump)));
+        final excess = math.max(0, suitCards.length - need);
+        for (final h in free.skip(excess)) {
+          valuable.add(h);
+        }
+      });
+    }
 
     // Kandidaten zum Abwerfen: nicht sichere Gewinner, nicht wertvolle Karten
     final discardable = cards

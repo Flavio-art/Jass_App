@@ -28,11 +28,13 @@ void main() {
   if (const bool.fromEnvironment('NOISMCTS')) MonteCarloAI.ismcts = false;
 
   // Deals pro Modus & Richtung. Über ENV BENCH_DEALS überschreibbar.
-  final deals = int.tryParse(
-          String.fromEnvironment('BENCH_DEALS', defaultValue: '') == ''
-              ? '30'
-              : const String.fromEnvironment('BENCH_DEALS')) ??
-      30;
+  // (const nötig – ohne const liefert fromEnvironment immer den Default.)
+  final deals = int.tryParse(const String.fromEnvironment('BENCH_DEALS')) ?? 30;
+  // Optional: nur eine Spielform (Name wie in der Tabelle, z.B. Slalom),
+  // Seed-Versatz für parallele Teilläufe, Ausgabe pro Spiel (BENCH_DUMP).
+  const onlyMode = String.fromEnvironment('BENCH_MODE');
+  final seedOffset = int.tryParse(const String.fromEnvironment('BENCH_OFFSET')) ?? 0;
+  const dump = bool.fromEnvironment('BENCH_DUMP');
 
   final modes = <(String, GameMode, Suit?)>[
     ('Trumpf ♥', GameMode.trump, Suit.hearts),
@@ -137,14 +139,21 @@ void main() {
     print('  ${'Modus'.padRight(14)} ${'OFFENSE'.padLeft(8)} ${'DEFENSE'.padLeft(8)} ${'EDGE'.padLeft(7)}');
     print('  ${'-' * 40}');
     double edgeSum = 0;
-    for (final md in modes) {
+    final run = onlyMode.isEmpty
+        ? modes
+        : modes.where((m) => m.$1 == onlyMode).toList();
+    for (final md in run) {
       double off = 0, def = 0;
-      for (int i = 0; i < deals; i++) {
+      for (int i = seedOffset; i < seedOffset + deals; i++) {
         final seed = 700000 + md.$1.hashCode.abs() % 1000 * 1000 + i;
         // OFFENSE: team1 = MC, team2 = Greedy
-        off += playGame(mk(seed, md.$2, md.$3), md.$2, mcPolicy, greedyPolicy);
+        final o = playGame(mk(seed, md.$2, md.$3), md.$2, mcPolicy, greedyPolicy);
         // DEFENSE: team1 = Greedy, team2 = MC
-        def += playGame(mk(seed, md.$2, md.$3), md.$2, greedyPolicy, mcPolicy);
+        final d = playGame(mk(seed, md.$2, md.$3), md.$2, greedyPolicy, mcPolicy);
+        off += o;
+        def += d;
+        // ignore: avoid_print
+        if (dump) print('DEAL ${md.$1} $seed $o $d');
       }
       final offAvg = off / deals, defAvg = def / deals;
       final edge = offAvg - defAvg;
@@ -154,7 +163,7 @@ void main() {
     }
     print('  ${'-' * 40}');
     print('  ${'Ø EDGE'.padRight(14)} ${''.padLeft(17)} '
-        '${(edgeSum / modes.length).toStringAsFixed(1).padLeft(7)}');
+        '${(edgeSum / run.length).toStringAsFixed(1).padLeft(7)}');
     print('\n  EDGE > 0 = MC-AI schlägt Greedy. Nach Fixes erneut laufen und');
     print('  EDGE pro Modus vergleichen (gleiche Seeds → direkt vergleichbar).\n');
   });
