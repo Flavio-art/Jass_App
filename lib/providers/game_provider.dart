@@ -976,6 +976,7 @@ class GameProvider extends ChangeNotifier {
       trumpPlayedObenPerPlayer: newObenPP,
       trumpPlayedUntenPerPlayer: newUntenPP,
       soloSchiebungRounds: 0,
+      roundWasImLoch: false, // neue Runde: (noch) nicht im Loch
       soloSchiebungComment: fertigComment,
       stockeComment: null,
       stockeRoundPoints: const {'team1': 0, 'team2': 0},
@@ -1208,6 +1209,11 @@ class GameProvider extends ChangeNotifier {
     _state = _state.copyWith(
       trumpSelectorIndex: newTrumpSelectorIndex,
       soloSchiebungRounds: newRounds,
+      // Loch-Zustand SOFORT setzen, wenn der Loch-Spieler gezwungen ist – die
+      // Ansage-KI nutzt ihn (Loch-Multiplikatoren, gelockerte Elefant-Regel).
+      // Vorher wurde er erst NACH der Ansage gesetzt und galt so für die
+      // falsche Runde.
+      roundWasImLoch: newRounds >= 2 && newTrumpSelectorIndex == null,
       // Kommentar nur setzen wenn vorhanden, nicht mit null überschreiben
       soloSchiebungComment: skipComment ?? _state.soloSchiebungComment,
     );
