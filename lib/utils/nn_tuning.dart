@@ -52,16 +52,20 @@ class NNTuning {
   // ── Friseur Solo Moduswahl-Multiplikatoren ─────────────
   // Kalibriert für v3-Weights (2026-08-04, echte-MC-Training, calibrate_friseur.py)
   // Formel: adjusted = raw × mult (direkte Multiplikation)
-  static const double friseurMultTrumpOben = 1.25;
-  static const double friseurMultTrumpUnten = 1.15;
-  static const double friseurMultAllesTrumpf = 1.69;
-  static const double friseurMultOben = 1.52;
-  static const double friseurMultUnten = 1.47;
-  static const double friseurMultSlalom = 1.86;
-  static const double friseurMultSchafkopf = 1.37;
-  static const double friseurMultMisere = 1.52;
-  static const double friseurMultMolotof = 1.79;
-  static const double friseurMultElefant = 1.35;
+  // 2026-11-07 angepasst auf Zielverteilung der FREIWILLIGEN Ansagen in Runde 1
+  // (Loch-Spieler): Trumpf oben/unten je ~8%, Tutti ≈ Obenabe ≈ Undenufe ~14%,
+  // Slalom ~15%, Schafkopf ~17%, Misère 3%, Molotow 1%, Elefant ~5% (gesättigt:
+  // Elefant nur mit 3+3 sicheren Oben/Unten-Stichen, mehr Multiplikator bringt nichts).
+  static const double friseurMultTrumpOben = 1.245;
+  static const double friseurMultTrumpUnten = 1.182;
+  static const double friseurMultAllesTrumpf = 1.619;
+  static const double friseurMultOben = 1.587;
+  static const double friseurMultUnten = 1.493;
+  static const double friseurMultSlalom = 1.883;
+  static const double friseurMultSchafkopf = 1.4;
+  static const double friseurMultMisere = 1.589;
+  static const double friseurMultMolotof = 1.97;
+  static const double friseurMultElefant = 2.263;
 
   // ── Friseur Solo Im-Loch-Boost (2× geschoben) ───────────
   // Im Loch wird Misère/Molotof als Fallback attraktiver.
@@ -70,6 +74,20 @@ class NNTuning {
   // wie vor der Neukalibrierung gehalten (misere≈1.12, molotof≈1.19).
   static const double friseurLochBoostMisere = 1.3;
   static const double friseurLochBoostMolotof = 1.2;
+  // Multiplikatoren für Ansagen IM LOCH = die bisherigen Werte (vor dem Tuning
+  // vom 07.11.) inkl. Loch-Zuschlägen. Die freiwilligen Ansagen wurden neu
+  // eingestellt (u.a. Elefant 2.263 wegen der Elefant-Regel, die im Loch nicht
+  // gilt) – das soll die Zwangsansagen nicht verschieben.
+  static const double friseurLochMultTrumpOben = 1.25;
+  static const double friseurLochMultTrumpUnten = 1.15;
+  static const double friseurLochMultAllesTrumpf = 1.69;
+  static const double friseurLochMultOben = 1.52;
+  static const double friseurLochMultUnten = 1.47;
+  static const double friseurLochMultSlalom = 1.86;
+  static const double friseurLochMultSchafkopf = 1.37;
+  static const double friseurLochMultMisere = 1.52 * friseurLochBoostMisere;
+  static const double friseurLochMultMolotof = 1.79 * friseurLochBoostMolotof;
+  static const double friseurLochMultElefant = 1.35;
 
   // ── Friseur Solo Schiebe-Schwellenwerte ────────────────
   // 2. Schiebe-Runde: Schwelle leicht senken, damit ~5% trotzdem ansagen.
@@ -82,12 +100,12 @@ class NNTuning {
   // Wert wählt auch die Spielform. Trumpf (kleinster Multiplikator) wird so
   // eher aufgespart. Je Anzahl offener Varianten (Index 0 = 1 offen … 9 = 10).
   // Loch-Spieler (entscheidet zuerst): ~20% (10 offen) → ~47% (1 offen).
-  // Mitspieler nach Schieben: halb so oft, ~10% → ~24%.
+  // Mitspieler nach Schieben: drei Viertel davon, ~15% → ~35%.
   static const List<double> friseurPlayThresholdLoch = [
-    0.904, 1.012, 1.070, 1.115, 1.142, 1.163, 1.185, 1.203, 1.220, 1.237,
+    0.924, 1.042, 1.091, 1.130, 1.154, 1.178, 1.199, 1.219, 1.235, 1.253,
   ];
   static const List<double> friseurPlayThresholdOther = [
-    1.026, 1.110, 1.148, 1.185, 1.209, 1.221, 1.237, 1.254, 1.269, 1.284,
+    0.983, 1.081, 1.126, 1.158, 1.185, 1.205, 1.224, 1.242, 1.257, 1.275,
   ];
   // Endpunkte (nur noch für ältere Analyse-Tests, die linear rechnen)
   static const double friseurSchiebenNNMin = 0.586;
