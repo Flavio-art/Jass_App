@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:meta/meta.dart';
 
 import '../models/card_model.dart';
+import '../models/deck.dart';
 import '../models/game_state.dart';
 import '../models/player.dart';
 import 'game_logic.dart';
@@ -304,11 +305,15 @@ class MonteCarloAI {
         state.trumpSuit != null &&
         aiPlayer.hand.length >= 2) {
       final bossSuit = state.trumpSuit!;
-      final oppTrumpLeft = state.players
-          .where((p) => !_sameTeamFor(aiPlayer, p, state))
-          .expand((p) => p.hand)
-          .any((c) => c.suit == bossSuit);
-      if (!oppTrumpLeft) {
+      // Nur öffentliches Wissen: Gegner sichtbar trumpflos (kein Blick in Hände).
+      final oppTrumpLeft = !onlyTeamHasTrump(aiPlayer, state, bossSuit);
+      // Sind ALLE übrigen Karten sichere Stiche, bringt das Aufsparen nichts –
+      // der Boss-Trumpf darf jetzt stechen (z.B. Partner-Stich, der sonst an
+      // den Gegner geht), die Reststiche gehören einem danach sowieso.
+      final restSicher = aiPlayer.hand
+          .where((c) => !(c.suit == bossSuit && _isHighestRemaining(c, state)))
+          .every((c) => _surelyWinsByPublicInfo(c, aiPlayer, state));
+      if (!oppTrumpLeft && !restSicher) {
         final nonBoss = playable
             .where((c) =>
                 !(c.suit == bossSuit && _isHighestRemaining(c, state)))
@@ -2003,6 +2008,27 @@ class MonteCarloAI {
       //     Farbe anspielen, in der der Ansager schon abgeworfen hat – dort kann
       //     er nicht helfen und der Stich geht sicher an den Gegner.
       final annId = state.players[state.ansagerIndex].id;
+      // (a2) Wunschfarbe zurückspielen: Der Ansager hat diese Farbe gewünscht,
+      //      hält dort also typischerweise die nächsthohen Karten (z.B. ♥K/♥O/♥U
+      //      nach dem ♥A). Schwächste eigene Karte der Farbe anspielen, damit er
+      //      sticht. Nur mit öffentlichem Wissen: Wunschkarte schon gespielt,
+      //      Ansager in der Farbe nicht sichtbar blank, noch fremde Karten offen.
+      {
+        final wish = state.wishCard!;
+        final playedW = _playedCards(state);
+        final mineW = playable.where((c) => c.suit == wish.suit).toList();
+        final outstandingW = Deck.allCards(state.cardType).where((c) =>
+            c.suit == wish.suit &&
+            !playedW.contains(c) &&
+            !aiPlayer.hand.contains(c));
+        if (mineW.isNotEmpty &&
+            playedW.contains(wish) &&
+            !_publiclyVoid(annId, wish.suit, state) &&
+            outstandingW.isNotEmpty) {
+          return _pick('Friseur_Partner_Wunschfarbe_Zurueck',
+              _weakest(mineW, mode, null));
+        }
+      }
       Suit? bestSuit;
       int bestKeepStr = -1;
       for (final s in playable.map((c) => c.suit).toSet()) {
@@ -2251,7 +2277,7 @@ class MonteCarloAI {
             final isTrumpCard = state.trumpSuit != null &&
                 ansagerCard.suit == state.trumpSuit;
             final ansagerSicher = _isHighestRemainingVsOpponents(
-                ansagerCard, aiPlayer, state);
+                ansagerCard, aiPlayer, state, publicOnly: true);
             ansagerSicherOpened = ansagerSicher;
             if (isTrumpCard) {
               // Trumpf-Stärke: Buur=108, Nell=107, dann 100-106
@@ -2346,7 +2372,7 @@ class MonteCarloAI {
             final ansagerCardFlat = state.currentTrickCards[
                 state.currentTrickPlayerIds.indexOf(announcerId)];
             final ansagerIsSecure = _isHighestRemainingVsOpponents(
-                ansagerCardFlat, aiPlayer, state);
+                ansagerCardFlat, aiPlayer, state, publicOnly: true);
             if (!ansagerIsSecure) {
               // Ansager nicht sicher → Partner übernimmt mit Wunschkarte
               return _pick('auto_L1728', state.wishCard!);
@@ -2390,12 +2416,15 @@ class MonteCarloAI {
           // Monopol. In dem Fall NICHT ein wertvolles Ass wegschmieren, sondern
           // mit dem niedrigsten Trumpf sichern (Gegner haben eh keinen Trumpf
           // → jede stechende Trumpfkarte ist 100% sicher).
+          bool partnerUnsicherOT = false;
           if (state.gameMode != GameMode.schafkopf) {
             final winnerIdxP = state.currentTrickPlayerIds.indexOf(currentWinnerId);
             final partnerCardP =
                 winnerIdxP >= 0 ? state.currentTrickCards[winnerIdxP] : null;
             final partnerStichSicherP = partnerCardP != null &&
-                _isHighestRemainingVsOpponents(partnerCardP, aiPlayer, state);
+                _isHighestRemainingVsOpponents(partnerCardP, aiPlayer, state,
+                    publicOnly: true);
+            partnerUnsicherOT = !partnerStichSicherP;
             if (!partnerStichSicherP) {
               final winningTrumps = playable
                   .where((c) => c.suit == trump && _wouldWin(c, state, trump))
@@ -2422,7 +2451,9 @@ class MonteCarloAI {
             // Könige/Damen mit Stichpotential schützen
             final tricksPlayed = state.completedTricks.length;
             final isLateGame = tricksPlayed >= 6;
-            final schmierPool = nonTrump.where((c) {
+            // Partner-Stich unsicher und nicht zu sichern → NICHT schmieren,
+            // sondern die billigste Karte zugeben (Fallback unten).
+            final schmierPool = partnerUnsicherOT ? <JassCard>[] : nonTrump.where((c) {
               // Schafkopf: 10er nie schmieren (höchste Nicht-Trumpf-Karte!)
               if (state.gameMode == GameMode.schafkopf &&
                   c.value == CardValue.ten &&
@@ -2520,8 +2551,10 @@ class MonteCarloAI {
           // ist höchste vs Gegner → sicher, nicht übertrumpfen!
           final winnerIdx = state.currentTrickPlayerIds.indexOf(currentWinnerId);
           final winningCard = state.currentTrickCards[winnerIdx];
+          // Nur öffentliches Wissen: wo eine unbekannte Karte liegt (z.B. eine
+          // ♣8 beim Partner), weiss ein echter Spieler nicht.
           final partnerStichSicher = _isHighestRemainingVsOpponents(
-                  winningCard, aiPlayer, state) ||
+                  winningCard, aiPlayer, state, publicOnly: true) ||
               state.currentTrickCards.length == 3; // wir sind 4. = letzter
 
           if (!partnerStichSicher) {
@@ -2533,6 +2566,16 @@ class MonteCarloAI {
               // den Stich am besten und zieht Gegner-Trümpfe).
               // Dann 8er, dann Trumpf-Farbkarten.
               if (state.gameMode == GameMode.schafkopf) {
+                // Günstigste Karte, die den Stich mit öffentlichem Wissen
+                // sicher macht (z.B. ♥-Dame, wenn man die ♣-Dame selbst hat).
+                final skSecure = winners
+                    .where((c) => _isHighestRemainingVsOpponents(
+                        c, aiPlayer, state, publicOnly: true))
+                    .toList();
+                if (skSecure.isNotEmpty) {
+                  return _pick('Schafkopf_PartnerStich_Absichern',
+                      _weakest(skSecure, effectMode, trump));
+                }
                 final queens = winners.where((c) => c.value == CardValue.queen).toList();
                 if (queens.isNotEmpty) return queens.first;
                 final eights = winners.where((c) => c.value == CardValue.eight).toList();
@@ -4113,10 +4156,40 @@ class MonteCarloAI {
   /// Nur Gegner-Hände zählen – so wird erkannt wenn der Partner-Stich
   /// gegen Gegner sicher ist (z.B. Partner hat alle Damen im Schafkopf).
   static bool _isHighestRemainingVsOpponents(
-      JassCard card, Player aiPlayer, GameState state) {
+      JassCard card, Player aiPlayer, GameState state,
+      {bool publicOnly = false}) {
+    if (publicOnly) return _isSafeVsUnseen(card, aiPlayer, state);
     final effectMode = state.effectiveMode;
     final trump = state.trumpSuit;
     final myStrength = GameLogic.cardPlayStrength(card, effectMode, trump);
+
+    // Schafkopf: Trumpf ist farbübergreifend (alle Damen + Achter + Trumpffarbe).
+    // Die Farbvergleiche unten würden z.B. eine ♣8 gegen einen ♠K übersehen.
+    if (state.gameMode == GameMode.schafkopf && trump != null) {
+      final cardIsTrump = _isSchafkopfTrump(card, trump);
+      final opponents = state.players
+          .where((p) => !_sameTeamFor(aiPlayer, p, state))
+          .toList();
+      for (final p in opponents) {
+        for (final c in p.hand) {
+          final cIsTrump = _isSchafkopfTrump(c, trump);
+          final sameGroup = cardIsTrump
+              ? cIsTrump
+              : (!cIsTrump && c.suit == card.suit);
+          if (sameGroup &&
+              GameLogic.cardPlayStrength(c, effectMode, trump) > myStrength) {
+            return false;
+          }
+        }
+        if (!cardIsTrump) {
+          final hasLed = p.hand
+              .any((c) => c.suit == card.suit && !_isSchafkopfTrump(c, trump));
+          final hasTrump = p.hand.any((c) => _isSchafkopfTrump(c, trump));
+          if (!hasLed && hasTrump) return false;
+        }
+      }
+      return true;
+    }
 
     // Nur Gegner-Karten prüfen (Partner ignorieren)
     final opponentCards = state.players
@@ -4141,6 +4214,58 @@ class MonteCarloAI {
         return !hasLedSuit && hasTrump;
       });
       if (canBeTrumped) return false;
+    }
+    return true;
+  }
+
+  /// Ist [card] (liegt im aktuellen Stich) gegen die Gegner, die in diesem
+  /// Stich NOCH spielen, sicher – nur mit dem Wissen eines echten Spielers?
+  /// Unbekannt = weder in der eigenen Hand noch schon gespielt; jede unbekannte
+  /// Karte könnte bei einem Gegner hinten sitzen (auch wenn sie in Wahrheit
+  /// beim Partner liegt). Stechen per Trumpf nur, wenn der Gegner die Farbe
+  /// öffentlich nicht mehr hat. Schafkopf: Damen/Achter zählen als Trumpf.
+  static bool _isSafeVsUnseen(JassCard card, Player aiPlayer, GameState state) {
+    final effectMode = state.effectiveMode;
+    final trump = state.trumpSuit;
+    final sk = state.gameMode == GameMode.schafkopf && trump != null;
+    final flat = effectMode == GameMode.oben || effectMode == GameMode.unten;
+    bool isTr(JassCard c) => sk
+        ? _isSchafkopfTrump(c, trump)
+        : (trump != null && !flat && c.suit == trump);
+    bool sameGroup(JassCard a, JassCard b) =>
+        sk ? (isTr(a) == isTr(b) && (isTr(a) || a.suit == b.suit))
+           : a.suit == b.suit;
+
+    final acted = state.currentTrickPlayerIds.toSet();
+    final behind = state.players
+        .where((p) =>
+            p.id != aiPlayer.id &&
+            !acted.contains(p.id) &&
+            !_sameTeamFor(aiPlayer, p, state))
+        .toList();
+    if (behind.isEmpty) return true;
+
+    final played = _playedCards(state);
+    final unseen = Deck.allCards(state.cardType)
+        .where((c) => c != card && !played.contains(c) && !aiPlayer.hand.contains(c))
+        .toList();
+    final myStrength = GameLogic.cardPlayStrength(card, effectMode, trump);
+    if (unseen.any((c) =>
+        sameGroup(c, card) &&
+        GameLogic.cardPlayStrength(c, effectMode, trump) > myStrength)) {
+      return false;
+    }
+    if (!isTr(card) && unseen.any(isTr)) {
+      // Gegner hinten hat die Farbe öffentlich nicht mehr → kann stechen.
+      for (final p in behind) {
+        for (final t in state.completedTricks) {
+          if (t.cards.isEmpty) continue;
+          final led = t.cards.values.first;
+          final theirs = t.cards[p.id];
+          if (theirs == null || !sameGroup(led, card) || isTr(led)) continue;
+          if (!sameGroup(theirs, led)) return false;
+        }
+      }
     }
     return true;
   }
@@ -4331,6 +4456,30 @@ class MonteCarloAI {
       if (!isPlayed && !inMyHand) return false; // schlagende Karte liegt verdeckt
     }
     return true;
+  }
+
+  /// Trumpf-Spiele: Gewinnt [card] später sicher einen Stich – nur aus
+  /// öffentlichem Wissen? Trumpf: kein unbekannter höherer Trumpf. Nebenfarbe:
+  /// kein unbekannter höherer Wert der Farbe UND Gegner sichtbar trumpflos.
+  static bool _surelyWinsByPublicInfo(
+      JassCard card, Player aiPlayer, GameState state) {
+    final trump = state.trumpSuit;
+    final mode = state.effectiveMode;
+    if (trump == null ||
+        (state.gameMode != GameMode.trump &&
+            state.gameMode != GameMode.trumpUnten)) {
+      return false;
+    }
+    final played = _playedCards(state);
+    final myStr = GameLogic.cardPlayStrength(card, mode, trump);
+    final higherUnseen = Deck.allCards(state.cardType).any((c) =>
+        c.suit == card.suit &&
+        !played.contains(c) &&
+        !aiPlayer.hand.contains(c) &&
+        GameLogic.cardPlayStrength(c, mode, trump) > myStr);
+    if (higherUnseen) return false;
+    if (card.suit == trump) return true;
+    return onlyTeamHasTrump(aiPlayer, state, trump);
   }
 
   /// Ob [playerId] in [suit] ÖFFENTLICH void ist: hat in einem früheren Stich,
@@ -5150,6 +5299,10 @@ class MonteCarloAI {
       valuable.add(state.wishCard!);
     }
     final gm = state.gameMode;
+    // Mindestlänge je Farbe, die eine "zu N" geschützte Karte braucht (Ass zu 3
+    // im Tutti, König zu 2 im Oben …). Die Begleiter machen den Schutz aus und
+    // dürfen nicht unter diese Länge abgeworfen werden.
+    final guardNeed = <Suit, int>{};
     for (final c in cards) {
       if (safeWinners.contains(c)) continue; // bereits geschützt
       // ── Farbtiefe-basierter Schutz (gilt für alle Modi) ──────────────
@@ -5177,19 +5330,23 @@ class MonteCarloAI {
           final obenMode = gm == GameMode.allesTrumpf
               ? GameMode.allesTrumpf : GameMode.oben;
           final str = GameLogic.cardPlayStrength(c, obenMode, null);
+          int need = 0;
           if (str >= 8) { protectedOben = true; }                   // Ass / Buur
-          else if (str >= 7 && suitCount >= 2) { protectedOben = true; } // König / Nell
-          else if (str >= 6 && suitCount >= 3) { protectedOben = true; } // Dame / Ass(AT)
-          else if (str >= 4 && suitCount >= 4) { protectedOben = true; }
+          else if (str >= 7 && suitCount >= 2) { protectedOben = true; need = 2; } // König / Nell
+          else if (str >= 6 && suitCount >= 3) { protectedOben = true; need = 3; } // Dame / Ass(AT)
+          else if (str >= 4 && suitCount >= 4) { protectedOben = true; need = 4; }
+          if (need > (guardNeed[c.suit] ?? 0)) { guardNeed[c.suit] = need; }
         }
 
         // Unten-Richtung: 6(8)=immer, 7(7)=zu2, 8(6)=zu3, 9(5)=zu4
         if (isUntenLike || isBothDirections) {
           final str = GameLogic.cardPlayStrength(c, GameMode.unten, null);
+          int need = 0;
           if (str >= 8) { protectedUnten = true; }                    // 6
-          else if (str >= 7 && suitCount >= 2) { protectedUnten = true; } // 7
-          else if (str >= 6 && suitCount >= 3) { protectedUnten = true; } // 8
-          else if (str >= 5 && suitCount >= 4) { protectedUnten = true; } // 9
+          else if (str >= 7 && suitCount >= 2) { protectedUnten = true; need = 2; } // 7
+          else if (str >= 6 && suitCount >= 3) { protectedUnten = true; need = 3; } // 8
+          else if (str >= 5 && suitCount >= 4) { protectedUnten = true; need = 4; } // 9
+          if (need > (guardNeed[c.suit] ?? 0)) { guardNeed[c.suit] = need; }
           // Opferkarten: hohe Karte MIT PUNKTEN + tiefe Begleiter behalten
           // z.B. König(4Pkt) + 7 → König opfern wenn 6 gespielt, 7 bleibt
           // NICHT Ass (0 Pkt, 0 Stärke bei Unten) → wertlos, sofort weg
@@ -5274,6 +5431,22 @@ class MonteCarloAI {
         }
       }
     }
+
+    // Begleiter schützen: pro Farbe dürfen nur die ÜBERZÄHLIGEN Karten weg
+    // (punktärmste zuerst), damit die geschützte Karte ihre Länge behält.
+    // Bsp. Tutti ♥A ♥7 ♥6: beide Begleiter bleiben, die tote ♠10 geht.
+    guardNeed.forEach((suit, need) {
+      final suitCards = cards.where((h) => h.suit == suit).toList();
+      final free = suitCards
+          .where((h) => !safeWinners.contains(h) && !valuable.contains(h))
+          .toList()
+        ..sort((a, b) => GameLogic.cardPoints(a, effectMode, trump)
+            .compareTo(GameLogic.cardPoints(b, effectMode, trump)));
+      final excess = math.max(0, suitCards.length - need);
+      for (final h in free.skip(excess)) {
+        valuable.add(h);
+      }
+    });
 
     // Kandidaten zum Abwerfen: nicht sichere Gewinner, nicht wertvolle Karten
     final discardable = cards

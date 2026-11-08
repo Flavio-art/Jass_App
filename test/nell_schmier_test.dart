@@ -31,11 +31,17 @@ void main() {
     final p4 = Player(id: 'p4', name: 'F3', position: PlayerPosition.west,
         hand: [c(Suit.spades, CardValue.ace)]);
 
-    // 3 abgeschlossene Stiche → aktueller = Stich 4.
-    Trick t(int n) => Trick(cards: {
-          'p1': c(Suit.hearts, CardValue.six), 'p2': c(Suit.hearts, CardValue.seven),
-          'p3': c(Suit.hearts, CardValue.eight), 'p4': c(Suit.hearts, CardValue.nine),
-        }, winnerId: 'p1', trickNumber: n);
+    // 3 abgeschlossene Stiche → aktueller = Stich 4. ♣U, ♣9, ♣A sind schon
+    // gefallen → ♣K ist auch nach ÖFFENTLICHEM Wissen das höchste Kreuz.
+    final vorstiche = <Map<String, JassCard>>[
+      {'p1': c(Suit.hearts, CardValue.six), 'p2': c(Suit.hearts, CardValue.seven),
+       'p3': c(Suit.hearts, CardValue.eight), 'p4': c(Suit.hearts, CardValue.nine)},
+      {'p1': c(Suit.clubs, CardValue.jack), 'p2': c(Suit.clubs, CardValue.six),
+       'p3': c(Suit.clubs, CardValue.seven), 'p4': c(Suit.clubs, CardValue.eight)},
+      {'p1': c(Suit.clubs, CardValue.nine), 'p2': c(Suit.clubs, CardValue.ace),
+       'p3': c(Suit.diamonds, CardValue.six), 'p4': c(Suit.clubs, CardValue.queen)},
+    ];
+    Trick t(int n) => Trick(cards: vorstiche[n - 1], winnerId: 'p1', trickNumber: n);
 
     final state = GameState(
       cardType: CardType.french,
