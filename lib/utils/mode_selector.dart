@@ -777,6 +777,23 @@ class ModeSelectorAI {
   /// Friseur Solo Multiplikator: Trumpf dämpfen, Nicht-Trump boosten.
   /// Im Loch: Misère/Molotof bekommen extra Boost als Fallback.
   static double _friseurMult(GameMode mode, {bool isImLoch = false}) {
+    // Im Loch: eigene (bisherige) Multiplikatoren inkl. Loch-Zuschlägen, damit
+    // das Tuning der freiwilligen Ansagen die Zwangsansagen nicht verschiebt.
+    if (isImLoch) {
+      return switch (mode) {
+        GameMode.trump       => NNTuning.friseurLochMultTrumpOben,
+        GameMode.trumpUnten  => NNTuning.friseurLochMultTrumpUnten,
+        GameMode.allesTrumpf => NNTuning.friseurLochMultAllesTrumpf,
+        GameMode.oben        => NNTuning.friseurLochMultOben,
+        GameMode.unten       => NNTuning.friseurLochMultUnten,
+        GameMode.slalom      => NNTuning.friseurLochMultSlalom,
+        GameMode.schafkopf   => NNTuning.friseurLochMultSchafkopf,
+        GameMode.misere      => NNTuning.friseurLochMultMisere,
+        GameMode.molotof     => NNTuning.friseurLochMultMolotof,
+        GameMode.elefant     => NNTuning.friseurLochMultElefant,
+        _                    => 1.0,
+      };
+    }
     var m = switch (mode) {
       GameMode.trump       => NNTuning.friseurMultTrumpOben,
       GameMode.trumpUnten  => NNTuning.friseurMultTrumpUnten,
@@ -789,10 +806,6 @@ class ModeSelectorAI {
       GameMode.molotof     => NNTuning.friseurMultMolotof,
       GameMode.elefant     => NNTuning.friseurMultElefant,
     };
-    if (isImLoch) {
-      if (mode == GameMode.misere) m *= NNTuning.friseurLochBoostMisere;
-      if (mode == GameMode.molotof) m *= NNTuning.friseurLochBoostMolotof;
-    }
     return m;
   }
 
