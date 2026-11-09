@@ -2594,7 +2594,27 @@ class MonteCarloAI {
               // Sonst: schwächste gewinnende Karte (stärkere aufsparen)
               return _pick('auto_L1891', _weakest(winners, effectMode, trump));
             }
-            // Kann nicht absichern → schmieren wie üblich (fall through)
+            // Kann nicht absichern → NICHT schmieren (der Stich geht vermutlich
+            // an den Gegner), sondern die billigste Karte zugeben.
+            final ledU = state.currentTrickCards.first.suit;
+            if (!playable.any((c) => c.suit == ledU)) {
+              return _pick('PartnerUnsicher_Abwerfen',
+                  _smartDiscard(playable, state, effectMode, trump));
+            }
+            bool isTr(JassCard c) => state.gameMode == GameMode.schafkopf
+                ? _isSchafkopfTrump(c, trump!)
+                : (trump != null && c.suit == trump &&
+                    effectMode != GameMode.allesTrumpf);
+            final cheap = [...playable]..sort((a, b) {
+                final ta = isTr(a) ? 1 : 0, tb = isTr(b) ? 1 : 0;
+                if (ta != tb) return ta.compareTo(tb); // Trumpf aufsparen
+                final pa = GameLogic.cardPoints(a, effectMode, trump);
+                final pb = GameLogic.cardPoints(b, effectMode, trump);
+                if (pa != pb) return pa.compareTo(pb);
+                return GameLogic.cardPlayStrength(a, effectMode, trump)
+                    .compareTo(GameLogic.cardPlayStrength(b, effectMode, trump));
+              });
+            return _pick('PartnerUnsicher_Billig', cheap.first);
           }
 
 
@@ -2641,8 +2661,10 @@ class MonteCarloAI {
                     : <JassCard>[]);
             if (nonTrump.isNotEmpty) {
               // Schmieren: höchste Punkte, keine sicheren Stichkarten
+              // Böcke behalten – nach ÖFFENTLICHEM Wissen (kein Blick in
+              // fremde Hände; Slalom: beide Richtungen).
               final schmierNt = nonTrump.where((c) =>
-                  !_isHighestRemaining(c, state)).toList();
+                  !_isPublicBock(c, aiPlayer, state)).toList();
               final pool = schmierNt.isNotEmpty ? schmierNt : nonTrump;
               pool.sort((a, b) =>
                   GameLogic.cardPoints(b, effectMode, trump)
@@ -2686,7 +2708,7 @@ class MonteCarloAI {
             // - keine sicheren Stichkarten (höchste verbleibende)
             final schmierbar = notWinning.where((c) =>
                 (trump == null || c.suit != trump || effectMode == GameMode.allesTrumpf) &&
-                !_isHighestRemaining(c, state)).toList();
+                !_isPublicBock(c, aiPlayer, state)).toList();
             if (schmierbar.isNotEmpty) {
               schmierbar.sort((a, b) =>
                   GameLogic.cardPoints(b, effectMode, trump)
@@ -4456,6 +4478,39 @@ class MonteCarloAI {
       if (!isPlayed && !inMyHand) return false; // schlagende Karte liegt verdeckt
     }
     return true;
+  }
+
+  /// Ist [card] ein Bock – nach ÖFFENTLICHEM Wissen? Keine höhere Karte der
+  /// Farbe ist mehr unbekannt (eigene höhere Karten = kontrolliert, z.B. ♦K
+  /// mit eigenem ♦A). Slalom: Bock in Oben ODER Unten (Richtung wechselt).
+  static bool _isPublicBock(JassCard card, Player aiPlayer, GameState state) {
+    final trump = state.trumpSuit;
+    final List<GameMode> modes = state.gameMode == GameMode.slalom
+        ? const [GameMode.oben, GameMode.unten]
+        : [state.effectiveMode];
+    final played = _playedCards(state);
+    // Schafkopf: Trumpf (Damen/Achter/Trumpffarbe) ist farbübergreifend.
+    final sk = state.gameMode == GameMode.schafkopf && trump != null;
+    bool sameGroup(JassCard c) {
+      if (!sk) return c.suit == card.suit;
+      final ct = _isSchafkopfTrump(card, trump), xt = _isSchafkopfTrump(c, trump);
+      return ct ? xt : (!xt && c.suit == card.suit);
+    }
+    final unseen = Deck.allCards(state.cardType)
+        .where((c) =>
+            sameGroup(c) &&
+            c != card &&
+            !played.contains(c) &&
+            !aiPlayer.hand.contains(c))
+        .toList();
+    for (final m in modes) {
+      final t = state.gameMode == GameMode.slalom ? null : trump;
+      final my = GameLogic.cardPlayStrength(card, m, t);
+      if (!unseen.any((c) => GameLogic.cardPlayStrength(c, m, t) > my)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /// Trumpf-Spiele: Gewinnt [card] später sicher einen Stich – nur aus

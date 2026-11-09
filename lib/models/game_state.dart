@@ -168,9 +168,12 @@ class WyssEntry {
 
   String get typeName {
     if (isFourOfAKind) return 'Vier gleiche';
-    if (points == 20) return 'Dreiblatt';
-    if (points == 50) return 'Vierblatt';
-    return 'Fünfblatt';
+    // Name nach Länge der Folge (vorher: alles ab 100 Pkt = "Fünfblatt").
+    final len = CardValue.values.indexOf(topValue) -
+        CardValue.values.indexOf(bottomValue) + 1;
+    const names = {3: 'Dreiblatt', 4: 'Vierblatt', 5: 'Fünfblatt',
+        6: 'Sechsblatt', 7: 'Siebenblatt', 8: 'Achtblatt', 9: 'Neunblatt'};
+    return names[len] ?? 'Fünfblatt';
   }
 
   String get topValueName => _valueName(topValue);

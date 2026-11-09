@@ -169,7 +169,7 @@ class _RulesScreenState extends State<RulesScreen>
 
         _Section(tr('Weisen (Wys)'), [
           _Rule(tr('Vor dem ersten Stich zeigt jeder seine Weis-Kombinationen; die Punkte werden nach dem 1. Stich gutgeschrieben.')),
-          _Rule(tr('Folgen (aufeinanderfolgende Karten gleicher Farbe): Dreiblatt = 20, Vierblatt = 50, Fünfblatt oder länger = 100.')),
+          _Rule(tr('Folgen (aufeinanderfolgende Karten gleicher Farbe): Dreiblatt = 20, Vierblatt = 50, Fünfblatt = 100, jede weitere Karte +50 (Neunblatt = 300). Jede Karte zählt nur für einen Weis.')),
           _Rule(tr('Vierling (vier gleiche Karten): vier Under = 200, vier Näll (9) = 150, alle anderen = 100.')),
           _Rule(tr('Stöck: König + Dame (Ober) der Trumpffarbe = 20 Punkte (nur in Trumpf-Spielen).')),
           _Rule(tr('Nur das Team mit dem höchsten einzelnen Weis erhält alle seine Weis-Punkte – das andere Team erhält keine.')),
