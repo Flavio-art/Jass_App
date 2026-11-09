@@ -1757,32 +1757,64 @@ class GameProvider extends ChangeNotifier {
   // ─── Weisen-Logik ────────────────────────────────────────────────────────
 
   /// Detektiert alle Weisen (Folgen + Vierling) für einen Spieler.
+  /// Kreuzweise ist nicht erlaubt: jede Karte zählt nur für EINEN Weis.
+  /// Gewählt wird die Kombination mit den meisten Punkten (z.B. 4 Buben statt
+  /// Dreiblatt ♦10-U-O, wenn der ♦U in beiden steckt). Dazu für jede Auswahl
+  /// an Vierlingen die Folgen aus den ÜBRIGEN Karten suchen.
   List<WyssEntry> _detectWyssForPlayer(
       List<JassCard> hand, Suit? trumpSuit, String playerId, GameMode mode) {
-    final entries = <WyssEntry>[];
-
-    // Vierling (4 gleiche Werte) – alle Vierlinge sind immer weisbar
     final valueCounts = <CardValue, int>{};
     for (final card in hand) {
       valueCounts[card.value] = (valueCounts[card.value] ?? 0) + 1;
     }
-    for (final ve in valueCounts.entries) {
-      if (ve.value == 4) {
-        final v = ve.key;
-        final pts = v == CardValue.jack ? 200 : (v == CardValue.nine ? 150 : 100);
-        entries.add(WyssEntry(
-          playerId: playerId,
-          isFourOfAKind: true,
-          points: pts,
-          topValue: v,
-          bottomValue: v,
-        ));
+    final quads = valueCounts.entries
+        .where((e) => e.value == 4)
+        .map((e) => e.key)
+        .toList();
+
+    List<WyssEntry> best = const [];
+    int bestPts = -1;
+    for (int mask = 0; mask < (1 << quads.length); mask++) {
+      final chosen = [
+        for (int k = 0; k < quads.length; k++)
+          if (mask & (1 << k) != 0) quads[k]
+      ];
+      final entries = <WyssEntry>[
+        for (final v in chosen)
+          WyssEntry(
+            playerId: playerId,
+            isFourOfAKind: true,
+            points: v == CardValue.jack ? 200 : (v == CardValue.nine ? 150 : 100),
+            topValue: v,
+            bottomValue: v,
+          ),
+        ..._detectRuns(
+            hand.where((c) => !chosen.contains(c.value)).toList(),
+            trumpSuit,
+            playerId),
+      ];
+      final pts = entries.fold<int>(0, (a, e) => a + e.points);
+      // Gleichstand: mehr Vierlinge bevorzugen (stabil, unabhängig von Reihenfolge)
+      if (pts > bestPts) {
+        bestPts = pts;
+        best = entries;
       }
     }
+    return best;
+  }
 
-    // Folgen pro Farbe
-    for (final suit in hand.map((c) => c.suit).toSet()) {
-      final suitVals = hand
+  /// Nur für Tests: Weis-Erkennung direkt aufrufen.
+  @visibleForTesting
+  List<WyssEntry> debugDetectWyss(List<JassCard> hand, Suit? trumpSuit,
+          String playerId, GameMode mode) =>
+      _detectWyssForPlayer(hand, trumpSuit, playerId, mode);
+
+  /// Folgen (≥3 aufeinanderfolgende Karten gleicher Farbe) in [cards].
+  List<WyssEntry> _detectRuns(
+      List<JassCard> cards, Suit? trumpSuit, String playerId) {
+    final entries = <WyssEntry>[];
+    for (final suit in cards.map((c) => c.suit).toSet()) {
+      final suitVals = cards
           .where((c) => c.suit == suit)
           .map((c) => c.value)
           .toList()
@@ -1814,7 +1846,6 @@ class GameProvider extends ChangeNotifier {
         i = j + 1;
       }
     }
-
     return entries;
   }
 

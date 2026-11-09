@@ -170,6 +170,10 @@ const Map<String, String> kFr = {
   'Dreiblatt': 'Suite de 3',
   'Vierblatt': 'Suite de 4',
   'Fünfblatt': 'Suite de 5',
+  'Sechsblatt': 'Suite de 6',
+  'Siebenblatt': 'Suite de 7',
+  'Achtblatt': 'Suite de 8',
+  'Neunblatt': 'Suite de 9',
   'Schaufeln/Kreuz': 'Piques/Trèfles',
   'Herz/Ecken': 'Cœurs/Carreaux',
   '(Tippen zum Schliessen)': '(Touche pour fermer)',
@@ -724,8 +728,8 @@ const Map<String, String> kFr = {
   'Weisen (Wys)': 'Annonces (Wys)',
   'Vor dem ersten Stich zeigt jeder seine Weis-Kombinationen; die Punkte werden nach dem 1. Stich gutgeschrieben.':
       'Avant le premier pli, chacun montre ses combinaisons d\'annonce ; les points sont crédités après le 1er pli.',
-  'Folgen (aufeinanderfolgende Karten gleicher Farbe): Dreiblatt = 20, Vierblatt = 50, Fünfblatt oder länger = 100.':
-      'Suites (cartes consécutives de même couleur) : trois = 20, quatre = 50, cinq ou plus = 100.',
+  'Folgen (aufeinanderfolgende Karten gleicher Farbe): Dreiblatt = 20, Vierblatt = 50, Fünfblatt = 100, jede weitere Karte +50 (Neunblatt = 300). Jede Karte zählt nur für einen Weis.':
+      'Suites (cartes consécutives de même couleur) : trois = 20, quatre = 50, cinq = 100, chaque carte supplémentaire +50 (neuf = 300). Chaque carte ne compte que pour une seule annonce.',
   'Vierling (vier gleiche Karten): vier Under = 200, vier Näll (9) = 150, alle anderen = 100.':
       'Carré (quatre cartes identiques) : quatre Valets = 200, quatre Nell (9) = 150, tous les autres = 100.',
   'Stöck: König + Dame (Ober) der Trumpffarbe = 20 Punkte (nur in Trumpf-Spielen).':

@@ -168,6 +168,10 @@ const Map<String, String> kIt = {
   'Dreiblatt': 'Sequenza di 3',
   'Vierblatt': 'Sequenza di 4',
   'Fünfblatt': 'Sequenza di 5',
+  'Sechsblatt': 'Sequenza di 6',
+  'Siebenblatt': 'Sequenza di 7',
+  'Achtblatt': 'Sequenza di 8',
+  'Neunblatt': 'Sequenza di 9',
   'Schaufeln/Kreuz': 'Picche/Fiori',
   'Herz/Ecken': 'Cuori/Quadri',
   '(Tippen zum Schliessen)': '(Tocca per chiudere)',
@@ -721,8 +725,8 @@ const Map<String, String> kIt = {
   'Weisen (Wys)': 'Dichiarazioni (Wys)',
   'Vor dem ersten Stich zeigt jeder seine Weis-Kombinationen; die Punkte werden nach dem 1. Stich gutgeschrieben.':
       'Prima della prima presa ognuno mostra le sue combinazioni; i punti sono accreditati dopo la 1ª presa.',
-  'Folgen (aufeinanderfolgende Karten gleicher Farbe): Dreiblatt = 20, Vierblatt = 50, Fünfblatt oder länger = 100.':
-      'Sequenze (carte consecutive dello stesso seme): tre = 20, quattro = 50, cinque o più = 100.',
+  'Folgen (aufeinanderfolgende Karten gleicher Farbe): Dreiblatt = 20, Vierblatt = 50, Fünfblatt = 100, jede weitere Karte +50 (Neunblatt = 300). Jede Karte zählt nur für einen Weis.':
+      'Sequenze (carte consecutive dello stesso seme): tre = 20, quattro = 50, cinque = 100, ogni carta in più +50 (nove = 300). Ogni carta conta per una sola dichiarazione.',
   'Vierling (vier gleiche Karten): vier Under = 200, vier Näll (9) = 150, alle anderen = 100.':
       'Quattro uguali (quattro carte identiche): quattro Fanti = 200, quattro Näll (9) = 150, tutti gli altri = 100.',
   'Stöck: König + Dame (Ober) der Trumpffarbe = 20 Punkte (nur in Trumpf-Spielen).':

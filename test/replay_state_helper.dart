@@ -29,11 +29,14 @@ GameState stateBefore(Map g, int trickNo, String pid) {
   }
   final players = [for (int i = 0; i < 4; i++)
     Player(id: ids[i], name: g['playerNames'][ids[i]], position: pos[i], hand: hands[ids[i]]!)];
-  return GameState(players: players, gameType: GameType.friseur, cardType: CardType.french,
+  final gt = GameType.values.byName(g['gameType']);
+  final isFriseur = gt == GameType.friseur;
+  return GameState(players: players, gameType: gt, cardType: CardType.french,
+      slalomStartsOben: g['slalomStartsOben'] ?? true,
       gameMode: GameMode.values.byName(g['gameMode']), trumpSuit: g['trumpSuit'] == null ? null : Suit.values.byName(g['trumpSuit']),
       phase: GamePhase.playing, ansagerIndex: ids.indexOf(g['ansagerId']),
-      friseurPartnerIndex: ids.indexOf(g['partnerId']), friseurPartnerRevealed: completed.any((t) => t.cards.values.contains(_card(g['wishCard']))),
-      wishCard: _card(g['wishCard']), currentPlayerIndex: ids.indexOf(pid),
+      friseurPartnerIndex: isFriseur ? ids.indexOf(g['partnerId']) : null, friseurPartnerRevealed: isFriseur && completed.any((t) => t.cards.values.contains(_card(g['wishCard']))),
+      wishCard: g['wishCard'] == null ? null : _card(g['wishCard']), currentPlayerIndex: ids.indexOf(pid),
       completedTricks: completed, currentTrickCards: curCards, currentTrickPlayerIds: curIds);
 }
 
