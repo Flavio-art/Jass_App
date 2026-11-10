@@ -684,6 +684,9 @@ const Map<String, String> kFr = {
       'Manche 2 – les adversaires sont agacés ! Tu peux rechibrer.',
   'Du sagst an – wähle Modus & Wunschkarte':
       'Tu annonces – choisis le mode & la carte souhaitée',
+  'Richtung: {0}': 'Sens : {0}',
+  '↕️ {0} sagt Slalom': '↕️ {0} annonce Slalom',
+  'Du hast geschoben – du bestimmst die Richtung des 1. Stichs.': 'Tu as passé – tu choisis le sens du 1er pli.',
   'Ansager wählt Richtung': 'Le preneur choisit le sens',
   'Start: Oben ⬇️': 'Début : Haut ⬇️',
   'Start: Unten ⬆️': 'Début : Bas ⬆️',

@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../l10n/tr.dart';
+import '../l10n/push_phrases.dart';
 import '../models/card_model.dart';
 import '../models/deck.dart';
 import '../models/game_state.dart';
@@ -48,6 +49,37 @@ class GameProvider extends ChangeNotifier {
   /// KI-Schritte merken sich den Wert und brechen ab, wenn er nicht mehr
   /// passt – sonst handeln sie nach dem Verlassen im falschen Spiel weiter.
   int _flowGen = 0;
+
+  /// Schieben-Banner in der Tischmitte (kurz eingeblendet). [pushBannerSeq]
+  /// zählt hoch, damit das Banner bei jedem Schieben neu animiert.
+  String? pushBanner;
+  int pushBannerSeq = 0;
+
+  /// Schieber: Partner (KI) hat nach dem Schieben Slalom angesagt, der
+  /// Mensch hat geschoben → er bestimmt die Startrichtung.
+  bool slalomDirectionPending = false;
+  ({Suit? trumpSuit, JassCard? wishCard})? _pendingSlalom;
+
+  void _showPushBanner(String name) {
+    pushBanner = pushPhrase(name);
+    final seq = ++pushBannerSeq;
+    Future.delayed(const Duration(milliseconds: 2000), () {
+      if (seq != pushBannerSeq) return;
+      pushBanner = null;
+      notifyListeners();
+    });
+  }
+
+  /// Mensch wählt die Slalom-Richtung (nachdem der Partner Slalom angesagt hat).
+  void chooseSlalomDirection(bool startsOben) {
+    final p = _pendingSlalom;
+    if (!slalomDirectionPending || p == null) return;
+    slalomDirectionPending = false;
+    _pendingSlalom = null;
+    selectGameMode(GameMode.slalom,
+        trumpSuit: p.trumpSuit, slalomStartsOben: startsOben, wishCard: p.wishCard,
+        directionFixed: true);
+  }
 
   /// Schutz gegen doppeltes Archivieren desselben Spiels (Statistik/Analytics).
   bool _gameArchived = false;
@@ -124,6 +156,8 @@ class GameProvider extends ChangeNotifier {
     if (jsonStr == null) return false;
     try {
       _flowGen++;
+      slalomDirectionPending = false;
+      _pendingSlalom = null;
       _gameArchived = false;
       _aiRunning = false;
       _humanWyssDecisionPending = false;
@@ -355,6 +389,8 @@ class GameProvider extends ChangeNotifier {
     int differenzlerMaxRounds = 4,
   }) {
     _flowGen++;
+    slalomDirectionPending = false;
+    _pendingSlalom = null;
     _gameArchived = false;
     _clearTrickTimer?.cancel();
     _clearTrickTimer = null;
@@ -708,6 +744,8 @@ class GameProvider extends ChangeNotifier {
 
   void startNewRound() {
     _aiRunning = false;
+    slalomDirectionPending = false;
+    _pendingSlalom = null;
     _aiDecisionLogs.clear();
     _announceLog.clear();
     _roundContext = {};
@@ -1116,6 +1154,9 @@ class GameProvider extends ChangeNotifier {
     if (_state.phase != GamePhase.trumpSelection) return;
     if (_state.gameType != GameType.friseur) {
       _announceLog.add('${_state.currentTrumpSelector.name}: schiebt');
+      if (_state.gameType == GameType.schieber) {
+        _showPushBanner(_state.currentTrumpSelector.name);
+      }
     }
 
     if (_state.gameType == GameType.schieber) {
@@ -1124,7 +1165,14 @@ class GameProvider extends ChangeNotifier {
       final partnerIndex = (_state.ansagerIndex + 2) % 4;
       _state = _state.copyWith(trumpSelectorIndex: partnerIndex, roundGeschoben: true);
       notifyListeners();
-      if (!_state.currentTrumpSelector.isHuman) _autoSelectMode();
+      if (!_state.currentTrumpSelector.isHuman) {
+        // Banner erst lesen lassen, dann sagt der Partner an.
+        final gen = _flowGen;
+        Future.delayed(const Duration(milliseconds: 700), () {
+          if (gen != _flowGen) return;
+          _autoSelectMode();
+        });
+      }
       return;
     }
 
@@ -2555,7 +2603,29 @@ class GameProvider extends ChangeNotifier {
   // ─── Spielmodus wählen ───────────────────────────────────────────────────
 
   void selectGameMode(GameMode mode,
-      {Suit? trumpSuit, bool slalomStartsOben = true, JassCard? wishCard}) {
+      {Suit? trumpSuit,
+      bool slalomStartsOben = true,
+      JassCard? wishCard,
+      bool directionFixed = false}) {
+    // Schieber nach Schieben + Slalom: wer GESCHOBEN hat, bestimmt die
+    // Startrichtung. KI-Schiebender → nach eigenen sicheren Stichen; Mensch
+    // → Auswahl einblenden (chooseSlalomDirection).
+    if (!directionFixed &&
+        mode == GameMode.slalom &&
+        _state.gameType == GameType.schieber &&
+        _state.roundGeschoben &&
+        _state.trumpSelectorIndex != null &&
+        !_tutorialMode) {
+      final pusher = _state.players[_state.ansagerIndex];
+      if (pusher.isHuman) {
+        _pendingSlalom = (trumpSuit: trumpSuit, wishCard: wishCard);
+        slalomDirectionPending = true;
+        notifyListeners();
+        return;
+      }
+      slalomStartsOben =
+          ModeSelectorAI.slalomStartsObenFor(pusher.hand, _state.cardType);
+    }
     _roundContext = _snapshotRoundContext();
     _announceLog.add('${_state.currentTrumpSelector.name}: sagt an → '
         '${_state.variantKey(mode, trumpSuit: trumpSuit)}'
@@ -3621,6 +3691,8 @@ class GameProvider extends ChangeNotifier {
 
   void resetToSetup() {
     _flowGen++;
+    slalomDirectionPending = false;
+    _pendingSlalom = null;
     _clearTrickTimer?.cancel();
     _clearTrickTimer = null;
     _aiRunning = false;

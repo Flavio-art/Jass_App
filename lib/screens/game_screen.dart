@@ -592,6 +592,8 @@ class _GameScreenState extends State<GameScreen> {
                                     slalomStartsOben: state.slalomStartsOben,
                                     cardType: state.cardType,
                                     geschoben: state.roundGeschoben,
+                                    highlightGeschoben:
+                                        state.gameType == GameType.schieber,
                                     // Differenzler hat keinen Ansager → kein Name.
                                     announcerName:
                                         state.gameType == GameType.differenzler
@@ -959,6 +961,31 @@ class _GameScreenState extends State<GameScreen> {
                     state: state,
                     onAcknowledge: () =>
                         context.read<GameProvider>().acknowledgeWyssReveal(),
+                  ),
+
+                // ── Schieben-Banner (Tischmitte, ~1.5 s) ──────────────
+                if (provider.pushBanner != null)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: Center(
+                        child: _PushBanner(
+                          key: ValueKey(provider.pushBannerSeq),
+                          text: provider.pushBanner!,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                // ── Slalom-Richtung: Mensch hat geschoben ──────────────
+                if (provider.slalomDirectionPending &&
+                    state.phase == GamePhase.trumpSelection)
+                  Positioned.fill(
+                    child: _SlalomDirectionOverlay(
+                      announcer: state.currentTrumpSelector.name,
+                      onPick: (oben) => context
+                          .read<GameProvider>()
+                          .chooseSlalomDirection(oben),
+                    ),
                   ),
 
                 // ── Stöcke-Toast ──────────────────────────────────────
@@ -4191,6 +4218,7 @@ class _FriseurModeLabel extends StatelessWidget {
   final bool slalomStartsOben;
   final CardType cardType;
   final bool geschoben;
+  final bool highlightGeschoben;
   final String announcerName;
 
   const _FriseurModeLabel({
@@ -4201,6 +4229,7 @@ class _FriseurModeLabel extends StatelessWidget {
     this.slalomStartsOben = true,
     this.cardType = CardType.french,
     this.geschoben = false,
+    this.highlightGeschoben = false,
     required this.announcerName,
   });
 
@@ -4224,7 +4253,16 @@ class _FriseurModeLabel extends StatelessWidget {
           _buildMode(),
           if (geschoben)
             Text(tr('Geschoben'),
-                style: TextStyle(color: Colors.white38, fontSize: 7, fontStyle: FontStyle.italic)),
+                style: highlightGeschoben
+                    ? TextStyle(
+                        color: Colors.lightBlueAccent.shade100,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        fontStyle: FontStyle.italic)
+                    : const TextStyle(
+                        color: Colors.white38,
+                        fontSize: 7,
+                        fontStyle: FontStyle.italic)),
         ],
       ),
     );
@@ -4781,6 +4819,138 @@ class _StockeToastState extends State<_StockeToast> {
                 fontSize: 15,
                 fontWeight: FontWeight.bold),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+
+/// Kurzes Banner „{Name} schiebt" in der Tischmitte: ein-, kurz halten, aus.
+class _PushBanner extends StatefulWidget {
+  final String text;
+  const _PushBanner({super.key, required this.text});
+
+  @override
+  State<_PushBanner> createState() => _PushBannerState();
+}
+
+class _PushBannerState extends State<_PushBanner>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 1600))
+    ..forward();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, child) {
+        final t = _c.value;
+        // 0–12 % einblenden, bis 80 % halten, dann ausblenden.
+        final o = t < 0.12 ? t / 0.12 : (t < 0.8 ? 1.0 : (1 - t) / 0.2);
+        final scale = t < 0.12 ? 0.85 + 0.15 * (t / 0.12) : 1.0;
+        return Opacity(
+            opacity: o.clamp(0.0, 1.0),
+            child: Transform.scale(scale: scale, child: child));
+      },
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 300),
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.blueGrey.shade900.withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.lightBlueAccent.shade100, width: 1.5),
+          boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 12)],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.swap_horiz, color: Colors.lightBlueAccent.shade100, size: 22),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                widget.text,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Partner hat nach dem Schieben Slalom angesagt → Mensch (Schiebender)
+/// bestimmt, ob der erste Stich Obenabe oder Undenufe ist.
+class _SlalomDirectionOverlay extends StatelessWidget {
+  final String announcer;
+  final void Function(bool startsOben) onPick;
+  const _SlalomDirectionOverlay({required this.announcer, required this.onPick});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget btn(String label, String sub, String emoji, Color color, bool oben) =>
+        Expanded(
+          child: GestureDetector(
+            onTap: () => onPick(oben),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                  color: color, borderRadius: BorderRadius.circular(14)),
+              child: Column(children: [
+                Text(emoji, style: const TextStyle(fontSize: 22)),
+                const SizedBox(height: 4),
+                Text(label,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold)),
+                Text(sub,
+                    style: const TextStyle(color: Colors.white70, fontSize: 11)),
+              ]),
+            ),
+          ),
+        );
+    return Container(
+      color: Colors.black45,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 380),
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1B3A2A),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.purple.shade300, width: 1.5),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(trp('↕️ {0} sagt Slalom', [announcer]),
+                style: const TextStyle(
+                    color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            Text(tr('Du hast geschoben – du bestimmst die Richtung des 1. Stichs.'),
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white70, fontSize: 13)),
+            const SizedBox(height: 14),
+            Row(children: [
+              btn('Obenabe', tr('1. Stich: Ass gewinnt'), '⬇️',
+                  Colors.blue.shade700, true),
+              const SizedBox(width: 10),
+              btn('Undenufe', tr('1. Stich: 6 gewinnt'), '⬆️',
+                  Colors.orange.shade800, false),
+            ]),
+          ],
         ),
       ),
     );

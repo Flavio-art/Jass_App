@@ -681,6 +681,9 @@ const Map<String, String> kIt = {
       'Mano 2 – gli avversari sono spazientiti! Puoi passare di nuovo.',
   'Du sagst an – wähle Modus & Wunschkarte':
       'Dichiari tu – scegli modalità & carta desiderata',
+  'Richtung: {0}': 'Direzione: {0}',
+  '↕️ {0} sagt Slalom': '↕️ {0} dichiara Slalom',
+  'Du hast geschoben – du bestimmst die Richtung des 1. Stichs.': 'Hai passato – scegli tu la direzione della 1ª presa.',
   'Ansager wählt Richtung': 'Il dichiarante sceglie la direzione',
   'Start: Oben ⬇️': 'Inizio: Alto ⬇️',
   'Start: Unten ⬆️': 'Inizio: Basso ⬆️',

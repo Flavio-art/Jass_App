@@ -1504,6 +1504,22 @@ class ModeSelectorAI {
   }
 
   /// Zählt sichere Oben-Stiche in einer Farbe (Ass, Ass+König=2, Ass+König+Dame=3, etc.)
+  /// Slalom-Startrichtung für [hand]: die Richtung mit mehr sicheren eigenen
+  /// Stichen zuerst (wie bei der eigenen Slalom-Ansage). Wird im Schieber
+  /// genutzt, wenn nach dem Schieben der Partner Slalom ansagt und der
+  /// Schiebende (KI) die Richtung bestimmt.
+  static bool slalomStartsObenFor(List<JassCard> hand, CardType cardType) {
+    final suits = cardType == CardType.french
+        ? const [Suit.spades, Suit.hearts, Suit.diamonds, Suit.clubs]
+        : const [Suit.schellen, Suit.herzGerman, Suit.eichel, Suit.schilten];
+    int o = 0, u = 0;
+    for (final s in suits) {
+      o += _safeTricksOben(hand, s);
+      u += _safeTricksUnten(hand, s);
+    }
+    return o >= u;
+  }
+
   static int _safeTricksOben(List<JassCard> hand, Suit suit) {
     final vals = hand.where((c) => c.suit == suit).map((c) => c.value).toSet();
     // Von oben nach unten: Ass → König → Dame → Bauer → Zehn → ...

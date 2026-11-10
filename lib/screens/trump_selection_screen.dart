@@ -399,7 +399,7 @@ class TrumpSelectionScreen extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(child: _ModeButton(label: 'Slalom', subtitle: tr('Ansager wählt Richtung'), emoji: '↕️',
+              Expanded(child: _ModeButton(label: 'Slalom', subtitle: trp('Richtung: {0}', [state.players[state.ansagerIndex].name]), emoji: '↕️',
                 color: Colors.purple.shade700, isAvailable: available.contains('slalom'),
                 multiplier: mults['slalom'],
                 onTap: () => _selectMode(context, GameMode.slalom))),
