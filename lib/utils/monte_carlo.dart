@@ -122,6 +122,192 @@ class MonteCarloAI {
     required Player aiPlayer,
     required GameState state,
   }) {
+    final card = _chooseCardCore(aiPlayer: aiPlayer, state: state);
+    if (bypassOverrides || state.gameType == GameType.differenzler) return card;
+    final polished = _polishSideCard(card, aiPlayer, state);
+    if (polished.card != card) {
+      lastChoicePath = '$lastChoicePath+${polished.label}';
+    }
+    return polished.card;
+  }
+
+  /// Nachbearbeitung im Trumpfspiel (alle Spielarten), nur öffentliches Wissen:
+  ///  1. Kein Ass/10er in einen sicheren Abstich: Ein Gegner, der die Farbe
+  ///     öffentlich nicht mehr hat und noch Trumpf haben kann, sitzt dahinter
+  ///     (bzw. beim Anspiel irgendwo) → tiefe Karte statt der Punkte.
+  ///     Anspiel: Farbe wechseln (bevorzugt eine ohne eigenes Ass) und dem
+  ///     Partner übergeben; das Ass kommt später, wenn man hinter dem
+  ///     Trumpf-Gegner sitzt.
+  ///  2. Gleichwertige Karten (dazwischen nichts mehr im Spiel, z.B. Ass+König):
+  ///     Geht der Stich sicher ans eigene Team → die punktreichste (Ass zuerst
+  ///     nach Hause, der König bleibt Bock); sicher an die Gegner → die
+  ///     punktärmste.
+  @visibleForTesting
+  static ({JassCard card, String label}) debugPolishSideCard(
+          JassCard card, Player aiPlayer, GameState state) =>
+      _polishSideCard(card, aiPlayer, state);
+
+  static ({JassCard card, String label}) _polishSideCard(
+      JassCard card, Player aiPlayer, GameState state) {
+    final none = (card: card, label: '');
+    final trump = state.trumpSuit;
+    if (trump == null ||
+        (state.gameMode != GameMode.trump &&
+            state.gameMode != GameMode.trumpUnten)) {
+      return none;
+    }
+    if (card.suit == trump) return none;
+    final mode = state.effectiveMode;
+    int pts(JassCard c) => GameLogic.cardPoints(c, mode, trump);
+    int str(JassCard c) => GameLogic.cardPlayStrength(c, mode, trump);
+    final hand = aiPlayer.hand;
+    final playable = _getPlayable(aiPlayer, state);
+    if (!playable.contains(card)) return none;
+
+    final played = _playedCards(state);
+    final unseenTrumps = Deck.allCards(state.cardType)
+        .where((c) => c.suit == trump && !played.contains(c) && !hand.contains(c))
+        .toList();
+    final buurUnseen =
+        unseenTrumps.any((c) => c.value == CardValue.jack);
+    final voids = _inferVoidSuits(state);
+    bool canRuff(Player o, Suit s) {
+      if (unseenTrumps.isEmpty) return false;
+      final v = voids[o.id] ?? const <Suit>{};
+      if (!v.contains(s)) return false;
+      return !v.contains(trump) || buurUnseen;
+    }
+
+    final opponents =
+        state.players.where((p) => !_sameTeamFor(aiPlayer, p, state)).toList();
+    final leading = state.currentTrickCards.isEmpty;
+    final acted = state.currentTrickPlayerIds.toSet();
+    final behindOpps = opponents.where((p) => !acted.contains(p.id)).toList();
+    final partnerBehind = state.players.any((p) =>
+        p.id != aiPlayer.id &&
+        _sameTeamFor(aiPlayer, p, state) &&
+        !acted.contains(p.id));
+    final trumpInTrick = state.currentTrickCards.any((c) => c.suit == trump);
+
+    var chosen = card;
+    var label = '';
+
+    // ── 1. Kein Ass/10er in einen sicheren Abstich ──────────────────────────
+    if (pts(chosen) >= 10) {
+      if (leading && opponents.any((o) => canRuff(o, chosen.suit))) {
+        final danger = chosen.suit;
+        bool suitDanger(Suit s) => opponents.any((o) => canRuff(o, s));
+        final alts = playable
+            .where((c) =>
+                c.suit != trump &&
+                c.suit != danger &&
+                !(pts(c) >= 10 && suitDanger(c.suit)) &&
+                pts(c) < pts(chosen))
+            .toList();
+        if (alts.isNotEmpty) {
+          bool ownAce(Suit s) =>
+              hand.any((h) => h.suit == s && h.value == CardValue.ace);
+          alts.sort((a, b) {
+            final ac = (ownAce(a.suit) ? 1 : 0) - (ownAce(b.suit) ? 1 : 0);
+            if (ac != 0) return ac;
+            final pc = pts(a) - pts(b);
+            if (pc != 0) return pc;
+            return str(a) - str(b);
+          });
+          chosen = alts.first;
+          label = 'KeinAss_InAbstich';
+        }
+      } else if (!leading &&
+          !trumpInTrick &&
+          chosen.suit == state.currentTrickCards.first.suit &&
+          behindOpps.any((o) => canRuff(o, chosen.suit))) {
+        final same = playable.where((c) => c.suit == chosen.suit).toList()
+          ..sort((a, b) {
+            final pc = pts(a) - pts(b);
+            return pc != 0 ? pc : str(a) - str(b);
+          });
+        if (same.isNotEmpty && pts(same.first) < pts(chosen)) {
+          chosen = same.first;
+          label = 'KeinAss_VorAbstich';
+        }
+      }
+    }
+
+    // ── 2. Gleichwertige Karten: Punkte richtig verteilen ───────────────────
+    // Dazwischen liegende Karten nur aus abgeschlossenen Stichen oder eigener
+    // Hand (Karten im laufenden Stich zählen NICHT, sonst wäre z.B. K≈10 obwohl
+    // der Gegner gerade den Buur dazwischen gelegt hat).
+    final done = <JassCard>{
+      for (final t in state.completedTricks) ...t.cards.values,
+    };
+    final suitAll = Deck.allCards(state.cardType)
+        .where((c) => c.suit == chosen.suit)
+        .toList();
+    bool equivalent(JassCard a, JassCard b) {
+      final lo = math.min(str(a), str(b)), hi = math.max(str(a), str(b));
+      return suitAll.every((c) =>
+          str(c) <= lo || str(c) >= hi || done.contains(c) || hand.contains(c));
+    }
+    final chain =
+        playable.where((c) => c.suit == chosen.suit && equivalent(c, chosen)).toList();
+    if (chain.length < 2) {
+      return (card: chosen, label: label);
+    }
+
+    bool? ours;
+    if (leading) {
+      final noHigherUnseen = !suitAll.any((c) =>
+          str(c) > str(chosen) && !played.contains(c) && !hand.contains(c));
+      if (noHigherUnseen && !opponents.any((o) => canRuff(o, chosen.suit))) {
+        ours = true;
+      }
+    } else {
+      final cards = [...state.currentTrickCards, chosen];
+      final ids = [...state.currentTrickPlayerIds, aiPlayer.id];
+      final w = GameLogic.determineTrickWinner(
+        cards: cards,
+        playerIds: ids,
+        gameMode: state.gameMode,
+        trumpSuit: trump,
+        trickNumber: state.currentTrickNumber,
+        molotofSubMode: state.molotofSubMode,
+        slalomStartsOben: state.slalomStartsOben,
+      );
+      final wp = state.players.firstWhere((p) => p.id == w);
+      final wCard = cards[ids.indexOf(w)];
+      if (_sameTeamFor(aiPlayer, wp, state)) {
+        if (behindOpps.isEmpty ||
+            (_isSafeVsUnseen(wCard, aiPlayer, state) &&
+                !behindOpps.any((o) => canRuff(o, cards.first.suit)) &&
+                !(wCard.suit != trump && trumpInTrick))) {
+          ours = true;
+        }
+      } else if (!partnerBehind) {
+        // Gegner führt, mein Partner kommt nicht mehr: Stich geht weg, sofern
+        // keine Karte der Kette ihn übernimmt (gleichwertig → alle gleich).
+        ours = false;
+      }
+    }
+    if (ours == null) return (card: chosen, label: label);
+    chain.sort((a, b) {
+      final pc = ours! ? pts(b) - pts(a) : pts(a) - pts(b);
+      return pc != 0 ? pc : str(a) - str(b);
+    });
+    if (pts(chain.first) != pts(chosen)) {
+      return (
+        card: chain.first,
+        label: label.isEmpty
+            ? (ours ? 'Gleichwertig_Punkte_Heim' : 'Gleichwertig_Billig')
+            : '$label+${ours ? 'Gleichwertig_Punkte_Heim' : 'Gleichwertig_Billig'}'
+      );
+    }
+    return (card: chosen, label: label);
+  }
+
+  static JassCard _chooseCardCore({
+    required Player aiPlayer,
+    required GameState state,
+  }) {
     // Molotof vor Trumpfbestimmung: MC kann Moduswechsel nicht simulieren → greedy
     if (state.gameMode == GameMode.molotof && state.molotofSubMode == null) {
       return GameLogic.chooseCard(aiPlayer: aiPlayer, state: state);

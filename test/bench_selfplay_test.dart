@@ -58,6 +58,8 @@ void main() {
   bool isT1(Player p) =>
       p.position == PlayerPosition.south || p.position == PlayerPosition.north;
 
+  var mcIsT1 = true;
+  var ruffedHigh = 0;
   GameState applyCard(GameState s, String pid, JassCard card) {
     final pidx = s.players.indexWhere((p) => p.id == pid);
     final players = List<Player>.from(s.players);
@@ -76,6 +78,23 @@ void main() {
       trickNumber: s.currentTrickNumber, molotofSubMode: s.molotofSubMode,
       slalomStartsOben: s.slalomStartsOben,
     );
+    // Zähler: Ass/10er des MC-Teams (Nebenfarbe) vom Gegner abgestochen.
+    if (s.trumpSuit != null &&
+        (s.gameMode == GameMode.trump || s.gameMode == GameMode.trumpUnten)) {
+      final wIdx = tpids.indexOf(winner);
+      final wP = s.players.firstWhere((p) => p.id == winner);
+      if (trick[wIdx].suit == s.trumpSuit) {
+        for (int i = 0; i < 4; i++) {
+          final pl = s.players.firstWhere((p) => p.id == tpids[i]);
+          final c = trick[i];
+          if (isT1(pl) == mcIsT1 && isT1(wP) != mcIsT1 &&
+              c.suit != s.trumpSuit &&
+              (c.value == CardValue.ace || c.value == CardValue.ten)) {
+            ruffedHigh++;
+          }
+        }
+      }
+    }
     final completed = List<Trick>.from(s.completedTricks)
       ..add(Trick(
           cards: {for (int i = 0; i < 4; i++) tpids[i]: trick[i]},
@@ -147,9 +166,14 @@ void main() {
       for (int i = seedOffset; i < seedOffset + deals; i++) {
         final seed = 700000 + md.$1.hashCode.abs() % 1000 * 1000 + i;
         // OFFENSE: team1 = MC, team2 = Greedy
+        ruffedHigh = 0;
+        mcIsT1 = true;
         final o = playGame(mk(seed, md.$2, md.$3), md.$2, mcPolicy, greedyPolicy);
         // DEFENSE: team1 = Greedy, team2 = MC
+        mcIsT1 = false;
         final d = playGame(mk(seed, md.$2, md.$3), md.$2, greedyPolicy, mcPolicy);
+        // ignore: avoid_print
+        if (dump) print('RUFF ${md.$1} $seed $ruffedHigh');
         off += o;
         def += d;
         // ignore: avoid_print
