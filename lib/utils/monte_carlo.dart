@@ -164,10 +164,10 @@ class MonteCarloAI {
       final trump = state.trumpSuit!;
       final effMode = state.effectiveMode;
       final myTrumps = playable.where((c) => c.suit == trump).toList();
-      final oppHaveTrump = state.players
-          .where((p) => !_sameTeamFor(aiPlayer, p, state))
-          .expand((p) => p.hand)
-          .any((c) => c.suit == trump);
+      // Öffentliches Wissen (kein Blick in fremde Hände): Können die Gegner
+      // noch einen ziehbaren Trumpf (≠ Buur) halten? Den Buur muss man nie
+      // zugeben → ihn kann Trumpfziehen nicht herausholen.
+      final oppHaveTrump = _oppMayHoldPullableTrump(aiPlayer, state, trump);
 
       if (myTrumps.isNotEmpty && oppHaveTrump) {
         // Variante A: immer die höchste Trumpfkarte anführen.
@@ -952,8 +952,11 @@ class MonteCarloAI {
       if (trumpCards.isNotEmpty) {
         // Einziger Spieler mit Trumpf → Trumpf sparen, Nebenfarbe spielen
         // Nur Team hat Trumpf → ebenfalls sparen (sonst 2 Trümpfe für 1 Stich)
+        // Gegner höchstens noch mit Buur (öffentlich) → Ziehen zwecklos.
+        // Gilt in allen Spielarten (Schieber, Wunschkarte, Coiffeur).
         if (_onlyPlayerWithTrump(aiPlayer, state, trump) ||
-            onlyTeamHasTrump(aiPlayer, state, trump)) {
+            onlyTeamHasTrump(aiPlayer, state, trump) ||
+            !_oppMayHoldPullableTrump(aiPlayer, state, trump)) {
           final nonTrump = playable.where((c) => c.suit != trump).toList();
           if (nonTrump.isNotEmpty) {
             final safeNonTrump = nonTrump
@@ -4548,6 +4551,65 @@ class MonteCarloAI {
       if (winnerCard == null || winnerCard.suit != suit) continue;
       final theirs = t.cards[playerId];
       if (theirs != null && theirs.suit != suit) return true;
+    }
+    return false;
+  }
+
+  /// Ob ein Gegner nach ÖFFENTLICHEM Wissen noch einen Trumpf halten kann,
+  /// der sich durch Trumpfziehen herausholen lässt (also nicht der Buur, den
+  /// man nie zugeben muss). Rückschlüsse aus gespielten Trumpf-Stichen:
+  ///  • Nicht bedient auf Trumpf-Anspiel → höchstens noch der Buur.
+  ///  • Erzwungenes Bedienen: Wer auf Trumpf-Anspiel einen Trumpf zugibt,
+  ///    während der Stich an die Gegenseite geht und seine Karte nicht sticht,
+  ///    gibt den tiefsten Trumpf (freiwillig verschenkt man nichts) → er hat
+  ///    keinen schwächeren Trumpf mehr.
+  static bool _oppMayHoldPullableTrump(
+      Player aiPlayer, GameState state, Suit trump) {
+    final mode = state.effectiveMode;
+    int str(JassCard c) => GameLogic.cardPlayStrength(c, mode, trump);
+    bool isBuur(JassCard c) => c.suit == trump && c.value == CardValue.jack;
+    final played = _playedCards(state);
+    final unseen = Deck.allCards(state.cardType)
+        .where((c) =>
+            c.suit == trump &&
+            !isBuur(c) &&
+            !played.contains(c) &&
+            !aiPlayer.hand.contains(c))
+        .toList();
+    if (unseen.isEmpty) return false;
+
+    final byId = {for (final p in state.players) p.id: p};
+    for (final opp in state.players) {
+      if (_sameTeamFor(aiPlayer, opp, state)) continue;
+      var voidT = false;
+      int? floor; // hält keinen Trumpf schwächer als diese Stärke
+      for (final t in state.completedTricks) {
+        if (t.cards.isEmpty) continue;
+        final entries = t.cards.entries.toList();
+        if (entries.first.value.suit != trump) continue;
+        JassCard? best;
+        String? bestId;
+        for (final e in entries) {
+          if (e.key == opp.id && e != entries.first) {
+            final mine = e.value;
+            if (mine.suit != trump) {
+              voidT = true;
+            } else if (!isBuur(mine) &&
+                best != null &&
+                str(mine) < str(best) &&
+                !_sameTeamFor(opp, byId[bestId]!, state)) {
+              final s = str(mine);
+              if (floor == null || s > floor) floor = s;
+            }
+          }
+          if (e.value.suit == trump && (best == null || str(e.value) > str(best))) {
+            best = e.value;
+            bestId = e.key;
+          }
+        }
+      }
+      if (voidT) continue;
+      if (unseen.any((c) => floor == null || str(c) > floor)) return true;
     }
     return false;
   }
