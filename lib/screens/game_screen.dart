@@ -505,7 +505,10 @@ class _GameScreenState extends State<GameScreen> {
                                                   teamScores: state.teamScores,
                                                   roundNumber: state.roundNumber,
                                                   winTarget: state.schieberWinTarget,
-                                                  isRoundEnd: state.phase == GamePhase.roundEnd,
+                                                  // Auch am Spielende ist die letzte Runde schon im
+                                                  // Gesamtstand → nicht nochmals addieren.
+                                                  isRoundEnd: state.phase == GamePhase.roundEnd ||
+                                                      state.phase == GamePhase.gameEnd,
                                                   multiplier: _schieberMultiplier(state),
                                                   wyssBonus1: wb1,
                                                   wyssBonus2: wb2,
