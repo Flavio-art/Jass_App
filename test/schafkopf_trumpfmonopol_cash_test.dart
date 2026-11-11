@@ -5,7 +5,7 @@ import 'package:jass_app/models/game_state.dart';
 import 'package:jass_app/utils/monte_carlo.dart';
 
 /// Schafkopf, Trumpf Kreuz, Team-Trumpf-Monopol (Gegner p1/p3 haben KEINE
-/// Trümpfe). AI p0 ist im Ausspiel und hat einen gewinnenden ♥10 (höchster
+/// Trümpfe – öffentlich aus Stich 1 ersichtlich). AI p0 ist im Ausspiel und hat einen gewinnenden ♥10 (höchster
 /// Nicht-Trumpf) + tiefen ♦6. Sie soll den ♥10 CASHEN, nicht tief anspielen.
 void main() {
   JassCard c(Suit s, CardValue v) => JassCard(suit: s, value: v, cardType: CardType.french);
@@ -34,6 +34,16 @@ void main() {
       ansagerIndex: 0, friseurPartnerIndex: 2, friseurPartnerRevealed: true,
       wishCard: c(Suit.hearts, CardValue.seven), // Nicht-Dame → Anspiel-Block läuft
       currentTrickCards: const [], currentTrickPlayerIds: const [], currentPlayerIndex: 0,
+      // Öffentlich: Trumpf (♣K) angespielt, beide Gegner gaben Nicht-Trumpf
+      // zu → sie haben sicher keinen Trumpf mehr (KI schaut nicht in Hände).
+      completedTricks: [
+        Trick(cards: {
+          'p0': c(Suit.clubs, CardValue.king),
+          'p1': c(Suit.diamonds, CardValue.seven),
+          'p2': c(Suit.clubs, CardValue.nine),
+          'p3': c(Suit.spades, CardValue.seven),
+        }, winnerId: 'p0', trickNumber: 1),
+      ],
     );
     final chosen = MonteCarloAI.chooseCard(aiPlayer: p0, state: state);
     // ignore: avoid_print

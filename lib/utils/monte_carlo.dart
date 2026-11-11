@@ -51,6 +51,7 @@ class MonteCarloAI {
   /// fixem Abwurf (`auto_L1419`).
   static bool slalomMcFallback = true;
 
+
   /// Schaltet die neuen Jasser-Anspiel-Konventionen (Rule 1/6/8/10) ein/aus.
   /// Nur zum Isolieren ihres Beitrags im Benchmark. Default true = aktiv.
   static bool jasserConventions = true;
@@ -130,13 +131,138 @@ class MonteCarloAI {
     required Player aiPlayer,
     required GameState state,
   }) {
-    final card = _chooseCardCore(aiPlayer: aiPlayer, state: state);
-    if (bypassOverrides || state.gameType == GameType.differenzler) return card;
-    final polished = _polishSideCard(card, aiPlayer, state);
-    if (polished.card != card) {
-      lastChoicePath = '$lastChoicePath+${polished.label}';
+    // Öffentliche Sicht: alle Heuristiken sehen nur, was [aiPlayer] wissen
+    // kann (eigene Hand, gespielte Karten, Fehlfarben, Weis).
+    final prevViewer = _viewerId;
+    _viewerId = aiPlayer.id;
+    try {
+      final card = _chooseCardCore(aiPlayer: aiPlayer, state: state);
+      if (bypassOverrides || state.gameType == GameType.differenzler) {
+        return card;
+      }
+      final polished = _polishSideCard(card, aiPlayer, state);
+      if (polished.card != card) {
+        lastChoicePath = '$lastChoicePath+${polished.label}';
+      }
+      return polished.card;
+    } finally {
+      _viewerId = prevViewer;
     }
-    return polished.card;
+  }
+
+  // ─── Öffentliche Sicht (kein Blick in fremde Karten) ─────────────────────
+
+  /// Spieler, aus dessen Sicht gerade entschieden wird. Nur während
+  /// [chooseCard] gesetzt; in Simulationswelten null (dort ist die
+  /// gesampelte Verteilung die angenommene Wahrheit).
+  static String? _viewerId;
+
+  /// Führt [f] in Simulationswelten aus (volle Sicht auf die Welt-Hände).
+  static T _inWorlds<T>(T Function() f) {
+    final v = _viewerId;
+    _viewerId = null;
+    try {
+      return f();
+    } finally {
+      _viewerId = v;
+    }
+  }
+
+  static bool _hiddenFor(Player p) => _viewerId != null && p.id != _viewerId;
+
+  /// Die Hand von [p], soweit der Entscheider sie kennen kann: eigene Hand
+  /// exakt, fremde Hand = alle Karten, die [p] öffentlich noch haben KANN.
+  static List<JassCard> _hand(Player p, GameState state) =>
+      _hiddenFor(p) ? _possibleCards(p, state) : p.hand;
+
+  static bool _isTrumpIn(JassCard c, GameMode mode, Suit? trump) {
+    if (trump == null) return false;
+    if (mode == GameMode.schafkopf) return _isSchafkopfTrump(c, trump);
+    if (mode == GameMode.trump || mode == GameMode.trumpUnten) {
+      return c.suit == trump;
+    }
+    return false;
+  }
+
+  /// Karten, die [p] nach öffentlichem Wissen noch halten kann: weder
+  /// gespielt noch beim Entscheider, keine Farbe, die [p] öffentlich nicht
+  /// mehr hat (Ausnahme: Buur muss nicht zugegeben werden), gezeigte Weis.
+  static List<JassCard> _possibleCards(Player p, GameState state) {
+    final viewer = state.players.firstWhere((x) => x.id == _viewerId);
+    final played = _playedCards(state);
+    final known = _wyssKnownCards(state);
+    final voids = _inferVoidSuits(state)[p.id] ?? const <Suit>{};
+    final trump = state.trumpSuit;
+    final sk = state.gameMode == GameMode.schafkopf && trump != null;
+    // Schafkopf: Trumpf angespielt, Nicht-Trumpf zugegeben → keine Trümpfe.
+    var skTrumpVoid = false;
+    if (sk) {
+      for (final t in state.completedTricks) {
+        final led = t.cards.values.isEmpty ? null : t.cards.values.first;
+        final theirs = t.cards[p.id];
+        if (led == null || theirs == null || t.cards.keys.first == p.id) {
+          continue;
+        }
+        if (_isSchafkopfTrump(led, trump) && !_isSchafkopfTrump(theirs, trump)) {
+          skTrumpVoid = true;
+        }
+      }
+      final tc = state.currentTrickCards;
+      final i = state.currentTrickPlayerIds.indexOf(p.id);
+      if (i > 0 &&
+          _isSchafkopfTrump(tc.first, trump) &&
+          !_isSchafkopfTrump(tc[i], trump)) {
+        skTrumpVoid = true;
+      }
+    }
+    return Deck.allCards(state.cardType).where((c) {
+      if (played.contains(c) || viewer.hand.contains(c)) return false;
+      if (known[p.id]?.contains(c) ?? false) return true;
+      if (known.entries.any((e) => e.key != p.id && e.value.contains(c))) {
+        return false;
+      }
+      if (sk) {
+        final isT = _isSchafkopfTrump(c, trump);
+        if (isT) return !skTrumpVoid;
+        return !voids.contains(c.suit);
+      }
+      if (voids.contains(c.suit)) {
+        // Buur muss nie zugegeben werden.
+        return trump != null && c.suit == trump && c.value == CardValue.jack;
+      }
+      return true;
+    }).toList();
+  }
+
+  /// Anzahl Karten mit [pred] bei [ps]: exakt für den Entscheider, für
+  /// fremde Hände geschätzt (Erwartungswert nach Handgrösse über die
+  /// möglichen Halter). 0 nur, wenn öffentlich sicher keine mehr da ist.
+  static int _countHeld(Iterable<Player> ps, GameState state,
+      bool Function(JassCard) pred) {
+    int exact = 0;
+    double expected = 0;
+    bool hiddenMay = false;
+    final hidden = state.players.where(_hiddenFor).toList();
+    Map<String, Set<JassCard>>? poss;
+    for (final p in ps) {
+      if (!_hiddenFor(p)) {
+        exact += p.hand.where(pred).length;
+        continue;
+      }
+      poss ??= {
+        for (final q in hidden) q.id: _possibleCards(q, state).toSet()
+      };
+      for (final c in poss[p.id]!.where(pred)) {
+        hiddenMay = true;
+        int tot = 0;
+        for (final q in hidden) {
+          if (poss[q.id]!.contains(c)) tot += q.hand.length;
+        }
+        if (tot > 0) expected += p.hand.length / tot;
+      }
+    }
+    if (!hiddenMay) return exact;
+    return exact + math.max(1, expected.round());
   }
 
   /// Nachbearbeitung im Trumpfspiel (alle Spielarten), nur öffentliches Wissen:
@@ -637,7 +763,7 @@ class MonteCarloAI {
         }
         final allAfterVoidMis = playersAfterMis.isNotEmpty &&
             playersAfterMis.every((p) =>
-                !p.hand.any((c) => c.suit == ledSuitMis));
+                !_hand(p, state).any((c) => c.suit == ledSuitMis));
 
         if (isLastMis || allAfterVoidMis) {
           // Aktueller Winner
@@ -827,7 +953,7 @@ class MonteCarloAI {
         final gegnerTrumpsCountA = state.players
             .where((p) => p.id != aiPlayer.id &&
                 !_sameTeamFor(aiPlayer, p, state))
-            .expand((p) => p.hand)
+            .expand((p) => _hand(p, state))
             .where((c) => _isSchafkopfTrump(c, trumpSchA))
             .length;
         if (gegnerTrumpsCountA > 0) {
@@ -1755,9 +1881,10 @@ class MonteCarloAI {
             .toList();
 
         // Prüfe ob Partner noch Trumpf hat
-        final partnerTrumps = partnerId != null ? state.players
-            .firstWhere((p) => p.id == partnerId)
-            .hand.where((c) => _isSchafkopfTrump(c, trump)).length : 0;
+        final partnerTrumps = partnerId != null
+            ? _hand(state.players.firstWhere((p) => p.id == partnerId), state)
+                .where((c) => _isSchafkopfTrump(c, trump)).length
+            : 0;
 
         if (nonTrump.isNotEmpty && partnerTrumps > 0 && mySchafkopfTrumps.isNotEmpty) {
           // Partner hat Trumpf → unsichere Nicht-Trumpf-Karte anspielen,
@@ -2820,7 +2947,7 @@ class MonteCarloAI {
               // Prüfe ob alle diese Karten stärker als jede Gegner-Karte in dieser Farbe sind.
               final opponentSuitCards = state.players
                   .where((p) => !_sameTeamFor(aiPlayer, p, state))
-                  .expand((p) => p.hand)
+                  .expand((p) => _hand(p, state))
                   .where((c) => c.suit == ledSuitO)
                   .toList();
               final myMaxOppStrength = opponentSuitCards.isEmpty
@@ -3336,7 +3463,7 @@ class MonteCarloAI {
       final myTrumps = playable.where((c) => c.suit == trumpS).toList();
       final oppHaveTrump = state.players
           .where((p) => !_sameTeamFor(aiPlayer, p, state))
-          .expand((p) => p.hand)
+          .expand((p) => _hand(p, state))
           .any((c) => c.suit == trumpS);
 
       // Rule 1a: Gegner + ich haben Trumpf → stärksten Trumpf ziehen.
@@ -3447,6 +3574,12 @@ class MonteCarloAI {
     final voidSuits = _inferVoidSuits(state);
     final rootTeam1 = _simIsTeam1(state, aiPlayer);
     final root = _IsNode(rootTeam1);
+    return _inWorlds(
+        () => _ismctsRun(root, rootTeam1, aiPlayer, state, voidSuits));
+  }
+
+  static _IsNode _ismctsRun(_IsNode root, bool rootTeam1, Player aiPlayer,
+      GameState state, Map<String, Set<Suit>> voidSuits) {
 
     for (int it = 0; it < ismctsIterations; it++) {
       var s = _sampleWorld(state, aiPlayer.id, voidSuits);
@@ -3602,6 +3735,9 @@ class MonteCarloAI {
     final target = _diffTarget(state, aiPlayer.id);
     const worlds = 60;
     final totals = <JassCard, double>{for (final c in playable) c: 0.0};
+    final prevViewer = _viewerId;
+    _viewerId = null;
+    try {
     for (int w = 0; w < worlds; w++) {
       final world = _sampleWorld(state, aiPlayer.id, voidSuits);
       for (final c in playable) {
@@ -3614,6 +3750,9 @@ class MonteCarloAI {
         final pts = _diffPointsTaken(s, aiPlayer.id);
         totals[c] = totals[c]! - (target - pts).abs();
       }
+    }
+    } finally {
+      _viewerId = prevViewer;
     }
     JassCard best = playable.first;
     double bestScore = double.negativeInfinity;
@@ -3722,12 +3861,16 @@ class MonteCarloAI {
 
     for (final card in playable) {
       double total = 0.0;
-      for (int i = 0; i < simsPerCard; i++) {
-        // Neue Welt: eigene Hand bleibt, andere Spieler kriegen zufällige Karten
-        final world = _sampleWorld(state, aiPlayer.id, voidSuits);
-        final finalState = _simulate(world, aiPlayer.id, card);
-        total += _scoreFor(finalState, aiIsTeam1, aiPlayer.id);
-      }
+      total += _inWorlds(() {
+        double t = 0;
+        for (int i = 0; i < simsPerCard; i++) {
+          // Neue Welt: eigene Hand bleibt, andere Spieler kriegen zufällige Karten
+          final world = _sampleWorld(state, aiPlayer.id, voidSuits);
+          final finalState = _simulate(world, aiPlayer.id, card);
+          t += _scoreFor(finalState, aiIsTeam1, aiPlayer.id);
+        }
+        return t;
+      });
       double avg = total / simsPerCard;
 
       // Elefant-Vorphase: Stiche gewinnen (→ Stich 7 = Trumpfwahl kontrollieren)
@@ -3928,9 +4071,9 @@ class MonteCarloAI {
       }
 
       // Near-miss Karten beim Anspielen bestrafen (7 ohne 6 in Unten, König ohne Ass in Oben)
-      if (state.currentTrickCards.isEmpty &&
-          _isNearMissLead(card, state, state.effectiveMode)) {
-        avg -= 35.0; // Riskant: Gegner hat die stärkere Karte
+      if (state.currentTrickCards.isEmpty) {
+        // Riskant: Gegner hat (wahrscheinlich) die stärkere Karte
+        avg -= 35.0 * _nearMissRisk(card, aiPlayer, state);
       }
 
       // ── Partner-Signalisierung beim Anspielen ──────────────────────────────
@@ -4079,7 +4222,11 @@ class MonteCarloAI {
     final announcerId = state.players[state.ansagerIndex].id;
     // In Händen suchen (noch nicht gespielt)
     for (final p in state.players) {
-      if (p.id != announcerId && p.hand.contains(state.wishCard)) return p.id;
+      if (p.id != announcerId &&
+          !_hiddenFor(p) &&
+          p.hand.contains(state.wishCard)) {
+        return p.id;
+      }
     }
     // In abgeschlossenen Stichen suchen
     for (final trick in state.completedTricks) {
@@ -4383,7 +4530,8 @@ class MonteCarloAI {
           .where((p) => !_sameTeamFor(aiPlayer, p, state))
           .toList();
       for (final p in opponents) {
-        for (final c in p.hand) {
+        final ph = _hand(p, state);
+        for (final c in ph) {
           final cIsTrump = _isSchafkopfTrump(c, trump);
           final sameGroup = cardIsTrump
               ? cIsTrump
@@ -4394,9 +4542,9 @@ class MonteCarloAI {
           }
         }
         if (!cardIsTrump) {
-          final hasLed = p.hand
+          final hasLed = ph
               .any((c) => c.suit == card.suit && !_isSchafkopfTrump(c, trump));
-          final hasTrump = p.hand.any((c) => _isSchafkopfTrump(c, trump));
+          final hasTrump = ph.any((c) => _isSchafkopfTrump(c, trump));
           if (!hasLed && hasTrump) return false;
         }
       }
@@ -4406,7 +4554,7 @@ class MonteCarloAI {
     // Nur Gegner-Karten prüfen (Partner ignorieren)
     final opponentCards = state.players
         .where((p) => !_sameTeamFor(aiPlayer, p, state))
-        .expand((p) => p.hand);
+        .expand((p) => _hand(p, state));
 
     final beatenByOpponent = opponentCards.any((c) =>
         c.suit == card.suit &&
@@ -4421,8 +4569,9 @@ class MonteCarloAI {
       final canBeTrumped = state.players
           .where((p) => !_sameTeamFor(aiPlayer, p, state))
           .any((p) {
-        final hasLedSuit = p.hand.any((c) => c.suit == card.suit);
-        final hasTrump = p.hand.any((c) => c.suit == trump);
+        final ph = _hand(p, state);
+        final hasLedSuit = ph.any((c) => c.suit == card.suit);
+        final hasTrump = ph.any((c) => c.suit == trump);
         return !hasLedSuit && hasTrump;
       });
       if (canBeTrumped) return false;
@@ -4541,7 +4690,7 @@ class MonteCarloAI {
   /// Ob [player] der einzige Spieler ist der noch Trumpfkarten hat.
   static bool _onlyPlayerWithTrump(Player player, GameState state, Suit trump) {
     return !state.players.any((p) =>
-        p.id != player.id && p.hand.any((c) => c.suit == trump));
+        p.id != player.id && _hand(p, state).any((c) => c.suit == trump));
   }
 
   /// Nur das eigene Team (Spieler + Partner) hat noch Trumpf.
@@ -4592,20 +4741,18 @@ class MonteCarloAI {
 
   /// Anzahl Schafkopf-Trümpfe im eigenen Team.
   static int _teamSchafkopfTrumpCount(Player player, GameState state, Suit trump) {
-    return state.players
-        .where((p) => _sameTeamFor(p, player, state))
-        .expand((p) => p.hand)
-        .where((c) => _isSchafkopfTrump(c, trump))
-        .length;
+    return _countHeld(
+        state.players.where((p) => _sameTeamFor(p, player, state)),
+        state,
+        (c) => _isSchafkopfTrump(c, trump));
   }
 
   /// Anzahl Schafkopf-Trümpfe bei den Gegnern.
   static int _opponentSchafkopfTrumpCount(Player player, GameState state, Suit trump) {
-    return state.players
-        .where((p) => !_sameTeamFor(p, player, state))
-        .expand((p) => p.hand)
-        .where((c) => _isSchafkopfTrump(c, trump))
-        .length;
+    return _countHeld(
+        state.players.where((p) => !_sameTeamFor(p, player, state)),
+        state,
+        (c) => _isSchafkopfTrump(c, trump));
   }
 
   /// Höchste Schafkopf-Trumpf-Stärke, die ein noch FOLGENDER Gegner in diesem
@@ -4624,13 +4771,13 @@ class MonteCarloAI {
     for (int i = 1; i <= remaining; i++) {
       final p = state.players[(aiIdx + i) % 4];
       if (_sameTeamFor(aiPlayer, p, state)) continue; // nur Gegner
-      final pTrumps =
-          p.hand.where((c) => _isSchafkopfTrump(c, trump)).toList();
+      final ph = _hand(p, state);
+      final pTrumps = ph.where((c) => _isSchafkopfTrump(c, trump)).toList();
       if (pTrumps.isEmpty) continue;
       // Nicht-Trumpf geführt UND Gegner bedient (hat Nicht-Trumpf der Farbe)
       // → muss bedienen, kann nicht mit Trumpf stechen.
       final bedientNichtTrumpf = !ledIsTrump &&
-          p.hand.any((c) => c.suit == ledSuit && !_isSchafkopfTrump(c, trump));
+          ph.any((c) => c.suit == ledSuit && !_isSchafkopfTrump(c, trump));
       if (bedientNichtTrumpf) continue;
       final maxStr = pTrumps
           .map((c) => GameLogic.cardPlayStrength(c, state.gameMode, trump))
@@ -4835,13 +4982,14 @@ class MonteCarloAI {
         effectMode != GameMode.oben &&
         effectMode != GameMode.unten) {
       final cardOwner = state.players.cast<Player?>().firstWhere(
-          (p) => p!.hand.contains(card), orElse: () => null);
+          (p) => _hand(p!, state).contains(card), orElse: () => null);
       if (cardOwner == null) {
         // Karte liegt im Stich → prüfe ob GEGNER trumpfen könnten
         final canBeTrumped = state.players.any((p) {
           // Nur Gegner prüfen (Partner trumpft nie eigene Karte)
-          final hasLedSuit = p.hand.any((c) => c.suit == card.suit);
-          final hasTrump = p.hand.any((c) => c.suit == trump);
+          final ph = _hand(p, state);
+          final hasLedSuit = ph.any((c) => c.suit == card.suit);
+          final hasTrump = ph.any((c) => c.suit == trump);
           return !hasLedSuit && hasTrump;
         });
         if (canBeTrumped) return false;
@@ -4849,7 +4997,7 @@ class MonteCarloAI {
         // Nur GEGNER prüfen (_sameTeamFor statt _sameTeam für Friseur Solo!)
         final canBeTrumped = state.players.any((p) {
           if (_sameTeamFor(cardOwner, p, state)) return false;
-          final others = p.hand.where((c) => c != card).toList();
+          final others = _hand(p, state).where((c) => c != card).toList();
           final hasLedSuit = others.any((c) => c.suit == card.suit);
           final hasTrump = others.any((c) => c.suit == trump);
           return !hasLedSuit && hasTrump;
@@ -4865,6 +5013,38 @@ class MonteCarloAI {
   /// z.B. 7 ohne 6 in Unten, König ohne Ass in Oben.
   /// Die stärkere Karte dieser Farbe existiert noch bei einem Gegner.
   /// Gibt true zurück wenn die Karte knapp unter dem sicheren Gewinner liegt.
+  /// Wie [_isNearMissLead], aber als Wahrscheinlichkeit aus öffentlicher
+  /// Sicht: 1 − P(alle stärkeren unbekannten Karten liegen beim Partner).
+  static double _nearMissRisk(
+      JassCard card, Player aiPlayer, GameState state) {
+    if (_viewerId == null) {
+      return _isNearMissLead(card, state, state.effectiveMode) ? 1 : 0;
+    }
+    final mode = state.effectiveMode;
+    if (mode != GameMode.oben && mode != GameMode.unten) return 0;
+    final str = GameLogic.cardPlayStrength(card, mode, null);
+    final hidden = state.players.where(_hiddenFor).toList();
+    final poss = {for (final q in hidden) q.id: _possibleCards(q, state)};
+    final stronger = <JassCard>{
+      for (final q in hidden)
+        ...poss[q.id]!.where((c) =>
+            c.suit == card.suit &&
+            GameLogic.cardPlayStrength(c, mode, null) > str)
+    };
+    if (stronger.isEmpty) return 0;
+    double allPartner = 1;
+    for (final c in stronger) {
+      int tot = 0, partner = 0;
+      for (final q in hidden) {
+        if (!poss[q.id]!.contains(c)) continue;
+        tot += q.hand.length;
+        if (_sameTeam(aiPlayer, q)) partner += q.hand.length;
+      }
+      allPartner *= tot == 0 ? 0 : partner / tot;
+    }
+    return 1 - allPartner;
+  }
+
   static bool _isNearMissLead(JassCard card, GameState state, GameMode effectMode) {
     // Nur relevant für Oben/Unten-artige Modi (kein Trumpf der stechen könnte)
     if (effectMode != GameMode.oben && effectMode != GameMode.unten) return false;
@@ -4882,6 +5062,12 @@ class MonteCarloAI {
     // Prüfe ob die stärkere Karte beim Partner ist → dann kein Problem
     final aiPlayer = state.players.firstWhere((p) =>
         p.hand.contains(card));
+    if (_viewerId != null) {
+      // Öffentlich: riskant, wenn ein Gegner eine stärkere Karte haben kann.
+      return state.players.any((p) =>
+          !_sameTeam(aiPlayer, p) &&
+          _hand(p, state).any((c) => strongerInHands.contains(c)));
+    }
     final strongerHolder = state.players.firstWhere((p) =>
         p.hand.contains(strongerInHands.first));
     if (_sameTeam(aiPlayer, strongerHolder)) return false;
@@ -5074,9 +5260,9 @@ class MonteCarloAI {
         final announcerId = state.players[state.ansagerIndex].id;
         final isAnnouncer = player.id == announcerId;
         final partnerId = _schafkopfPartnerId(state);
-        final partnerHasDame = partnerId != null && state.players
-            .firstWhere((p) => p.id == partnerId)
-            .hand.any((c) => c.value == CardValue.queen &&
+        final partnerHasDame = partnerId != null &&
+            _hand(state.players.firstWhere((p) => p.id == partnerId), state)
+            .any((c) => c.value == CardValue.queen &&
                 _isSchafkopfTrump(c, trump));
 
         if (oppTrump == 0) {
@@ -5956,6 +6142,7 @@ class MonteCarloAI {
     // In Händen suchen (noch nicht gespielt)
     for (final p in state.players) {
       if (p.id != announcerId &&
+          !_hiddenFor(p) &&
           p.hand.any((c) => c.suit == trump && c.value == CardValue.ace)) {
         return p.id;
       }
@@ -6012,7 +6199,7 @@ class MonteCarloAI {
       slalomStartsOben: state.slalomStartsOben,
     );
     final lastPlayable = GameLogic.getPlayableCards(
-      lastPlayer.hand,
+      _hand(lastPlayer, state),
       state.currentTrickCards,
       mode: effectMode,
       trumpSuit: (effectMode == GameMode.trump ||
@@ -6050,14 +6237,29 @@ class MonteCarloAI {
       for (final p in state.players) p.id: <Suit>{},
     };
 
+    // Stechen ist im Jass auch erlaubt, wenn man bedienen könnte: Ein Trumpf
+    // auf ein Nicht-Trumpf-Anspiel verrät also KEINE Fehlfarbe. Schafkopf:
+    // Trumpf-Anspiel (Dame/8er anderer Farbe) → Farbe sagt nichts aus.
+    final trump = state.trumpSuit;
+    bool noInfo(JassCard led, JassCard c, int trickNo) {
+      final mode = _effectiveMode(state.gameMode, trickNo, trump,
+          state.molotofSubMode,
+          slalomStartsOben: state.slalomStartsOben);
+      final ledT = _isTrumpIn(led, mode, trump);
+      if (mode == GameMode.schafkopf && ledT) return true;
+      return !ledT && _isTrumpIn(c, mode, trump);
+    }
+
     // Abgeschlossene Stiche
     for (final trick in state.completedTricks) {
       if (trick.cards.length < 2) continue;
-      final ledSuit = trick.cards.values.first.suit;
+      final led = trick.cards.values.first;
+      final ledSuit = led.suit;
       bool first = true;
       for (final entry in trick.cards.entries) {
         if (first) { first = false; continue; }
-        if (entry.value.suit != ledSuit) {
+        if (entry.value.suit != ledSuit &&
+            !noInfo(led, entry.value, trick.trickNumber)) {
           voids[entry.key]?.add(ledSuit);
         }
       }
@@ -6065,9 +6267,12 @@ class MonteCarloAI {
 
     // Aktueller laufender Stich
     if (state.currentTrickCards.isNotEmpty) {
-      final ledSuit = state.currentTrickCards.first.suit;
+      final led = state.currentTrickCards.first;
+      final ledSuit = led.suit;
       for (int i = 1; i < state.currentTrickCards.length; i++) {
-        if (state.currentTrickCards[i].suit != ledSuit) {
+        final c = state.currentTrickCards[i];
+        if (c.suit != ledSuit &&
+            !noInfo(led, c, state.currentTrickNumber)) {
           voids[state.currentTrickPlayerIds[i]]?.add(ledSuit);
         }
       }
@@ -6312,7 +6517,11 @@ class MonteCarloAI {
     final wyssKnown = _wyssKnownCards(state);
 
     // Pool = alle Karten in fremden Händen (unbekannt für die KI)
-    final allOtherCards = others.expand((p) => p.hand).toList();
+    // Kanonische Reihenfolge: die Welt darf nicht von der echten Verteilung
+    // abhängen (sonst verrät die Reihenfolge, wer was hält).
+    final allOtherCards = others.expand((p) => p.hand).toList()
+      ..sort((a, b) => (a.suit.index * 100 + a.value.index)
+          .compareTo(b.suit.index * 100 + b.value.index));
 
     // Bekannte Weis-Karten fest zuweisen
     final fixedAssignments = <String, List<JassCard>>{};
@@ -6452,20 +6661,18 @@ class MonteCarloAI {
 
   /// Anzahl Trumpfkarten des eigenen Teams (Spieler + Partner).
   static int _teamTrumpCount(Player player, GameState state, Suit trump) {
-    return state.players
-        .where((p) => _sameTeamFor(p, player, state))
-        .expand((p) => p.hand)
-        .where((c) => c.suit == trump)
-        .length;
+    return _countHeld(
+        state.players.where((p) => _sameTeamFor(p, player, state)),
+        state,
+        (c) => c.suit == trump);
   }
 
   /// Anzahl Trumpfkarten der Gegner.
   static int _opponentTrumpCount(Player player, GameState state, Suit trump) {
-    return state.players
-        .where((p) => !_sameTeamFor(p, player, state))
-        .expand((p) => p.hand)
-        .where((c) => c.suit == trump)
-        .length;
+    return _countHeld(
+        state.players.where((p) => !_sameTeamFor(p, player, state)),
+        state,
+        (c) => c.suit == trump);
   }
 
   /// Verteilt [pool] auf [players] unter Berücksichtigung von Fehlfarben
