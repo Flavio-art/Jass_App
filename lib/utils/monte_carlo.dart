@@ -4631,6 +4631,18 @@ class MonteCarloAI {
     return true;
   }
 
+  /// Der Buur (Trumpf-Under), falls gerade eine Trumpffarbe gilt – er muss
+  /// nie zugegeben werden, verrät also keine Trumpf-Fehlfarbe.
+  static JassCard? _openBuur(GameState state) {
+    final trump = state.trumpSuit;
+    final mode = state.effectiveMode;
+    if (trump == null ||
+        (mode != GameMode.trump && mode != GameMode.trumpUnten)) {
+      return null;
+    }
+    return JassCard(suit: trump, value: CardValue.jack, cardType: state.cardType);
+  }
+
   /// Alle bereits gespielten Karten (abgeschlossene Stiche + aktueller Stich).
   static Set<JassCard> _playedCards(GameState state) {
     final played = <JassCard>{};
@@ -6504,6 +6516,10 @@ class MonteCarloAI {
     return weights;
   }
 
+  @visibleForTesting
+  static GameState debugSampleWorld(GameState state, String aiPlayerId) =>
+      _sampleWorld(state, aiPlayerId, _inferVoidSuits(state));
+
   /// Erstellt eine zufällige Welt: eigene Hand bleibt, unbekannte Karten
   /// werden unter den anderen Spielern neu verteilt (Fehlfarben respektiert).
   /// Bekannte Weis-Karten und durch Void-Tracking ableitbare Karten werden
@@ -6544,9 +6560,14 @@ class MonteCarloAI {
         .where((c) => !fixedCardSet.contains(c))
         .toList();
 
+    // Buur muss nie zugegeben werden: auch wer öffentlich trumpflos ist,
+    // kann ihn noch haben → bei Fehlfarben-Logik ausnehmen.
+    final buur = _openBuur(state);
+
     // Gruppiere verbleibende Karten nach Farbe
     final cardsBySuit = <Suit, List<JassCard>>{};
     for (final c in remainingCards) {
+      if (c == buur) continue; // wird frei verteilt (s. _dealCards)
       (cardsBySuit[c.suit] ??= []).add(c);
     }
 
@@ -6594,7 +6615,7 @@ class MonteCarloAI {
     final suitWeights = _inferSuitWeights(state, aiPlayerId);
 
     final randomAssignments = _dealCards(pool, adjustedOthers, voidSuits,
-        suitWeights: suitWeights);
+        suitWeights: suitWeights, buur: buur);
 
     final newPlayers = state.players.map((p) {
       if (p.id == aiPlayerId) return p.copyWith(hand: List<JassCard>.from(p.hand));
@@ -6682,7 +6703,10 @@ class MonteCarloAI {
     List<Player> players,
     Map<String, Set<Suit>> voidSuits, {
     Map<String, Map<Suit, double>>? suitWeights,
+    JassCard? buur,
   }) {
+    bool blocked(Player p, JassCard card) =>
+        card != buur && (voidSuits[p.id]?.contains(card.suit) ?? false);
     final result = <String, List<JassCard>>{
       for (final p in players) p.id: [],
     };
@@ -6696,7 +6720,7 @@ class MonteCarloAI {
         final card = unassigned[i];
         final eligible = players.where((p) =>
             result[p.id]!.length < p.hand.length &&
-            !(voidSuits[p.id]?.contains(card.suit) ?? false)).toList();
+            !blocked(p, card)).toList();
         if (eligible.length == 1) {
           result[eligible.first.id]!.add(card);
           unassigned.removeAt(i);
@@ -6705,37 +6729,54 @@ class MonteCarloAI {
       }
     }
 
-    // Pass 2: restliche Karten gewichtet an erlaubte Spieler
-    for (final card in [...unassigned]) {
-      final eligible = players.where((p) =>
-          result[p.id]!.length < p.hand.length &&
-          !(voidSuits[p.id]?.contains(card.suit) ?? false)).toList();
-      if (eligible.isEmpty) {
-        final fallback = players.firstWhere(
-            (p) => result[p.id]!.length < p.hand.length,
-            orElse: () => players.first);
-        result[fallback.id]!.add(card);
-        continue;
-      }
-      if (eligible.length == 1 || suitWeights == null) {
-        result[eligible[_rng.nextInt(eligible.length)].id]!.add(card);
-        continue;
-      }
-      // Gewichtete Auswahl: Spieler mit höherem Weight für diese Farbe
-      // bekommen die Karte wahrscheinlicher
-      final weights = eligible.map((p) =>
-          suitWeights[p.id]?[card.suit] ?? 1.0).toList();
-      final totalWeight = weights.fold(0.0, (a, b) => a + b);
-      var roll = _rng.nextDouble() * totalWeight;
-      Player target = eligible.first;
-      for (int i = 0; i < eligible.length; i++) {
-        roll -= weights[i];
-        if (roll <= 0) {
-          target = eligible[i];
-          break;
+    // Pass 2: restliche Karten gewichtet an erlaubte Spieler. Die am
+    // stärksten eingeschränkten Karten zuerst; bricht eine Ziehung eine
+    // Fehlfarbe (Notfall-Zuteilung), neu ziehen (max. 20 Versuche).
+    final base = {for (final e in result.entries) e.key: [...e.value]};
+    int nEligible(JassCard card) =>
+        players.where((p) => !blocked(p, card)).length;
+    final ordered = [...unassigned]
+      ..sort((a, b) => nEligible(a).compareTo(nEligible(b)));
+    for (int attempt = 0; attempt < 20; attempt++) {
+      if (attempt > 0) {
+        for (final p in players) {
+          result[p.id] = [...base[p.id]!];
         }
       }
-      result[target.id]!.add(card);
+      var violated = false;
+      for (final card in ordered) {
+        final eligible = players.where((p) =>
+            result[p.id]!.length < p.hand.length &&
+            !blocked(p, card)).toList();
+        if (eligible.isEmpty) {
+          violated = true;
+          final fallback = players.firstWhere(
+              (p) => result[p.id]!.length < p.hand.length,
+              orElse: () => players.first);
+          result[fallback.id]!.add(card);
+          continue;
+        }
+        if (eligible.length == 1 || suitWeights == null) {
+          result[eligible[_rng.nextInt(eligible.length)].id]!.add(card);
+          continue;
+        }
+        // Gewichtete Auswahl: Spieler mit höherem Weight für diese Farbe
+        // bekommen die Karte wahrscheinlicher
+        final weights = eligible.map((p) =>
+            suitWeights[p.id]?[card.suit] ?? 1.0).toList();
+        final totalWeight = weights.fold(0.0, (a, b) => a + b);
+        var roll = _rng.nextDouble() * totalWeight;
+        Player target = eligible.first;
+        for (int i = 0; i < eligible.length; i++) {
+          roll -= weights[i];
+          if (roll <= 0) {
+            target = eligible[i];
+            break;
+          }
+        }
+        result[target.id]!.add(card);
+      }
+      if (!violated) break;
     }
 
     return result;
