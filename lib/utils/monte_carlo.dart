@@ -43,6 +43,14 @@ class MonteCarloAI {
   /// NUR für Benchmarks (MC-pur vs. MC+Overrides). Default false = Produktivpfad.
   static bool bypassOverrides = false;
 
+  /// Mindest-Chance (öffentlich geschätzt), dass der Partner in einer Farbe
+  /// übernimmt, damit die Slalom-KI diese Farbe zur Übergabe anspielt.
+  static double slalomHandoffMinOdds = 1.0;
+
+  /// Slalom ohne sichere Übergabe: MonteCarlo entscheiden lassen statt
+  /// fixem Abwurf (`auto_L1419`).
+  static bool slalomMcFallback = true;
+
   /// Schaltet die neuen Jasser-Anspiel-Konventionen (Rule 1/6/8/10) ein/aus.
   /// Nur zum Isolieren ihres Beitrags im Benchmark. Default true = aktiv.
   static bool jasserConventions = true;
@@ -2007,11 +2015,9 @@ class MonteCarloAI {
           // Farbe wo Partner die höchste in der AKTUELLEN Richtung hat
           final handoffCards = playable.where((c) {
             if (_isHighestRemaining(c, state)) return false; // eigener Stich → nicht übergeben
-            // Partner hat höhere Karte in dieser Farbe?
-            return partner.hand.any((pc) =>
-                pc.suit == c.suit &&
-                GameLogic.cardPlayStrength(pc, effectMode, null) >
-                    GameLogic.cardPlayStrength(c, effectMode, null));
+            // Hat der Partner (öffentlich geschätzt) eine höhere Karte?
+            return _partnerHoldsOdds(c.suit, aiPlayer, partner, state,
+                    effectMode, above: c) >= slalomHandoffMinOdds;
           }).toList();
 
           if (handoffCards.isNotEmpty) {
@@ -2076,20 +2082,15 @@ class MonteCarloAI {
             .toList();
         final partner = partnerMatches.isNotEmpty ? partnerMatches.first : null;
         if (partner != null) {
-          // Farben wo der Partner die höchste verbleibende Karte in der aktuellen Richtung hat
+          // Farben, in denen der Partner (öffentlich geschätzt) die höchste
+          // noch offene Karte der aktuellen Richtung hält. Kein Blick in
+          // seine Hand: nur gespielte Karten, eigene Hand, Fehlfarben, Weis.
           final handoffSuits = <Suit>{};
-          for (final pc in partner.hand) {
-            // Prüfe ob diese Karte höchste verbleibende in der Richtung (vs. alle anderen)
-            final pcStrength =
-                GameLogic.cardPlayStrength(pc, directionMode, null);
-            final anyHigher = state.players
-                .where((p) => p.id != partner.id)
-                .expand((p) => p.hand)
-                .any((c) =>
-                    c.suit == pc.suit &&
-                    GameLogic.cardPlayStrength(c, directionMode, null) >
-                        pcStrength);
-            if (!anyHigher) handoffSuits.add(pc.suit);
+          for (final s in playable.map((c) => c.suit).toSet()) {
+            if (_partnerHoldsOdds(s, aiPlayer, partner, state, directionMode,
+                    topOnly: true) >= slalomHandoffMinOdds) {
+              handoffSuits.add(s);
+            }
           }
           if (handoffSuits.isNotEmpty) {
             // AI-Karten dieser Farbe die NICHT selbst höchste verbleibende sind
@@ -2144,7 +2145,7 @@ class MonteCarloAI {
         final bPts = GameLogic.cardPoints(b, effectMode, null);
         return aPts.compareTo(bPts);
       });
-      return _pick('auto_L1419', sorted.first);
+      if (!slalomMcFallback) return _pick('auto_L1419', sorted.first);
     }
 
     // ── Obenabe / Undenufe: sichere Gewinner sofort ausspielen ──────────────
@@ -6073,6 +6074,49 @@ class MonteCarloAI {
     }
 
     return voids;
+  }
+
+  /// Öffentlich geschätzte Wahrscheinlichkeit, dass [partner] in [suit]
+  /// eine Karte hält, die (in [mode]) stärker ist als [above] bzw. – mit
+  /// [topOnly] – die stärkste noch offene Karte der Farbe hält.
+  /// Nutzt NUR öffentliches Wissen: gespielte Karten, eigene Hand,
+  /// Fehlfarben (nicht bedient) und gezeigte Weis-Karten.
+  static double _partnerHoldsOdds(Suit suit, Player aiPlayer, Player partner,
+      GameState state, GameMode mode,
+      {JassCard? above, bool topOnly = false}) {
+    final played = _playedCards(state);
+    final unseen = Deck.allCards(state.cardType)
+        .where((c) =>
+            c.suit == suit && !played.contains(c) && !aiPlayer.hand.contains(c))
+        .toList();
+    final minStr = above == null
+        ? -1
+        : GameLogic.cardPlayStrength(above, mode, null);
+    var cands = unseen
+        .where((c) => GameLogic.cardPlayStrength(c, mode, null) > minStr)
+        .toList();
+    if (cands.isEmpty) return 0;
+    if (topOnly) {
+      cands.sort((a, b) => GameLogic.cardPlayStrength(b, mode, null)
+          .compareTo(GameLogic.cardPlayStrength(a, mode, null)));
+      cands = [cands.first];
+    }
+    final known = _wyssKnownCards(state);
+    if (cands.any((c) => known[partner.id]?.contains(c) ?? false)) return 1;
+    cands = cands
+        .where((c) => !known.entries
+            .any((e) => e.key != partner.id && e.value.contains(c)))
+        .toList();
+    if (cands.isEmpty) return 0;
+    final voids = _inferVoidSuits(state);
+    if (voids[partner.id]?.contains(suit) ?? false) return 0;
+    final holders = state.players
+        .where((p) =>
+            p.id != aiPlayer.id &&
+            !(voids[p.id]?.contains(suit) ?? false))
+        .length;
+    if (holders <= 1) return 1; // nur noch der Partner kann die Farbe haben
+    return 1 - math.pow(1 - 1 / holders, cands.length).toDouble();
   }
 
   /// Gibt die Farben zurück, die der Partner des gegebenen Spielers in
