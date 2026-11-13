@@ -42,7 +42,7 @@ class NNTuning {
   static const double schieberMultTrump = 0.70;        // Basis Trumpf (farb-neutral)
   static const double schieberMultOben = 1.35;
   static const double schieberMultUnten = 1.15;
-  static const double schieberMultSlalom = 1.52;
+  static const double schieberMultSlalom = 1.475; // 2026-11-13: ×0.97 (faire KI: Slalom −13 Pkt)
   static const double schieberMultDependenceK = 0.35;      // Trumpf-Farben (stärkere Abhängigkeit)
   static const double schieberMultDependenceKFlach = 0.15; // Oben/Unten/Slalom (nur leichte Abhängigkeit)
   static const double schiebenSlalomPenalty = 0.85;
@@ -61,11 +61,11 @@ class NNTuning {
   static const double friseurMultAllesTrumpf = 1.619;
   static const double friseurMultOben = 1.587;
   static const double friseurMultUnten = 1.493;
-  static const double friseurMultSlalom = 1.883;
+  static const double friseurMultSlalom = 1.855; // ×0.985 faire KI (sehr empfindlich)
   static const double friseurMultSchafkopf = 1.4;
   static const double friseurMultMisere = 1.589;
   static const double friseurMultMolotof = 1.97;
-  static const double friseurMultElefant = 2.263;
+  static const double friseurMultElefant = 2.195; // ×0.97 faire KI (Elefant −11 Pkt)
 
   // ── Friseur Solo Im-Loch-Boost (2× geschoben) ───────────
   // Im Loch wird Misère/Molotof als Fallback attraktiver.
@@ -83,11 +83,11 @@ class NNTuning {
   static const double friseurLochMultAllesTrumpf = 1.69;
   static const double friseurLochMultOben = 1.52;
   static const double friseurLochMultUnten = 1.47;
-  static const double friseurLochMultSlalom = 1.86;
+  static const double friseurLochMultSlalom = 1.83; // ×0.985 faire KI
   static const double friseurLochMultSchafkopf = 1.37;
   static const double friseurLochMultMisere = 1.52 * friseurLochBoostMisere;
   static const double friseurLochMultMolotof = 1.79 * friseurLochBoostMolotof;
-  static const double friseurLochMultElefant = 1.35;
+  static const double friseurLochMultElefant = 1.31; // ×0.97 faire KI
 
   // ── Friseur Solo Schiebe-Schwellenwerte ────────────────
   // 2. Schiebe-Runde: Schwelle leicht senken, damit ~5% trotzdem ansagen.
